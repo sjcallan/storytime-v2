@@ -1,0 +1,33 @@
+<?php
+
+namespace Database\Factories;
+
+use Illuminate\Database\Eloquent\Factories\Factory;
+
+/**
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Genre>
+ */
+class GenreFactory extends Factory
+{
+    /**
+     * Define the model's default state.
+     *
+     * @return array<string, mixed>
+     */
+    public function definition(): array
+    {
+        return [
+            'name' => fake()->unique()->randomElement([
+                'Fantasy',
+                'Adventure',
+                'Mystery',
+                'Science Fiction',
+                'Fairy Tale',
+                'Historical',
+                'Comedy',
+                'Animal Stories',
+            ]),
+            'description' => fake()->sentence(),
+        ];
+    }
+}
