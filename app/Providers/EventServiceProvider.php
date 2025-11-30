@@ -37,10 +37,9 @@ class EventServiceProvider extends ServiceProvider
      * TODO: Fix BuilderService dependencies or make these queued jobs.
      */
     protected $listen = [
-        // \App\Events\Book\BookCreatedEvent::class => [
-        //     \App\Listeners\Book\CreateBookMetaDataListener::class,
-        //     \App\Listeners\Chapter\CreateFirstChapterListener::class,
-        // ],
+        \App\Events\Book\BookUpdatedEvent::class => [
+            \App\Listeners\Chapter\CreateFirstChapterListener::class,
+        ],
         \App\Events\Character\CharacterCreatedEvent::class => [
             \App\Listeners\Character\GenerateCharacterPortraitListener::class,
         ],

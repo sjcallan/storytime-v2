@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { ref, computed, watch, inject, onUnmounted } from 'vue';
+import { router, usePage } from '@inertiajs/vue3';
 import { apiFetch } from '@/composables/ApiFetch';
+import { echo } from '@laravel/echo-vue';
+import type { Profile } from '@/types';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,6 +41,10 @@ const props = defineProps<{
 
 const isOpen = defineModel<boolean>('isOpen');
 
+// Get current profile from page props for default age group
+const page = usePage();
+const currentProfile = computed(() => page.props.auth?.currentProfile as Profile | null);
+
 type ApiFetchFn = (
     request: string,
     method?: string,
@@ -55,6 +61,12 @@ interface Character {
     gender: string;
     description: string;
     backstory: string;
+    portrait_image?: string | null;
+}
+
+interface PortraitCreatedPayload {
+    id: string;
+    portrait_image: string;
 }
 
 const currentStep = ref(1);
@@ -79,6 +91,124 @@ const newCharacter = ref<Character>({
     gender: '',
     description: '',
     backstory: '',
+});
+
+// Echo channel subscription for portrait updates
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const echoChannel = ref<any>(null);
+const activeListeners = ref<Set<string>>(new Set());
+
+const setupPortraitListener = (characterId: string) => {
+    // Don't set up listeners for temp IDs
+    if (characterId.startsWith('temp-') || characterId.startsWith('extracted-')) {
+        console.log('[Echo] Skipping listener for temp ID:', characterId);
+        return;
+    }
+    
+    // Don't add duplicate listeners
+    if (activeListeners.value.has(characterId)) {
+        console.log('[Echo] Listener already exists for:', characterId);
+        return;
+    }
+    
+    try {
+        // Subscribe to the private characters channel if not already
+        if (!echoChannel.value) {
+            console.log('[Echo] Subscribing to private channel: characters');
+            echoChannel.value = echo().private('characters');
+            
+            // Log when successfully subscribed
+            echoChannel.value.subscribed(() => {
+                console.log('[Echo] Successfully subscribed to characters channel');
+            });
+            
+            // Log subscription errors
+            echoChannel.value.error((error: unknown) => {
+                console.error('[Echo] Channel subscription error:', error);
+            });
+        }
+        
+        // Listen for this character's portrait-created event
+        const eventName = `.character.${characterId}.portrait-created`;
+        console.log('[Echo] Setting up listener for event:', eventName);
+        
+        echoChannel.value.listen(eventName, (payload: PortraitCreatedPayload) => {
+            console.log('[Echo] Received portrait-created event:', payload);
+            // Find and update the character's portrait_image
+            const charIndex = characters.value.findIndex(c => c.id === payload.id);
+            if (charIndex !== -1) {
+                console.log('[Echo] Updating character portrait at index:', charIndex);
+                characters.value[charIndex].portrait_image = payload.portrait_image;
+            } else {
+                console.log('[Echo] Character not found in list for ID:', payload.id);
+            }
+        });
+        
+        activeListeners.value.add(characterId);
+        console.log('[Echo] Listener setup complete for:', characterId);
+    } catch (err) {
+        console.error('[Echo] Failed to setup portrait listener:', err);
+    }
+};
+
+const cleanupPortraitListener = (characterId: string) => {
+    if (!echoChannel.value || !activeListeners.value.has(characterId)) {
+        return;
+    }
+    
+    try {
+        const eventName = `.character.${characterId}.portrait-created`;
+        echoChannel.value.stopListening(eventName);
+        activeListeners.value.delete(characterId);
+    } catch (err) {
+        console.error('Failed to cleanup portrait listener:', err);
+    }
+};
+
+const cleanupAllListeners = () => {
+    if (echoChannel.value) {
+        activeListeners.value.forEach(characterId => {
+            const eventName = `.character.${characterId}.portrait-created`;
+            try {
+                echoChannel.value?.stopListening(eventName);
+            } catch (err) {
+                // Ignore errors during cleanup
+            }
+        });
+        activeListeners.value.clear();
+        
+        try {
+            echo().leave('characters');
+        } catch (err) {
+            // Ignore errors during cleanup
+        }
+        echoChannel.value = null;
+    }
+};
+
+// Watch for character changes to setup/cleanup listeners
+watch(characters, (newChars, oldChars) => {
+    // Setup listeners for new characters
+    newChars.forEach(char => {
+        if (!char.id.startsWith('temp-') && !char.id.startsWith('extracted-')) {
+            setupPortraitListener(char.id);
+        }
+    });
+    
+    // Cleanup listeners for removed characters
+    if (oldChars) {
+        const newIds = new Set(newChars.map(c => c.id));
+        oldChars.forEach(char => {
+            if (!newIds.has(char.id)) {
+                cleanupPortraitListener(char.id);
+            }
+        });
+    }
+}, { deep: true });
+
+// Cleanup on unmount
+onUnmounted(() => {
+    cleanupAllListeners();
 });
 
 const errors = ref<Record<string, string>>({});
@@ -226,10 +356,13 @@ const canProceed = computed(() => {
 });
 
 const resetForm = (genre: string | null = null) => {
+    // Clean up Echo listeners before resetting characters
+    cleanupAllListeners();
+    
     formData.value = {
         type: '',
         genre: genre ?? '',
-        age_level: '',
+        age_level: currentProfile.value?.age_group ?? '',
         plot: '',
         first_chapter_prompt: '',
         scene: '',
@@ -246,6 +379,7 @@ const resetForm = (genre: string | null = null) => {
 
 // Create book with initial data (after step 1)
 const createBook = async (): Promise<boolean> => {
+    console.log('[CreateBook] Starting book creation...');
     isSaving.value = true;
     errors.value = {};
 
@@ -259,18 +393,21 @@ const createBook = async (): Promise<boolean> => {
 
         if (error) {
             const message = extractErrorMessage(error);
+            console.error('[CreateBook] API error:', message);
             errors.value = { general: message ?? 'Failed to create book. Please try again.' };
             return false;
         }
 
         if (data && typeof data === 'object' && 'id' in data) {
             bookId.value = (data as { id: string }).id;
+            console.log('[CreateBook] Book created successfully, bookId:', bookId.value);
             return true;
         }
 
+        console.error('[CreateBook] Unexpected response format:', data);
         return false;
     } catch (err) {
-        console.error('Error creating book:', err);
+        console.error('[CreateBook] Exception:', err);
         errors.value = { general: 'An unexpected error occurred. Please try again.' };
         return false;
     } finally {
@@ -306,7 +443,10 @@ const updateBook = async (data: Record<string, unknown>): Promise<boolean> => {
 
 // Save a single character to the book
 const saveCharacterToBook = async (character: Omit<Character, 'id'>): Promise<Character | null> => {
+    console.log('[SaveCharacter] Attempting to save character:', character.name, 'bookId:', bookId.value);
+    
     if (!bookId.value) {
+        console.error('[SaveCharacter] Cannot save character - bookId is not set!');
         return null;
     }
 
@@ -318,17 +458,19 @@ const saveCharacterToBook = async (character: Omit<Character, 'id'>): Promise<Ch
         });
 
         if (error) {
-            console.error('Error saving character:', error);
+            console.error('[SaveCharacter] API error saving character:', error);
             return null;
         }
 
         if (data && typeof data === 'object' && 'id' in data) {
+            console.log('[SaveCharacter] Character saved successfully:', (data as Character).id);
             return data as Character;
         }
 
+        console.error('[SaveCharacter] Unexpected response format:', data);
         return null;
     } catch (err) {
-        console.error('Error saving character:', err);
+        console.error('[SaveCharacter] Exception saving character:', err);
         return null;
     }
 };
@@ -539,8 +681,11 @@ const nextStep = async () => {
 };
 
 const extractCharactersFromPlot = async () => {
+    console.log('[ExtractCharacters] Starting extraction, bookId:', bookId.value, 'existing characters:', characters.value.length);
+    
     // Only extract if we don't already have characters
     if (characters.value.length > 0) {
+        console.log('[ExtractCharacters] Skipping - already have characters');
         return;
     }
 
@@ -550,6 +695,7 @@ const extractCharactersFromPlot = async () => {
     try {
         extractionStatus.value = 'Creating characters for your story...';
         
+        console.log('[ExtractCharacters] Calling API to extract characters...');
         const { data, error } = await requestApiFetch('/api/extract-characters', 'POST', {
             plot: formData.value.plot,
             genre: formData.value.genre,
@@ -557,11 +703,13 @@ const extractCharactersFromPlot = async () => {
         });
 
         if (error) {
-            console.error('Failed to extract characters:', error);
+            console.error('[ExtractCharacters] API error:', error);
             extractionStatus.value = '';
             return;
         }
 
+        console.log('[ExtractCharacters] Got response:', data);
+        
         if (data && typeof data === 'object' && 'characters' in data) {
             const extractedCharacters = (data as { characters: Array<{
                 name: string;
@@ -571,15 +719,18 @@ const extractCharactersFromPlot = async () => {
                 backstory: string;
             }> }).characters;
 
+            console.log('[ExtractCharacters] Extracted characters:', extractedCharacters?.length);
+
             if (extractedCharacters && extractedCharacters.length > 0) {
                 extractionStatus.value = `Saving ${extractedCharacters.length} characters...`;
+                console.log('[ExtractCharacters] About to save characters, bookId:', bookId.value);
                 
                 // Save each character to the book and get real IDs
                 const savedCharacters: Character[] = [];
                 for (const char of extractedCharacters) {
                     const savedChar = await saveCharacterToBook({
                         name: char.name || '',
-                        age: char.age || '',
+                        age: String(char.age ?? ''),
                         gender: char.gender || '',
                         description: char.description || '',
                         backstory: char.backstory || '',
@@ -587,15 +738,19 @@ const extractCharactersFromPlot = async () => {
                     
                     if (savedChar) {
                         savedCharacters.push(savedChar);
+                        console.log('[ExtractCharacters] Character saved:', savedChar.name);
+                    } else {
+                        console.error('[ExtractCharacters] Failed to save character:', char.name);
                     }
                 }
                 
                 characters.value = savedCharacters;
+                console.log('[ExtractCharacters] Total saved:', savedCharacters.length, 'out of', extractedCharacters.length);
                 extractionStatus.value = `Found ${characters.value.length} characters!`;
             }
         }
     } catch (err) {
-        console.error('Character extraction error:', err);
+        console.error('[ExtractCharacters] Exception:', err);
     } finally {
         setTimeout(() => {
             isExtractingCharacters.value = false;
@@ -751,10 +906,11 @@ const handleSubmit = async () => {
             return;
         }
 
-        // Update book with final details (first_chapter_prompt and scene)
+        // Update book with final details (first_chapter_prompt, scene, and mark as in_progress)
         const updateSuccess = await updateBook({
             first_chapter_prompt: formData.value.first_chapter_prompt,
             scene: formData.value.scene,
+            status: 'in_progress',
         });
 
         if (!updateSuccess) {
@@ -1127,8 +1283,30 @@ watch(() => props.defaultGenre, (newGenre) => {
                                         class="flex cursor-pointer items-center gap-4 p-4 transition-all"
                                         @click="toggleEditCharacter(index)"
                                     >
-                                        <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-2xl font-bold text-white shadow-lg">
-                                            {{ character.name.charAt(0).toUpperCase() }}
+                                        <!-- Character Avatar: Portrait, Loading Spinner, or Initial -->
+                                        <div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-lg">
+                                            <!-- Portrait Image -->
+                                            <img 
+                                                v-if="character.portrait_image" 
+                                                :src="character.portrait_image" 
+                                                :alt="character.name"
+                                                class="h-full w-full object-cover"
+                                            />
+                                            <!-- Loading State (no portrait yet) -->
+                                            <div 
+                                                v-else 
+                                                class="flex h-full w-full items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600"
+                                            >
+                                                <!-- Show spinner if character has real ID (portrait is being generated) -->
+                                                <Spinner 
+                                                    v-if="!character.id.startsWith('temp-') && !character.id.startsWith('extracted-')" 
+                                                    class="h-6 w-6 text-white/80"
+                                                />
+                                                <!-- Show initial for temp characters -->
+                                                <span v-else class="text-2xl font-bold text-white">
+                                                    {{ character.name.charAt(0).toUpperCase() }}
+                                                </span>
+                                            </div>
                                         </div>
                                         <div class="min-w-0 flex-1">
                                             <div class="flex items-center gap-2">
@@ -1426,27 +1604,27 @@ watch(() => props.defaultGenre, (newGenre) => {
                 </div>
 
             <!-- Footer Navigation -->
-            <div class="flex items-center justify-between border-t bg-muted/30 px-6 py-4">
+            <div class="flex items-center justify-between border-t bg-muted/30 px-6 py-5">
                 <Button
                     v-if="currentStep > 1"
                     type="button"
                     variant="ghost"
                     @click="prevStep"
                     :disabled="processing || isSaving || isExtractingCharacters"
-                    class="cursor-pointer gap-2 rounded-xl transition-all duration-200 hover:-translate-x-0.5 hover:bg-muted"
+                    class="h-14 cursor-pointer gap-3 rounded-2xl px-6 text-lg font-semibold transition-all duration-200 hover:-translate-x-0.5 hover:bg-muted"
                 >
-                    <ChevronLeft class="h-4 w-4" />
+                    <ChevronLeft class="h-6 w-6" />
                     Back
                 </Button>
                 <div v-else />
 
-                <div class="flex gap-3">
+                <div class="flex gap-4">
                     <Button
                         type="button"
                         variant="outline"
                         @click="requestClose"
                         :disabled="processing || isSaving"
-                        class="cursor-pointer rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                        class="h-14 cursor-pointer rounded-2xl px-8 text-lg font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
                     >
                         Cancel
                     </Button>
@@ -1456,9 +1634,9 @@ watch(() => props.defaultGenre, (newGenre) => {
                         type="button"
                         @click="nextStep"
                         :disabled="!canProceed || processing || isExtractingCharacters || isSaving"
-                        class="cursor-pointer gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 text-white shadow-lg transition-all duration-200 hover:translate-x-0.5 hover:from-orange-600 hover:to-amber-600 hover:shadow-orange-500/25 hover:shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:shadow-none"
+                        class="h-14 cursor-pointer gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-10 text-lg font-semibold text-white shadow-lg transition-all duration-200 hover:translate-x-0.5 hover:from-orange-600 hover:to-amber-600 hover:shadow-orange-500/25 hover:shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:shadow-none"
                     >
-                        <Spinner v-if="isExtractingCharacters || isSaving" class="h-4 w-4" />
+                        <Spinner v-if="isExtractingCharacters || isSaving" class="h-5 w-5" />
                         <template v-if="isSaving && currentStep === 1">
                             Creating Book...
                         </template>
@@ -1470,7 +1648,7 @@ watch(() => props.defaultGenre, (newGenre) => {
                         </template>
                         <template v-else>
                             Next
-                            <ChevronRight class="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                            <ChevronRight class="h-6 w-6 transition-transform group-hover:translate-x-0.5" />
                         </template>
                     </Button>
                     
@@ -1479,10 +1657,10 @@ watch(() => props.defaultGenre, (newGenre) => {
                         type="button"
                         @click="handleSubmit"
                         :disabled="processing || isGeneratingCover"
-                        class="cursor-pointer gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-6 shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-violet-700 hover:to-purple-700 hover:shadow-violet-500/25 hover:shadow-xl active:scale-[0.98]"
+                        class="h-14 cursor-pointer gap-3 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 px-10 text-lg font-semibold shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-violet-700 hover:to-purple-700 hover:shadow-violet-500/25 hover:shadow-xl active:scale-[0.98]"
                     >
-                        <Spinner v-if="processing || isGeneratingCover" class="h-4 w-4" />
-                        <Sparkles v-else class="h-4 w-4" />
+                        <Spinner v-if="processing || isGeneratingCover" class="h-5 w-5" />
+                        <Sparkles v-else class="h-5 w-5" />
                         <template v-if="isGeneratingCover">
                             {{ coverGenerationStatus || 'Creating cover...' }}
                         </template>

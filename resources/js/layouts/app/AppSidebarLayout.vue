@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, provide, computed } from 'vue';
+import { provide, computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import CreateStoryModal from '@/components/CreateStoryModal.vue';
 import ProfileSwitcher from '@/components/ProfileSwitcher.vue';
+import { useCreateStoryModal } from '@/composables/useCreateStoryModal';
 import { dashboard } from '@/routes';
 import { Link, usePage } from '@inertiajs/vue3';
 import { BookOpen, Wand2, Sparkles } from 'lucide-vue-next';
@@ -11,13 +12,9 @@ const page = usePage();
 const profiles = computed(() => page.props.auth.profiles || []);
 const currentProfile = computed(() => page.props.auth.currentProfile);
 
-const isCreateModalOpen = ref(false);
+// Use shared composable for modal state
+const { isOpen: isCreateModalOpen, open: openCreateStoryModal } = useCreateStoryModal();
 
-const openCreateStoryModal = () => {
-    isCreateModalOpen.value = true;
-};
-
-provide('openCreateStoryModal', openCreateStoryModal);
 provide('currentProfile', currentProfile);
 </script>
 

@@ -2,15 +2,14 @@
 
 namespace App\Listeners\Book;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
+use App\Services\Book\BookService;
 
 class CreateBookMetaDataListener
 {
     /**
      * Create the event listener.
      */
-    public function __construct()
+    public function __construct(protected BookService $bookService)
     {
         //
     }
@@ -22,11 +21,12 @@ class CreateBookMetaDataListener
     {
         $book = $event->book;
 
-        if(!$book) {
+        if (! $book) {
             return;
         }
 
-        $bookService = app(\App\Services\Book\BookService::class);
-        $bookService->createBookMetaDataByBookId($book->id);
+        if (! $book->getOriginal('plot') && $book->plot) {
+            $this->bookService->createBookMetaDataByBookId($book->id);
+        }
     }
 }

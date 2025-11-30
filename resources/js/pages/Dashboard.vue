@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, toRefs, watch, inject } from 'vue';
+import { computed, ref, toRefs, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import BookViewModal from '@/components/BookViewModal.vue';
 import { Button } from '@/components/ui/button';
+import { useCreateStoryModal } from '@/composables/useCreateStoryModal';
 import { Head } from '@inertiajs/vue3';
-import { Plus } from 'lucide-vue-next';
+import { Plus, ChevronLeft, ChevronRight } from 'lucide-vue-next';
 
 const props = defineProps<{
     booksByGenre: Record<string, Array<{
@@ -15,6 +16,7 @@ const props = defineProps<{
         age_level: number | null;
         status: string;
         cover_image?: string;
+        created_at?: string;
     }>>;
     userName: string;
 }>();
@@ -29,6 +31,7 @@ type BookSummary = {
     age_level: number | null;
     status: string;
     cover_image?: string | null;
+    created_at?: string;
 };
 
 type BookDetails = BookSummary & {
@@ -38,7 +41,14 @@ type BookDetails = BookSummary & {
 
 const cloneBooksByGenre = (source: Record<string, BookSummary[]>): Record<string, BookSummary[]> => {
     return Object.entries(source).reduce((acc, [genre, books]) => {
-        acc[genre] = books.map(book => ({ ...book }));
+        // Clone and sort by created_at desc
+        acc[genre] = books
+            .map(book => ({ ...book }))
+            .sort((a, b) => {
+                const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                return dateB - dateA;
+            });
         return acc;
     }, {} as Record<string, BookSummary[]>);
 };
@@ -47,11 +57,74 @@ const booksByGenreState = ref<Record<string, BookSummary[]>>(cloneBooksByGenre(b
 
 watch(booksByGenre, newValue => {
     booksByGenreState.value = cloneBooksByGenre(newValue);
+    nextTick(() => updateAllScrollStates());
 });
 
 const hasBooks = computed(() => Object.values(booksByGenreState.value).some(list => list.length > 0));
 
-const openCreateStoryModal = inject<() => void>('openCreateStoryModal', () => {});
+// Carousel functionality
+const carouselRefs = ref<Record<string, HTMLElement | null>>({});
+const scrollStates = ref<Record<string, { canScrollLeft: boolean; canScrollRight: boolean }>>({});
+
+const setCarouselRef = (genre: string, el: HTMLElement | null) => {
+    carouselRefs.value[genre] = el;
+    if (el) {
+        updateScrollState(genre);
+    }
+};
+
+const updateScrollState = (genre: string) => {
+    const container = carouselRefs.value[genre];
+    if (!container) {
+        return;
+    }
+
+    const { scrollLeft, scrollWidth, clientWidth } = container;
+    scrollStates.value[genre] = {
+        canScrollLeft: scrollLeft > 1,
+        canScrollRight: scrollLeft < scrollWidth - clientWidth - 1,
+    };
+};
+
+const updateAllScrollStates = () => {
+    Object.keys(carouselRefs.value).forEach(genre => {
+        updateScrollState(genre);
+    });
+};
+
+const scrollCarousel = (genre: string, direction: 'left' | 'right') => {
+    const container = carouselRefs.value[genre];
+    if (!container) {
+        return;
+    }
+
+    const cardWidth = 240; // Approximate card width including gap
+    const scrollAmount = cardWidth * 3; // Scroll 3 cards at a time
+    const targetScroll = direction === 'left' 
+        ? container.scrollLeft - scrollAmount 
+        : container.scrollLeft + scrollAmount;
+    
+    container.scrollTo({
+        left: targetScroll,
+        behavior: 'smooth',
+    });
+};
+
+const handleScroll = (genre: string) => {
+    updateScrollState(genre);
+};
+
+onMounted(() => {
+    window.addEventListener('resize', updateAllScrollStates);
+    nextTick(() => updateAllScrollStates());
+});
+
+onUnmounted(() => {
+    window.removeEventListener('resize', updateAllScrollStates);
+});
+
+// Use shared composable for modal state
+const { open: openCreateStoryModal } = useCreateStoryModal();
 
 const isBookViewOpen = ref(false);
 const selectedBookId = ref<string | null>(null);
@@ -274,86 +347,114 @@ const formatGenreName = (genre: string) => {
             <div
                 v-for="(books, genre) in booksByGenreState"
                 :key="genre"
-                class="space-y-6"
+                class="space-y-4"
             >
                 <!-- Genre Header -->
-                <div>
+                <div class="flex items-center justify-between">
                     <h2 class="text-2xl font-medium tracking-tight">
                         {{ formatGenreName(genre) }}
                     </h2>
                 </div>
 
-                <!-- Books Grid -->
-                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
-                    <div
-                        v-for="book in books"
-                        :key="book.id"
-                        :style="getCardVisualStyles(book.id)"
-                        @click="openBook(book.id, book.cover_image || null, book.title, book.author || null, $event)"
-                        class="group relative overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card transition-all duration-300 hover:-translate-y-1 hover:[box-shadow:0_24px_48px_-18px_var(--card-shadow-color)] dark:border-sidebar-border cursor-pointer"
+                <!-- Books Carousel -->
+                <div class="group/carousel relative">
+                    <!-- Left Navigation Arrow -->
+                    <button
+                        v-show="scrollStates[genre]?.canScrollLeft"
+                        @click="scrollCarousel(genre as string, 'left')"
+                        class="absolute -left-2 top-1/2 z-10 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-background/95 shadow-lg border border-sidebar-border/70 backdrop-blur-sm transition-all duration-200 hover:scale-110 hover:bg-background dark:border-sidebar-border cursor-pointer"
+                        aria-label="Scroll left"
                     >
-                        <!-- Book Cover -->
-                        <div class="relative aspect-[3/4] overflow-hidden">
-                            <!-- Cover Image (if exists) -->
-                            <template v-if="book.cover_image">
-                                <div class="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-background">
-                                    <img
-                                        :src="book.cover_image"
-                                        :alt="book.title"
-                                        class="h-full w-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:rotate-1"
-                                    />
-                                </div>
-                            </template>
-                            
-                            <!-- Gradient Background with Title (no cover image) -->
-                            <template v-else>
-                                <div 
-                                    class="absolute inset-0 flex items-center justify-center p-6"
-                                    :class="getGradientColors(book.id)"
-                                >
-                                    <h3 class="text-2xl md:text-3xl font-bold text-center text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] transition-all duration-500 group-hover:scale-105"
-                                        style="text-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 -1px 2px rgba(255,255,255,0.3)"
-                                    >
-                                        {{ book.title || 'Untitled Story' }}
-                                    </h3>
-                                </div>
-                            </template>
-                            
-                            <!-- Magical Shine Effect on Hover -->
-                            <div class="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent opacity-0 -translate-x-full transition-all duration-1000 group-hover:opacity-100 group-hover:translate-x-full" />
-                            
-                            <!-- Overlay on Hover -->
-                            <div
-                                class="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                                :style="{
-                                    background: 'linear-gradient(to top, var(--card-overlay-dark) 0%, var(--card-overlay-mid) 55%, transparent 100%)',
-                                }"
-                            />
-                            
-                            
-                            
-                            <!-- Status Badge -->
-                            <div class="absolute right-3 top-3">
-                                <span class="inline-flex items-center rounded-full bg-background/90 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-                                    {{ book.status }}
-                                </span>
-                            </div>
-                        </div>
+                        <ChevronLeft class="h-5 w-5 text-foreground" />
+                    </button>
 
-                        <!-- Book Info -->
-                        <div class="space-y-2 p-4">
-                            <h3 class="line-clamp-2 text-lg font-semibold tracking-tight">
-                                {{ book.title || 'Untitled Story' }}
-                            </h3>
-                            
-                            <div class="flex items-center gap-2 text-sm text-muted-foreground">
-                                <span v-if="book.author">{{ book.author }}</span>
-                                <span v-if="book.author && book.age_level">•</span>
-                                <span v-if="book.age_level">Age {{ book.age_level }}+</span>
+                    <!-- Carousel Container -->
+                    <div
+                        :ref="(el) => setCarouselRef(genre as string, el as HTMLElement | null)"
+                        @scroll="handleScroll(genre as string)"
+                        class="flex gap-6 overflow-x-auto scroll-smooth pb-4 scrollbar-none"
+                        style="scrollbar-width: none; -ms-overflow-style: none;"
+                    >
+                        <div
+                            v-for="book in books"
+                            :key="book.id"
+                            :style="getCardVisualStyles(book.id)"
+                            @click="openBook(book.id, book.cover_image || null, book.title, book.author || null, $event)"
+                            class="group relative shrink-0 w-[200px] overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card transition-all duration-300 hover:-translate-y-1 hover:[box-shadow:0_24px_48px_-18px_var(--card-shadow-color)] dark:border-sidebar-border cursor-pointer"
+                        >
+                            <!-- Book Cover -->
+                            <div class="relative aspect-[3/4] overflow-hidden">
+                                <!-- Cover Image (if exists) -->
+                                <template v-if="book.cover_image">
+                                    <div class="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-background">
+                                        <img
+                                            :src="book.cover_image"
+                                            :alt="book.title"
+                                            class="h-full w-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:rotate-1"
+                                        />
+                                    </div>
+                                </template>
+                                
+                                <!-- Gradient Background with Title (no cover image) -->
+                                <template v-else>
+                                    <div 
+                                        class="absolute inset-0 flex items-center justify-center p-4"
+                                        :class="getGradientColors(book.id)"
+                                    >
+                                        <h3 class="text-xl font-bold text-center text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] transition-all duration-500 group-hover:scale-105"
+                                            style="text-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 -1px 2px rgba(255,255,255,0.3)"
+                                        >
+                                            {{ book.title || 'Untitled Story' }}
+                                        </h3>
+                                    </div>
+                                </template>
+                                
+                                <!-- Magical Shine Effect on Hover -->
+                                <div class="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent opacity-0 -translate-x-full transition-all duration-1000 group-hover:opacity-100 group-hover:translate-x-full" />
+                                
+                                <!-- Overlay on Hover -->
+                                <div
+                                    class="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                                    :style="{
+                                        background: 'linear-gradient(to top, var(--card-overlay-dark) 0%, var(--card-overlay-mid) 55%, transparent 100%)',
+                                    }"
+                                />
+                            </div>
+
+                            <!-- Book Info -->
+                            <div class="space-y-1.5 p-3">
+                                <h3 class="line-clamp-2 text-sm font-semibold tracking-tight">
+                                    {{ book.title || 'Untitled Story' }}
+                                </h3>
+                                
+                                <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <span v-if="book.author" class="truncate">{{ book.author }}</span>
+                                    <span v-if="book.author && book.age_level">•</span>
+                                    <span v-if="book.age_level" class="shrink-0">Age {{ book.age_level }}+</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
+                    <!-- Right Navigation Arrow -->
+                    <button
+                        v-show="scrollStates[genre]?.canScrollRight"
+                        @click="scrollCarousel(genre as string, 'right')"
+                        class="absolute -right-2 top-1/2 z-10 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-background/95 shadow-lg border border-sidebar-border/70 backdrop-blur-sm transition-all duration-200 hover:scale-110 hover:bg-background dark:border-sidebar-border cursor-pointer"
+                        aria-label="Scroll right"
+                    >
+                        <ChevronRight class="h-5 w-5 text-foreground" />
+                    </button>
+
+                    <!-- Edge fade gradients -->
+                    <div
+                        v-show="scrollStates[genre]?.canScrollLeft"
+                        class="pointer-events-none absolute left-0 top-0 bottom-4 w-12 bg-gradient-to-r from-background to-transparent"
+                    />
+                    <div
+                        v-show="scrollStates[genre]?.canScrollRight"
+                        class="pointer-events-none absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-background to-transparent"
+                    />
                 </div>
             </div>
         </div>

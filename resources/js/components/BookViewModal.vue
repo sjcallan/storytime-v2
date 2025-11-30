@@ -18,6 +18,11 @@ import {
 import { apiFetch } from '@/composables/ApiFetch';
 import { BookOpen, ChevronLeft, ChevronRight, MoreVertical, Sparkles, Wand2, X } from 'lucide-vue-next';
 
+interface Profile {
+    id: string;
+    name: string;
+}
+
 interface Book {
     id: string;
     title: string;
@@ -28,6 +33,7 @@ interface Book {
     cover_image: string | null;
     status: string;
     created_at: string;
+    profile?: Profile | null;
 }
 
 interface Chapter {
@@ -781,6 +787,13 @@ const displayTitle = computed(() => {
 });
 
 const displayAuthor = computed(() => {
+    // First try profile name from relationship
+    const profileName = book.value?.profile?.name?.trim();
+    if (profileName) {
+        return profileName;
+    }
+
+    // Fall back to author field
     const fetchedAuthor = book.value?.author?.trim();
     if (fetchedAuthor) {
         return fetchedAuthor;
@@ -869,7 +882,7 @@ onBeforeUnmount(() => {
                         class="text-2xl md:text-3xl lg:text-4xl font-bold text-center text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
                         style="text-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 -1px 2px rgba(255,255,255,0.3)"
                     >
-                        {{ displayTitle }}
+                        {{ displayTitle }} 
                     </h3>
                 </div>
             </div>
@@ -1098,7 +1111,7 @@ onBeforeUnmount(() => {
                                     <h1 class="mb-2 font-serif text-2xl md:text-4xl font-bold tracking-tight drop-shadow-lg line-clamp-2">
                                         {{ displayTitle }}
                                     </h1>
-                                    <p v-if="displayAuthor" class="mb-4 font-serif text-base md:text-lg italic text-white/90 drop-shadow">
+                                    <p v-if="displayAuthor" class="mb-6 font-serif text-sm md:text-base italic text-white/80 drop-shadow">
                                         by {{ displayAuthor }}
                                     </p>
                                     <button 

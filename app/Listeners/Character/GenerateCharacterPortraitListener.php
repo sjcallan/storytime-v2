@@ -2,12 +2,15 @@
 
 namespace App\Listeners\Character;
 
-use App\Events\Character\CharacterCreatedEvent;
+use App\Events\Character\CharacterPortraitCreatedEvent;
 use App\Models\Character;
 use App\Services\Replicate\ReplicateApiService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class GenerateCharacterPortraitListener implements ShouldQueue
 {
@@ -18,7 +21,7 @@ class GenerateCharacterPortraitListener implements ShouldQueue
     /**
      * Handle the event.
      */
-    public function handle(CharacterCreatedEvent $event): void
+    public function handle(object $event): void
     {
         $character = $event->character;
 
@@ -56,12 +59,50 @@ class GenerateCharacterPortraitListener implements ShouldQueue
         }
 
         if ($result['url']) {
-            $character->update(['portrait_image' => $result['url']]);
+            $localPath = $this->saveImageLocally($result['url'], $character->id);
 
-            Log::info("Portrait generated successfully for character: {$character->name}", [
-                'character_id' => $character->id,
-                'portrait_url' => $result['url'],
-            ]);
+            if ($localPath) {
+                $character->update(['portrait_image' => $localPath]);
+
+                event(new CharacterPortraitCreatedEvent($character));
+
+                Log::info("Portrait generated and saved locally for character: {$character->name}", [
+                    'character_id' => $character->id,
+                    'local_path' => $localPath,
+                ]);
+            } else {
+                Log::error("Failed to save portrait locally for character: {$character->name}", [
+                    'character_id' => $character->id,
+                    'remote_url' => $result['url'],
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Download and save the image to local storage.
+     */
+    protected function saveImageLocally(string $imageUrl, string $characterId): ?string
+    {
+        try {
+            $response = Http::timeout(30)->get($imageUrl);
+
+            if ($response->failed()) {
+                Log::error('Failed to download portrait image', ['url' => $imageUrl]);
+
+                return null;
+            }
+
+            $extension = 'webp';
+            $filename = "portraits/{$characterId}_".Str::random(8).".{$extension}";
+
+            Storage::disk('public')->put($filename, $response->body());
+
+            return "/storage/{$filename}";
+        } catch (\Exception $e) {
+            Log::error('Error saving portrait image locally', ['error' => $e->getMessage()]);
+
+            return null;
         }
     }
 
