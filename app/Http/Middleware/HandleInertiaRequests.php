@@ -38,12 +38,39 @@ class HandleInertiaRequests extends Middleware
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
 
+        $user = $request->user();
+        $profiles = [];
+        $currentProfile = null;
+
+        if ($user) {
+            $profiles = $user->profiles()
+                ->orderByDesc('is_default')
+                ->orderBy('created_at')
+                ->get();
+
+            $currentProfileId = $request->session()->get('current_profile_id');
+
+            if ($currentProfileId) {
+                $currentProfile = $profiles->firstWhere('id', $currentProfileId);
+            }
+
+            if (! $currentProfile) {
+                $currentProfile = $profiles->firstWhere('is_default', true) ?? $profiles->first();
+
+                if ($currentProfile) {
+                    $request->session()->put('current_profile_id', $currentProfile->id);
+                }
+            }
+        }
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user,
+                'profiles' => $profiles,
+                'currentProfile' => $currentProfile,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

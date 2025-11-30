@@ -21,6 +21,7 @@ class Book extends Model
         'age_level',
         'genre',
         'user_id',
+        'profile_id',
         'plot',
         'summary',
         'type',
@@ -46,6 +47,11 @@ class Book extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function profile(): BelongsTo
+    {
+        return $this->belongsTo(Profile::class);
     }
 
     public function chapters(): HasMany

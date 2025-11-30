@@ -44,6 +44,9 @@ class EventServiceProvider extends ServiceProvider
         \App\Events\Character\CharacterCreatedEvent::class => [
             \App\Listeners\Character\GenerateCharacterPortraitListener::class,
         ],
+        \App\Events\User\UserCreatedEvent::class => [
+            \App\Listeners\User\CreateDefaultProfileListener::class,
+        ],
     ];
 
     /**

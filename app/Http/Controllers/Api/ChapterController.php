@@ -41,6 +41,7 @@ class ChapterController extends Controller
         $chapter = Chapter::create([
             ...$request->validated(),
             'user_id' => auth()->id(),
+            'profile_id' => session('current_profile_id'),
         ]);
 
         $chapter->load(['user', 'book', 'characters']);

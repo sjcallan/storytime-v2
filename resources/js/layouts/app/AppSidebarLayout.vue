@@ -1,20 +1,15 @@
 <script setup lang="ts">
-import { ref, provide } from 'vue';
+import { ref, provide, computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import CreateStoryModal from '@/components/CreateStoryModal.vue';
-import UserInfo from '@/components/UserInfo.vue';
-import UserMenuContent from '@/components/UserMenuContent.vue';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import ProfileSwitcher from '@/components/ProfileSwitcher.vue';
 import { dashboard } from '@/routes';
 import { Link, usePage } from '@inertiajs/vue3';
 import { BookOpen, Wand2, Sparkles } from 'lucide-vue-next';
 
 const page = usePage();
-const user = page.props.auth.user;
+const profiles = computed(() => page.props.auth.profiles || []);
+const currentProfile = computed(() => page.props.auth.currentProfile);
 
 const isCreateModalOpen = ref(false);
 
@@ -23,6 +18,7 @@ const openCreateStoryModal = () => {
 };
 
 provide('openCreateStoryModal', openCreateStoryModal);
+provide('currentProfile', currentProfile);
 </script>
 
 <template>
@@ -51,7 +47,7 @@ provide('openCreateStoryModal', openCreateStoryModal);
                     </nav>
                 </div>
 
-                <!-- Right: Create Story Button & User Menu -->
+                <!-- Right: Create Story Button & Profile Menu -->
                 <div class="flex items-center gap-3">
                     <!-- Start a New Story Button -->
                     <button
@@ -79,23 +75,12 @@ provide('openCreateStoryModal', openCreateStoryModal);
                         </span>
                     </button>
 
-                    <DropdownMenu>
-                        <DropdownMenuTrigger as-child>
-                            <button
-                                class="flex items-center gap-2 rounded-full p-1 transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                data-test="user-menu-trigger"
-                            >
-                                <UserInfo :user="user" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                            class="w-56 rounded-lg"
-                            align="end"
-                            :side-offset="8"
-                        >
-                            <UserMenuContent :user="user" />
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <!-- Profile Switcher (includes settings & logout) -->
+                    <ProfileSwitcher 
+                        v-if="profiles.length > 0"
+                        :profiles="profiles" 
+                        :current-profile="currentProfile" 
+                    />
                 </div>
             </div>
         </header>

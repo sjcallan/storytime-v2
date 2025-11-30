@@ -957,7 +957,7 @@ onBeforeUnmount(() => {
                         class="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-end px-4 pt-4"
                     >
                         <div class="pointer-events-auto flex items-center gap-2">
-                            <DropdownMenu v-if="book && isBookOpened">
+                            <DropdownMenu v-if="book">
                                 <DropdownMenuTrigger :as-child="true">
                                     <Button
                                         variant="ghost"

@@ -42,6 +42,7 @@ class BookController extends Controller
             $book = Book::create([
                 ...$validated,
                 'user_id' => auth()->id(),
+                'profile_id' => session('current_profile_id'),
             ]);
 
             foreach ($charactersData as $characterData) {

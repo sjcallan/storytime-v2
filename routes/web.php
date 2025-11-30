@@ -12,10 +12,14 @@ Route::get('/', function () {
 
 Route::get('dashboard', function () {
     $user = auth()->user();
+    $currentProfileId = session('current_profile_id');
 
-    // Get all books for the user grouped by genre
+    // Get all books for the user's current profile grouped by genre
     $books = \App\Models\Book::query()
         ->where('user_id', $user->id)
+        ->when($currentProfileId, function ($query, $profileId) {
+            return $query->where('profile_id', $profileId);
+        })
         ->whereNotNull('genre')
         ->orderBy('last_opened_date', 'desc')
         ->get()

@@ -3,6 +3,8 @@ import type { LucideIcon } from 'lucide-vue-next';
 
 export interface Auth {
     user: User;
+    profiles: Profile[];
+    currentProfile: Profile | null;
 }
 
 export interface BreadcrumbItem {
@@ -31,7 +33,21 @@ export interface User {
     name: string;
     email: string;
     avatar?: string;
+    profile_photo_path?: string | null;
     email_verified_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface Profile {
+    id: string;
+    user_id: string;
+    name: string;
+    avatar: string | null;
+    profile_image_path: string | null;
+    age_group: string;
+    age_group_label: string;
+    is_default: boolean;
     created_at: string;
     updated_at: string;
 }

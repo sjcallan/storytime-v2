@@ -17,6 +17,7 @@ class Chapter extends Model
     protected $fillable = [
         'title',
         'user_id',
+        'profile_id',
         'book_id',
         'body',
         'summary',
@@ -43,6 +44,11 @@ class Chapter extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function profile(): BelongsTo
+    {
+        return $this->belongsTo(Profile::class);
     }
 
     public function book(): BelongsTo
