@@ -10,48 +10,61 @@ use App\Traits\Repository\Updatable;
 
 class ChapterRepository
 {
-    use Gettable, Creatable, Updatable, Deletable;
+    use Creatable, Deletable, Gettable, Updatable;
 
     /** @var \App\Models\Chapter */
     protected $model;
 
-    /** @var */
     protected $query;
 
-    /**
-     * @param \App\Models\Chapter $model
-     */
-    public function __construct(Chapter $model) 
+    public function __construct(Chapter $model)
     {
         $this->model = $model;
         $this->query = $model;
     }
 
-    /**
-     * @param int $userId
-     * @param array $fields
-     * @param array $options
-     */
-    public function getAllByUserId(int $userId, array $fields = null, array $options = null)
+    public function getAllByUserId(int $userId, ?array $fields = null, ?array $options = null)
     {
         $this->reset();
         $this->setFields($fields);
         $this->setOptions($options);
-        
+
         return $this->query->where('owner_id', $userId)->get();
     }
 
-    /**
-     * @param string $bookId
-     * @param array $fields
-     * @param array $options
-     */
-    public function getAllByBookId(string $bookId, array $fields = null, array $options = null)
+    public function getAllByBookId(string $bookId, ?array $fields = null, ?array $options = null)
     {
         $this->reset();
         $this->setFields($fields);
         $this->setOptions($options);
-        
+
         return $this->query->where('book_id', $bookId)->get();
+    }
+
+    /**
+     * Get a chapter by book ID and sort number.
+     */
+    public function getByBookIdAndSort(string $bookId, int $sort, ?array $fields = null, ?array $options = null)
+    {
+        $this->reset();
+        $this->setFields($fields);
+        $this->setOptions($options);
+
+        return $this->query
+            ->where('book_id', $bookId)
+            ->where('sort', $sort)
+            ->where('status', 'complete')
+            ->first();
+    }
+
+    /**
+     * Get the total count of complete chapters for a book.
+     */
+    public function getCompleteChapterCount(string $bookId): int
+    {
+        return $this->model
+            ->where('book_id', $bookId)
+            ->where('status', 'complete')
+            ->count();
     }
 }

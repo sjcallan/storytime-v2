@@ -84,6 +84,10 @@ const newCharacter = ref<Character>({
 const errors = ref<Record<string, string>>({});
 const processing = ref(false);
 
+// Book ID for progressive saving
+const bookId = ref<string | null>(null);
+const isSaving = ref(false);
+
 // Close confirmation state
 const showCloseConfirm = ref(false);
 
@@ -106,8 +110,13 @@ const requestClose = () => {
 
 const confirmClose = () => {
     showCloseConfirm.value = false;
+    const hadBook = bookId.value !== null;
     resetForm();
     isOpen.value = false;
+    // Reload if a book was created so user can see it
+    if (hadBook) {
+        router.reload();
+    }
 };
 
 const cancelClose = () => {
@@ -231,6 +240,138 @@ const resetForm = (genre: string | null = null) => {
     resetCharacterForm();
     errors.value = {};
     currentStep.value = 1;
+    bookId.value = null;
+    isSaving.value = false;
+};
+
+// Create book with initial data (after step 1)
+const createBook = async (): Promise<boolean> => {
+    isSaving.value = true;
+    errors.value = {};
+
+    try {
+        const { data, error } = await requestApiFetch('/api/books', 'POST', {
+            type: formData.value.type,
+            genre: formData.value.genre,
+            age_level: formData.value.age_level ? parseInt(formData.value.age_level) : null,
+            status: 'draft',
+        });
+
+        if (error) {
+            const message = extractErrorMessage(error);
+            errors.value = { general: message ?? 'Failed to create book. Please try again.' };
+            return false;
+        }
+
+        if (data && typeof data === 'object' && 'id' in data) {
+            bookId.value = (data as { id: string }).id;
+            return true;
+        }
+
+        return false;
+    } catch (err) {
+        console.error('Error creating book:', err);
+        errors.value = { general: 'An unexpected error occurred. Please try again.' };
+        return false;
+    } finally {
+        isSaving.value = false;
+    }
+};
+
+// Update book with current data
+const updateBook = async (data: Record<string, unknown>): Promise<boolean> => {
+    if (!bookId.value) {
+        return false;
+    }
+
+    isSaving.value = true;
+
+    try {
+        const { error } = await requestApiFetch(`/api/books/${bookId.value}`, 'PUT', data);
+
+        if (error) {
+            const message = extractErrorMessage(error);
+            console.error('Error updating book:', message);
+            return false;
+        }
+
+        return true;
+    } catch (err) {
+        console.error('Error updating book:', err);
+        return false;
+    } finally {
+        isSaving.value = false;
+    }
+};
+
+// Save a single character to the book
+const saveCharacterToBook = async (character: Omit<Character, 'id'>): Promise<Character | null> => {
+    if (!bookId.value) {
+        return null;
+    }
+
+    try {
+        const { data, error } = await requestApiFetch('/api/characters', 'POST', {
+            ...character,
+            book_id: bookId.value,
+            type: 'user',
+        });
+
+        if (error) {
+            console.error('Error saving character:', error);
+            return null;
+        }
+
+        if (data && typeof data === 'object' && 'id' in data) {
+            return data as Character;
+        }
+
+        return null;
+    } catch (err) {
+        console.error('Error saving character:', err);
+        return null;
+    }
+};
+
+// Update an existing character
+const updateCharacterInBook = async (characterId: string, character: Omit<Character, 'id'>): Promise<boolean> => {
+    try {
+        const { error } = await requestApiFetch(`/api/characters/${characterId}`, 'PUT', {
+            ...character,
+        });
+
+        if (error) {
+            console.error('Error updating character:', error);
+            return false;
+        }
+
+        return true;
+    } catch (err) {
+        console.error('Error updating character:', err);
+        return false;
+    }
+};
+
+// Delete a character from the book
+const deleteCharacterFromBook = async (characterId: string): Promise<boolean> => {
+    // Only delete if it's a real ID (not temp-)
+    if (characterId.startsWith('temp-') || characterId.startsWith('extracted-')) {
+        return true;
+    }
+
+    try {
+        const { error } = await requestApiFetch(`/api/characters/${characterId}`, 'DELETE');
+
+        if (error) {
+            console.error('Error deleting character:', error);
+            return false;
+        }
+
+        return true;
+    } catch (err) {
+        console.error('Error deleting character:', err);
+        return false;
+    }
 };
 
 const resetCharacterForm = () => {
@@ -368,10 +509,31 @@ const plotCharacterCountClass = computed(() => {
 
 const nextStep = async () => {
     if (currentStep.value < totalSteps && canProceed.value) {
-        // When moving from step 2 (plot) to step 3 (characters), extract characters
-        if (currentStep.value === 2 && formData.value.plot.trim()) {
-            await extractCharactersFromPlot();
+        // Step 1 -> 2: Create the book with basic details
+        if (currentStep.value === 1) {
+            const created = await createBook();
+            if (!created) {
+                return; // Don't proceed if book creation failed
+            }
         }
+        
+        // Step 2 -> 3: Save the plot and extract characters
+        if (currentStep.value === 2) {
+            // Save plot to the book
+            if (bookId.value && formData.value.plot.trim()) {
+                await updateBook({ plot: formData.value.plot });
+            }
+            // Extract characters from plot
+            if (formData.value.plot.trim()) {
+                await extractCharactersFromPlot();
+            }
+        }
+        
+        // Step 3 -> 4: Save any unsaved characters
+        if (currentStep.value === 3) {
+            // Characters are saved as they're added, so nothing special needed here
+        }
+        
         currentStep.value++;
     }
 };
@@ -410,14 +572,25 @@ const extractCharactersFromPlot = async () => {
             }> }).characters;
 
             if (extractedCharacters && extractedCharacters.length > 0) {
-                characters.value = extractedCharacters.map((char, index) => ({
-                    id: `extracted-${Date.now()}-${index}`,
-                    name: char.name || '',
-                    age: char.age || '',
-                    gender: char.gender || '',
-                    description: char.description || '',
-                    backstory: char.backstory || '',
-                }));
+                extractionStatus.value = `Saving ${extractedCharacters.length} characters...`;
+                
+                // Save each character to the book and get real IDs
+                const savedCharacters: Character[] = [];
+                for (const char of extractedCharacters) {
+                    const savedChar = await saveCharacterToBook({
+                        name: char.name || '',
+                        age: char.age || '',
+                        gender: char.gender || '',
+                        description: char.description || '',
+                        backstory: char.backstory || '',
+                    });
+                    
+                    if (savedChar) {
+                        savedCharacters.push(savedChar);
+                    }
+                }
+                
+                characters.value = savedCharacters;
                 extractionStatus.value = `Found ${characters.value.length} characters!`;
             }
         }
@@ -446,38 +619,69 @@ const goToStep = (step: number) => {
     }
 };
 
-const saveCharacter = (index: number) => {
+const saveCharacter = async (index: number) => {
     if (!newCharacter.value.name.trim()) {
         errors.value = { character_name: 'Please give your character a name!' };
         return;
     }
     
     errors.value = {};
+    isSaving.value = true;
     
-    characters.value[index] = {
-        ...newCharacter.value,
-        id: characters.value[index].id,
-    };
+    const existingId = characters.value[index].id;
+    
+    // Update the character in the API
+    const success = await updateCharacterInBook(existingId, {
+        name: newCharacter.value.name,
+        age: newCharacter.value.age,
+        gender: newCharacter.value.gender,
+        description: newCharacter.value.description,
+        backstory: newCharacter.value.backstory,
+    });
+    
+    if (success) {
+        characters.value[index] = {
+            ...newCharacter.value,
+            id: existingId,
+        };
+    }
     
     resetCharacterForm();
     editingCharacterIndex.value = null;
+    isSaving.value = false;
 };
 
-const addNewCharacter = () => {
+const addNewCharacter = async () => {
     if (!newCharacter.value.name.trim()) {
         errors.value = { character_name: 'Please give your character a name!' };
         return;
     }
     
     errors.value = {};
+    isSaving.value = true;
     
-    characters.value.push({
-        ...newCharacter.value,
-        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    // Save character to the API
+    const savedChar = await saveCharacterToBook({
+        name: newCharacter.value.name,
+        age: newCharacter.value.age,
+        gender: newCharacter.value.gender,
+        description: newCharacter.value.description,
+        backstory: newCharacter.value.backstory,
     });
+    
+    if (savedChar) {
+        characters.value.push(savedChar);
+    } else {
+        // Fallback to local only if save failed
+        characters.value.push({
+            ...newCharacter.value,
+            id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        });
+    }
     
     resetCharacterForm();
     isAddingNewCharacter.value = false;
+    isSaving.value = false;
 };
 
 const toggleEditCharacter = (index: number) => {
@@ -506,8 +710,15 @@ const startAddingCharacter = () => {
     errors.value = {};
 };
 
-const removeCharacter = (index: number) => {
+const removeCharacter = async (index: number) => {
+    const characterId = characters.value[index].id;
+    
+    // Delete from API
+    await deleteCharacterFromBook(characterId);
+    
+    // Remove locally
     characters.value.splice(index, 1);
+    
     // If we removed the character being edited, reset
     if (editingCharacterIndex.value === index) {
         editingCharacterIndex.value = null;
@@ -533,54 +744,42 @@ const handleSubmit = async () => {
     errors.value = {};
 
     try {
-        const { data, error } = await requestApiFetch('/api/books', 'POST', {
-            ...formData.value,
-            age_level: formData.value.age_level ? parseInt(formData.value.age_level) : null,
-            status: 'draft',
-            characters: characters.value.map(({ id, ...char }) => char),
-        });
-
-        if (error) {
-            const message = extractErrorMessage(error);
-
-            if (message && message.includes('422')) {
-                try {
-                    const [, payload = '{}'] = message.split(': ');
-                    const errorData = JSON.parse(payload);
-                    errors.value = (errorData?.errors as Record<string, string>) || {};
-                } catch {
-                    errors.value = { general: 'There was a problem creating your story. Please try again.' };
-                }
-            } else {
-                errors.value = {
-                    general: message ?? 'There was a problem creating your story. Please try again.',
-                };
-            }
+        // Book should already exist from step 1
+        if (!bookId.value) {
+            errors.value = { general: 'Book not found. Please start over.' };
             processing.value = false;
             return;
         }
 
-        if (data && typeof data === 'object' && 'id' in data) {
-            const bookId = (data as { id: string }).id;
-            
-            // Generate cover image in the background
-            isGeneratingCover.value = true;
-            coverGenerationStatus.value = 'Creating your book title and cover...';
-            
-            try {
-                await requestApiFetch(`/api/books/${bookId}/generate-cover`, 'POST');
-            } catch (coverError) {
-                // Cover generation is optional, don't block the flow
-                console.error('Cover generation failed:', coverError);
-            }
-            
-            isGeneratingCover.value = false;
-            coverGenerationStatus.value = '';
-            
-            resetForm();
-            isOpen.value = false;
-            router.reload();
+        // Update book with final details (first_chapter_prompt and scene)
+        const updateSuccess = await updateBook({
+            first_chapter_prompt: formData.value.first_chapter_prompt,
+            scene: formData.value.scene,
+        });
+
+        if (!updateSuccess) {
+            errors.value = { general: 'Failed to save your story details. Please try again.' };
+            processing.value = false;
+            return;
         }
+
+        // Generate cover image in the background
+        isGeneratingCover.value = true;
+        coverGenerationStatus.value = 'Creating your book title and cover...';
+        
+        try {
+            await requestApiFetch(`/api/books/${bookId.value}/generate-cover`, 'POST');
+        } catch (coverError) {
+            // Cover generation is optional, don't block the flow
+            console.error('Cover generation failed:', coverError);
+        }
+        
+        isGeneratingCover.value = false;
+        coverGenerationStatus.value = '';
+        
+        resetForm();
+        isOpen.value = false;
+        router.reload();
     } catch (err) {
         errors.value = { general: 'An unexpected error occurred. Please try again.' };
     } finally {
@@ -639,11 +838,16 @@ watch(() => props.defaultGenre, (newGenre) => {
                     <div class="mx-4 w-full max-w-sm animate-bounce-in rounded-2xl border-2 border-orange-200 bg-white p-6 shadow-2xl dark:border-orange-800 dark:bg-gray-900">
                         <div class="mb-4 text-center">
                             <div class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-                                <span class="text-3xl">🤔</span>
+                                <span class="text-3xl">{{ bookId ? '📖' : '🤔' }}</span>
                             </div>
-                            <h3 class="text-xl font-bold text-gray-900 dark:text-white">Wait! Are you sure?</h3>
+                            <h3 class="text-xl font-bold text-gray-900 dark:text-white">
+                                {{ bookId ? 'Close and continue later?' : 'Wait! Are you sure?' }}
+                            </h3>
                             <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                Your amazing story ideas will disappear into the void! 
+                                {{ bookId 
+                                    ? "Your story has been saved! You can find it in your library and continue anytime." 
+                                    : "Your amazing story ideas will disappear into the void!" 
+                                }}
                             </p>
                         </div>
                         <div class="flex gap-3">
@@ -658,9 +862,12 @@ watch(() => props.defaultGenre, (newGenre) => {
                             <Button
                                 type="button"
                                 @click="confirmClose"
-                                class="flex-1 cursor-pointer rounded-xl bg-gradient-to-r from-red-500 to-rose-500 text-white transition-all duration-200 hover:scale-[1.02] hover:from-red-600 hover:to-rose-600 active:scale-[0.98]"
+                                class="flex-1 cursor-pointer rounded-xl bg-gradient-to-r text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                                :class="bookId 
+                                    ? 'from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600' 
+                                    : 'from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600'"
                             >
-                                Close Anyway
+                                {{ bookId ? 'Close for Now' : 'Close Anyway' }}
                             </Button>
                         </div>
                     </div>
@@ -812,12 +1019,39 @@ watch(() => props.defaultGenre, (newGenre) => {
                     <div v-show="currentStep === 2" class="space-y-6">
                         <div class="space-y-3">
                             <div class="flex items-center justify-between">
-                                <Label for="plot" class="text-lg font-semibold">
-                                    Tell us about your story! ✨
-                                </Label>
                                 
-                                <!-- Microphone Button -->
-                                <div class="flex items-center gap-2">
+                                
+                                
+                            </div>
+                            
+                            <!-- Transcription Status Message -->
+                            <div 
+                                v-if="transcribeStatus" 
+                                class="flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:bg-blue-950/30 dark:text-blue-300"
+                            >
+                                <Spinner v-if="isTranscribing" class="h-4 w-4" />
+                                <Check v-else class="h-4 w-4 text-green-500" />
+                                {{ transcribeStatus }}
+                </div>
+
+                            <div class="relative">
+    <Textarea
+        id="plot"
+        v-model="formData.plot"
+                                    placeholder="Example: A young wizard discovers a magical map that leads to a hidden kingdom where dragons and unicorns live together in harmony..."
+                                    rows="8"
+                                    :maxlength="PLOT_MAX_LENGTH"
+                                    :disabled="processing || isRecording || isTranscribing"
+                                    class="resize-none rounded-2xl border-2 pb-8 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
+                                />
+                                <div class="absolute bottom-3 right-3 text-xs" :class="plotCharacterCountClass">
+                                    {{ plotCharacterCount.toLocaleString() }} / {{ PLOT_MAX_LENGTH.toLocaleString() }}
+                                </div>
+                            </div>
+    <InputError :message="errors.plot" />
+                            
+                            <!-- Microphone Button -->
+                            <div class="flex items-center gap-2 mt-5">
                                     <button
                                         v-if="!isRecording && !isTranscribing"
                                         type="button"
@@ -853,43 +1087,6 @@ watch(() => props.defaultGenre, (newGenre) => {
                                         <span class="hidden sm:inline">Processing...</span>
                                     </div>
                                 </div>
-                            </div>
-                            
-                            <p class="text-sm text-muted-foreground">
-                                What happens in your story? Who goes on an adventure? What do they discover?
-                            </p>
-                            
-                            <!-- Transcription Status Message -->
-                            <div 
-                                v-if="transcribeStatus" 
-                                class="flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:bg-blue-950/30 dark:text-blue-300"
-                            >
-                                <Spinner v-if="isTranscribing" class="h-4 w-4" />
-                                <Check v-else class="h-4 w-4 text-green-500" />
-                                {{ transcribeStatus }}
-                </div>
-
-                            <div class="relative">
-    <Textarea
-        id="plot"
-        v-model="formData.plot"
-                                    placeholder="Example: A young wizard discovers a magical map that leads to a hidden kingdom where dragons and unicorns live together in harmony..."
-                                    rows="8"
-                                    :maxlength="PLOT_MAX_LENGTH"
-                                    :disabled="processing || isRecording || isTranscribing"
-                                    class="resize-none rounded-2xl border-2 pb-8 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
-                                />
-                                <div class="absolute bottom-3 right-3 text-xs" :class="plotCharacterCountClass">
-                                    {{ plotCharacterCount.toLocaleString() }} / {{ PLOT_MAX_LENGTH.toLocaleString() }}
-                                </div>
-                            </div>
-    <InputError :message="errors.plot" />
-                            
-                            <!-- Voice Recording Tip -->
-                            <p v-if="!isRecording && !isTranscribing" class="flex items-center gap-2 text-xs text-muted-foreground">
-                                <Mic class="h-3 w-3" />
-                                Tip: Click the microphone button to describe your story with your voice!
-                            </p>
                         </div>
                     </div>
 
@@ -1040,6 +1237,7 @@ watch(() => props.defaultGenre, (newGenre) => {
                                                         type="button"
                                                         variant="outline"
                                                         @click="cancelCharacterEdit"
+                                                        :disabled="isSaving"
                                                         class="flex-1 cursor-pointer rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
                                                     >
                                                         Cancel
@@ -1047,10 +1245,12 @@ watch(() => props.defaultGenre, (newGenre) => {
                                                     <Button
                                                         type="button"
                                                         @click="saveCharacter(index)"
+                                                        :disabled="isSaving"
                                                         class="flex-1 cursor-pointer gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg transition-all duration-200 hover:scale-[1.01] hover:from-emerald-600 hover:to-teal-600 hover:shadow-emerald-500/25 hover:shadow-xl active:scale-[0.99]"
                                                     >
-                                                        <Check class="h-4 w-4" />
-                                                        Save Changes
+                                                        <Spinner v-if="isSaving" class="h-4 w-4" />
+                                                        <Check v-else class="h-4 w-4" />
+                                                        {{ isSaving ? 'Saving...' : 'Save Changes' }}
                                                     </Button>
                                                 </div>
                                             </div>
@@ -1156,6 +1356,7 @@ watch(() => props.defaultGenre, (newGenre) => {
                                                 type="button"
                                                 variant="outline"
                                                 @click="cancelCharacterEdit"
+                                                :disabled="isSaving"
                                                 class="flex-1 cursor-pointer rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
                                             >
                                                 Cancel
@@ -1163,10 +1364,12 @@ watch(() => props.defaultGenre, (newGenre) => {
                                             <Button
                                                 type="button"
                                                 @click="addNewCharacter"
+                                                :disabled="isSaving"
                                                 class="flex-1 cursor-pointer gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg transition-all duration-200 hover:scale-[1.01] hover:from-emerald-600 hover:to-teal-600 hover:shadow-emerald-500/25 hover:shadow-xl active:scale-[0.99]"
                                             >
-                                                <Plus class="h-4 w-4" />
-                                                Add Character
+                                                <Spinner v-if="isSaving" class="h-4 w-4" />
+                                                <Plus v-else class="h-4 w-4" />
+                                                {{ isSaving ? 'Saving...' : 'Add Character' }}
                                             </Button>
                                         </div>
                                     </div>
@@ -1229,7 +1432,7 @@ watch(() => props.defaultGenre, (newGenre) => {
                     type="button"
                     variant="ghost"
                     @click="prevStep"
-                    :disabled="processing"
+                    :disabled="processing || isSaving || isExtractingCharacters"
                     class="cursor-pointer gap-2 rounded-xl transition-all duration-200 hover:-translate-x-0.5 hover:bg-muted"
                 >
                     <ChevronLeft class="h-4 w-4" />
@@ -1242,7 +1445,7 @@ watch(() => props.defaultGenre, (newGenre) => {
                         type="button"
                         variant="outline"
                         @click="requestClose"
-                        :disabled="processing"
+                        :disabled="processing || isSaving"
                         class="cursor-pointer rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
                     >
                         Cancel
@@ -1252,11 +1455,17 @@ watch(() => props.defaultGenre, (newGenre) => {
                         v-if="currentStep < totalSteps"
                         type="button"
                         @click="nextStep"
-                        :disabled="!canProceed || processing || isExtractingCharacters"
+                        :disabled="!canProceed || processing || isExtractingCharacters || isSaving"
                         class="cursor-pointer gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 text-white shadow-lg transition-all duration-200 hover:translate-x-0.5 hover:from-orange-600 hover:to-amber-600 hover:shadow-orange-500/25 hover:shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:shadow-none"
                     >
-                        <Spinner v-if="isExtractingCharacters" class="h-4 w-4" />
-                        <template v-if="isExtractingCharacters">
+                        <Spinner v-if="isExtractingCharacters || isSaving" class="h-4 w-4" />
+                        <template v-if="isSaving && currentStep === 1">
+                            Creating Book...
+                        </template>
+                        <template v-else-if="isSaving && currentStep === 2">
+                            Saving Plot...
+                        </template>
+                        <template v-else-if="isExtractingCharacters">
                             Finding Characters...
                         </template>
                         <template v-else>

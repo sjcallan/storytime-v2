@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, toRefs, watch } from 'vue';
+import { computed, ref, toRefs, watch, inject } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import CreateStoryModal from '@/components/CreateStoryModal.vue';
 import BookViewModal from '@/components/BookViewModal.vue';
 import { Button } from '@/components/ui/button';
 import { Head } from '@inertiajs/vue3';
-import { Plus, Sparkles, Wand2 } from 'lucide-vue-next';
+import { Plus } from 'lucide-vue-next';
 
 const props = defineProps<{
     booksByGenre: Record<string, Array<{
@@ -20,7 +19,7 @@ const props = defineProps<{
     userName: string;
 }>();
 
-const { booksByGenre, userName } = toRefs(props);
+const { booksByGenre } = toRefs(props);
 
 type BookSummary = {
     id: string;
@@ -52,7 +51,8 @@ watch(booksByGenre, newValue => {
 
 const hasBooks = computed(() => Object.values(booksByGenreState.value).some(list => list.length > 0));
 
-const isCreateModalOpen = ref(false);
+const openCreateStoryModal = inject<() => void>('openCreateStoryModal', () => {});
+
 const isBookViewOpen = ref(false);
 const selectedBookId = ref<string | null>(null);
 const cardPosition = ref<{ top: number; left: number; width: number; height: number } | null>(null);
@@ -60,7 +60,6 @@ const selectedCoverImage = ref<string | null>(null);
 
 const selectedBookTitle = ref<string | null>(null);
 const selectedBookAuthor = ref<string | null>(null);
-const selectedGenre = ref<string | null>(null);
 
 type GradientOption = {
     fromClass: string;
@@ -240,12 +239,6 @@ const getGradientColors = (bookId: string) => {
     return `bg-gradient-to-br ${colorSet.fromClass} ${colorSet.toClass}`;
 };
 
-const getGenreAccent = (genre: string) => {
-    const colorSet = resolveGradientOption(genre);
-    
-    return `bg-gradient-to-br ${colorSet.fromClass} ${colorSet.toClass}`;
-};
-
 // Format genre name for display
 const formatGenreName = (genre: string) => {
     return genre
@@ -253,17 +246,6 @@ const formatGenreName = (genre: string) => {
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
 };
-
-const openCreateStory = (genre: string | null = null) => {
-    selectedGenre.value = genre;
-    isCreateModalOpen.value = true;
-};
-
-watch(isCreateModalOpen, value => {
-    if (!value) {
-        selectedGenre.value = null;
-    }
-});
 </script>
 
 <template>
@@ -271,44 +253,17 @@ watch(isCreateModalOpen, value => {
 
     <AppLayout>
         <div class="flex h-full flex-1 flex-col gap-12 overflow-x-auto p-6">
-            <!-- Header with Create Button -->
-            <div class="flex items-center justify-between">
-                <div>
-                    <h1 class="text-3xl font-bold tracking-tight">My Stories</h1>
-                </div>
-                <button
-                    @click="openCreateStory()"
-                    class="magic-button group relative cursor-pointer overflow-hidden rounded-full bg-gradient-to-r from-violet-600 via-fuchsia-500 to-amber-500 px-6 py-3 font-semibold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-[0_0_40px_rgba(167,139,250,0.5)] active:scale-95"
-                >
-                    <!-- Animated gradient overlay -->
-                    <span class="absolute inset-0 bg-gradient-to-r from-amber-500 via-fuchsia-500 to-violet-600 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                    
-                    <!-- Shimmer effect -->
-                    <span class="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
-                    
-                    <!-- Sparkle particles -->
-                    <span class="sparkle sparkle-1" />
-                    <span class="sparkle sparkle-2" />
-                    <span class="sparkle sparkle-3" />
-                    <span class="sparkle sparkle-4" />
-                    <span class="sparkle sparkle-5" />
-                    <span class="sparkle sparkle-6" />
-                    
-                    <!-- Button content -->
-                    <span class="relative flex items-center gap-2">
-                        <Wand2 class="h-5 w-5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
-                        <span>Start a New Story</span>
-                        <Sparkles class="h-4 w-4 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:animate-pulse" />
-                    </span>
-                </button>
-                </div>
+            <!-- Header -->
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight">My Stories</h1>
+            </div>
             <!-- Empty State -->
             <div v-if="!hasBooks" 
                 class="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-sidebar-border/70 p-12 dark:border-sidebar-border">
                 <div class="text-center text-muted-foreground">
                     <h3 class="mb-2 text-lg font-semibold">No Books Yet</h3>
                     <p class="mb-4">Start creating your first story to see it here!</p>
-                    <Button @click="openCreateStory()" variant="outline" class="cursor-pointer">
+                    <Button @click="openCreateStoryModal()" variant="outline" class="cursor-pointer">
                         <Plus class="mr-2 h-4 w-4" />
                         Create Your First Story
                     </Button>
@@ -323,7 +278,7 @@ watch(isCreateModalOpen, value => {
             >
                 <!-- Genre Header -->
                 <div>
-                    <h2 class="text-2xl font-bold tracking-tight">
+                    <h2 class="text-2xl font-medium tracking-tight">
                         {{ formatGenreName(genre) }}
                     </h2>
                 </div>
@@ -375,12 +330,7 @@ watch(isCreateModalOpen, value => {
                                 }"
                             />
                             
-                            <!-- "Open" hint on hover -->
-                            <div class="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                                <span class="px-4 py-2 bg-white/90 dark:bg-black/80 backdrop-blur-sm rounded-full text-sm font-semibold text-amber-900 dark:text-amber-100 shadow-lg">
-                                    Click to Open
-                                </span>
-                            </div>
+                            
                             
                             <!-- Status Badge -->
                             <div class="absolute right-3 top-3">
@@ -404,34 +354,9 @@ watch(isCreateModalOpen, value => {
                         </div>
                     </div>
 
-                    <button
-                        type="button"
-                        :style="getCardVisualStyles(genre)"
-                        class="group relative flex aspect-[3/4] cursor-pointer flex-col items-center justify-center gap-5 rounded-2xl border border-dashed border-sidebar-border/70 bg-card/60 p-6 text-muted-foreground transition-all duration-300 hover:-translate-y-1 hover:border-transparent hover:[box-shadow:0_24px_48px_-18px_var(--card-shadow-color)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 dark:border-sidebar-border"
-                        @click="openCreateStory(genre)"
-                    >
-                        <div class="relative flex h-24 w-24 items-center justify-center">
-                            <div
-                                class="absolute inset-0 rounded-full opacity-80 transition-transform duration-300 group-hover:scale-110"
-                                :class="getGenreAccent(genre)"
-                            />
-                            <div class="relative flex h-full w-full items-center justify-center rounded-full border border-white/60 bg-white/10 backdrop-blur-sm">
-                                <Plus class="h-10 w-10 text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.35)]" />
-                            </div>
-                        </div>
-                        <span class="text-center text-sm font-semibold tracking-tight">
-                            New {{ formatGenreName(genre) }} Story
-                        </span>
-                    </button>
                 </div>
             </div>
         </div>
-
-        <!-- Create Story Modal -->
-        <CreateStoryModal
-            v-model:is-open="isCreateModalOpen"
-            :default-genre="selectedGenre"
-        />
 
         <!-- Book View Modal -->
         <BookViewModal 
@@ -446,128 +371,3 @@ watch(isCreateModalOpen, value => {
         />
     </AppLayout>
 </template>
-
-<style scoped>
-/* Sparkle base styles */
-.sparkle {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: radial-gradient(circle, white 0%, transparent 70%);
-    opacity: 0;
-    pointer-events: none;
-    filter: blur(0.5px);
-}
-
-/* Sparkle positions and animations */
-.sparkle-1 {
-    top: 10%;
-    left: 15%;
-    animation: none;
-}
-.sparkle-2 {
-    top: 20%;
-    right: 20%;
-    animation: none;
-}
-.sparkle-3 {
-    bottom: 25%;
-    left: 25%;
-    animation: none;
-}
-.sparkle-4 {
-    top: 40%;
-    right: 10%;
-    animation: none;
-}
-.sparkle-5 {
-    bottom: 15%;
-    right: 30%;
-    animation: none;
-}
-.sparkle-6 {
-    top: 15%;
-    left: 45%;
-    animation: none;
-}
-
-/* Trigger sparkles on hover */
-.magic-button:hover .sparkle-1 {
-    animation: sparkle-float 1.2s ease-in-out infinite;
-    animation-delay: 0s;
-}
-.magic-button:hover .sparkle-2 {
-    animation: sparkle-float 1.4s ease-in-out infinite;
-    animation-delay: 0.2s;
-}
-.magic-button:hover .sparkle-3 {
-    animation: sparkle-float 1.1s ease-in-out infinite;
-    animation-delay: 0.4s;
-}
-.magic-button:hover .sparkle-4 {
-    animation: sparkle-float 1.3s ease-in-out infinite;
-    animation-delay: 0.1s;
-}
-.magic-button:hover .sparkle-5 {
-    animation: sparkle-float 1.5s ease-in-out infinite;
-    animation-delay: 0.3s;
-}
-.magic-button:hover .sparkle-6 {
-    animation: sparkle-float 1.2s ease-in-out infinite;
-    animation-delay: 0.5s;
-}
-
-@keyframes sparkle-float {
-    0%, 100% {
-        opacity: 0;
-        transform: scale(0) translateY(0);
-    }
-    20% {
-        opacity: 1;
-        transform: scale(1) translateY(-5px);
-    }
-    40% {
-        opacity: 0.8;
-        transform: scale(1.2) translateY(-10px);
-    }
-    60% {
-        opacity: 0.6;
-        transform: scale(0.8) translateY(-15px);
-    }
-    80% {
-        opacity: 0.3;
-        transform: scale(0.5) translateY(-20px);
-    }
-}
-
-/* Ring pulse effect on hover */
-.magic-button::before {
-    content: '';
-    position: absolute;
-    inset: -4px;
-    border-radius: 9999px;
-    background: linear-gradient(45deg, #a78bfa, #f472b6, #fbbf24, #a78bfa);
-    background-size: 300% 300%;
-    opacity: 0;
-    z-index: -1;
-    transition: opacity 0.3s ease;
-    animation: gradient-rotate 3s ease infinite;
-}
-
-.magic-button:hover::before {
-    opacity: 1;
-}
-
-@keyframes gradient-rotate {
-    0% {
-        background-position: 0% 50%;
-    }
-    50% {
-        background-position: 100% 50%;
-    }
-    100% {
-        background-position: 0% 50%;
-    }
-}
-</style>

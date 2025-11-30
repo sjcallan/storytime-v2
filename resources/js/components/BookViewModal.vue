@@ -16,7 +16,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { apiFetch } from '@/composables/ApiFetch';
-import { MoreVertical, Sparkles, X } from 'lucide-vue-next';
+import { BookOpen, ChevronLeft, ChevronRight, MoreVertical, Sparkles, Wand2, X } from 'lucide-vue-next';
 
 interface Book {
     id: string;
@@ -28,6 +28,23 @@ interface Book {
     cover_image: string | null;
     status: string;
     created_at: string;
+}
+
+interface Chapter {
+    id: string;
+    title: string | null;
+    body: string | null;
+    image: string | null;
+    sort: number;
+    summary: string | null;
+    final_chapter: boolean;
+}
+
+interface ChapterResponse {
+    chapter: Chapter | null;
+    total_chapters: number;
+    has_next: boolean;
+    has_previous?: boolean;
 }
 
 interface CardPosition {
@@ -73,6 +90,178 @@ const isClosing = ref(false);
 const frontVisible = ref(true);
 const backVisible = ref(false);
 const expandedRect = ref<{ top: number; left: number; width: number; height: number } | null>(null);
+
+const isBookOpened = ref(false);
+const isPageTurning = ref(false);
+const isTitlePageFading = ref(false);
+
+// Chapter reading state
+const currentChapterNumber = ref(0); // 0 = title page
+const currentChapter = ref<Chapter | null>(null);
+const totalChapters = ref(0);
+const isLoadingChapter = ref(false);
+const isGeneratingChapter = ref(false);
+const chapterError = ref<string | null>(null);
+const nextChapterPrompt = ref('');
+const isFinalChapter = ref(false);
+
+// Reading view state: 'title' | 'chapter-image' | 'chapter-content' | 'create-chapter'
+const readingView = ref<'title' | 'chapter-image' | 'chapter-content' | 'create-chapter'>('title');
+const isPageFlipping = ref(false);
+
+const loadChapter = async (chapterNumber: number) => {
+    if (!props.bookId || isLoadingChapter.value) {
+        return;
+    }
+
+    isLoadingChapter.value = true;
+    chapterError.value = null;
+
+    try {
+        const { data, error } = await requestApiFetch(
+            `/api/books/${props.bookId}/chapters/${chapterNumber}`,
+            'GET'
+        );
+
+        if (error) {
+            chapterError.value = extractErrorMessage(error) ?? 'Could not load chapter.';
+            return;
+        }
+
+        const response = data as ChapterResponse;
+        totalChapters.value = response.total_chapters;
+
+        if (response.chapter) {
+            currentChapter.value = response.chapter;
+            currentChapterNumber.value = chapterNumber;
+            readingView.value = 'chapter-image';
+        } else {
+            // No chapter exists - show create form
+            currentChapter.value = null;
+            currentChapterNumber.value = chapterNumber;
+            readingView.value = 'create-chapter';
+        }
+    } catch (err) {
+        chapterError.value = extractErrorMessage(err) ?? 'An error occurred loading the chapter.';
+    } finally {
+        isLoadingChapter.value = false;
+    }
+};
+
+const generateNextChapter = async () => {
+    if (!props.bookId || isGeneratingChapter.value) {
+        return;
+    }
+
+    isGeneratingChapter.value = true;
+    chapterError.value = null;
+
+    try {
+        const { data, error } = await requestApiFetch(
+            `/api/books/${props.bookId}/chapters/generate`,
+            'POST',
+            {
+                user_prompt: nextChapterPrompt.value.trim() || null,
+                final_chapter: isFinalChapter.value,
+            }
+        );
+
+        if (error) {
+            chapterError.value = extractErrorMessage(error) ?? 'Could not generate chapter.';
+            return;
+        }
+
+        const response = data as ChapterResponse;
+        
+        if (response.chapter) {
+            currentChapter.value = response.chapter;
+            currentChapterNumber.value = response.chapter.sort;
+            totalChapters.value = response.total_chapters;
+            nextChapterPrompt.value = '';
+            isFinalChapter.value = false;
+            readingView.value = 'chapter-image';
+        }
+    } catch (err) {
+        chapterError.value = extractErrorMessage(err) ?? 'An error occurred generating the chapter.';
+    } finally {
+        isGeneratingChapter.value = false;
+    }
+};
+
+const goToChapter1 = () => {
+    if (isTitlePageFading.value || isLoadingChapter.value) {
+        return;
+    }
+    isTitlePageFading.value = true;
+    
+    // After fade, load chapter 1
+    scheduleTimeout(() => {
+        loadChapter(1);
+        isTitlePageFading.value = false;
+    }, 500);
+};
+
+const flipToChapterContent = () => {
+    if (isPageFlipping.value || !currentChapter.value) {
+        return;
+    }
+    isPageFlipping.value = true;
+    
+    scheduleTimeout(() => {
+        readingView.value = 'chapter-content';
+        isPageFlipping.value = false;
+    }, 400);
+};
+
+const goToNextChapter = () => {
+    if (isLoadingChapter.value || isPageFlipping.value) {
+        return;
+    }
+    
+    const nextNumber = currentChapterNumber.value + 1;
+    
+    if (nextNumber <= totalChapters.value) {
+        loadChapter(nextNumber);
+    } else {
+        // No more chapters - show create form
+        currentChapter.value = null;
+        currentChapterNumber.value = nextNumber;
+        readingView.value = 'create-chapter';
+    }
+};
+
+const goToPreviousChapter = () => {
+    if (isLoadingChapter.value || isPageFlipping.value) {
+        return;
+    }
+    
+    if (currentChapterNumber.value > 1) {
+        loadChapter(currentChapterNumber.value - 1);
+    } else if (currentChapterNumber.value === 1) {
+        // Go back to title page
+        currentChapter.value = null;
+        currentChapterNumber.value = 0;
+        readingView.value = 'title';
+    }
+};
+
+const goBackToChapterImage = () => {
+    if (isPageFlipping.value) {
+        return;
+    }
+    isPageFlipping.value = true;
+    
+    scheduleTimeout(() => {
+        readingView.value = 'chapter-image';
+        isPageFlipping.value = false;
+    }, 400);
+};
+
+const goBackToTitlePage = () => {
+    currentChapter.value = null;
+    currentChapterNumber.value = 0;
+    readingView.value = 'title';
+};
 
 const isEditing = ref(false);
 const isSaving = ref(false);
@@ -297,6 +486,57 @@ const setCardStyle = (style: Partial<CSSStyleDeclaration>) => {
     cardStyle.value = nextStyle;
 };
 
+const coverRect = ref<{ width: number; left: number } | null>(null);
+const isCoverFading = ref(false);
+
+const openBook = () => {
+    if (isPageTurning.value || isBookOpened.value || !expandedRect.value) {
+        return;
+    }
+    
+    isPageTurning.value = true;
+    
+    // Store cover dimensions before expanding
+    const currentWidth = expandedRect.value.width;
+    const currentLeft = expandedRect.value.left;
+    coverRect.value = { width: currentWidth, left: currentLeft };
+    
+    // Calculate full width dimensions (maintain same height, double width for two pages)
+    const fullWidth = Math.min(window.innerWidth * 0.96, expandedRect.value.height * 1.4);
+    const fullLeft = (window.innerWidth - fullWidth) / 2;
+    
+    // Update expanded rect
+    expandedRect.value = {
+        ...expandedRect.value,
+        width: fullWidth,
+        left: fullLeft,
+    };
+    
+    // Step 1: Expand the modal to full width AND fade out the cover simultaneously
+    setCardStyle({
+        position: 'fixed',
+        top: `${expandedRect.value.top}px`,
+        left: `${fullLeft}px`,
+        width: `${fullWidth}px`,
+        height: `${expandedRect.value.height}px`,
+        transform: 'none',
+        zIndex: '9999',
+        transition: 'all 600ms cubic-bezier(0.4, 0, 0.2, 1)',
+    });
+    
+    // Start fading the cover immediately (small delay to allow page turn state to render)
+    scheduleTimeout(() => {
+        isCoverFading.value = true;
+    }, 50);
+    
+    // Step 3: After fade completes, show the opened book view
+    scheduleTimeout(() => {
+        isBookOpened.value = true;
+        isPageTurning.value = false;
+        isCoverFading.value = false;
+    }, 1100);
+};
+
 const startAnimation = async () => {
     clearScheduledTimeouts();
     book.value = null;
@@ -304,82 +544,96 @@ const startAnimation = async () => {
     showContent.value = false;
     animationPhase.value = 'initial';
     frontVisible.value = true;
-    backVisible.value = false;
+    backVisible.value = true;
     isClosing.value = false;
+    isBookOpened.value = false;
+    isPageTurning.value = false;
+    isCoverFading.value = false;
+    isTitlePageFading.value = false;
+    coverRect.value = null;
     isEditing.value = false;
     isSaving.value = false;
     isDeleting.value = false;
     showDeleteConfirm.value = false;
+    // Reset chapter state
+    currentChapterNumber.value = 0;
+    currentChapter.value = null;
+    totalChapters.value = 0;
+    isLoadingChapter.value = false;
+    isGeneratingChapter.value = false;
+    chapterError.value = null;
+    nextChapterPrompt.value = '';
+    isFinalChapter.value = false;
+    readingView.value = 'title';
+    isPageFlipping.value = false;
     resetEditFeedback();
+
+    // Calculate cover dimensions (book cover aspect ratio ~2:3, centered)
+    // Use 96% of viewport height for near-full-screen effect with small margins
+    const coverHeight = window.innerHeight * 0.96;
+    const coverWidth = coverHeight * 0.67; // Book cover aspect ratio
+    const coverTop = (window.innerHeight - coverHeight) / 2;
+    const coverLeft = (window.innerWidth - coverWidth) / 2;
+
+    // Store the centered cover position
+    expandedRect.value = {
+        top: coverTop,
+        left: coverLeft,
+        width: coverWidth,
+        height: coverHeight,
+    };
 
     if (!props.cardPosition) {
         loadBook();
         animationPhase.value = 'complete';
         showContent.value = true;
-        backVisible.value = true;
-        frontVisible.value = false;
         setCardStyle({
             position: 'fixed',
-            top: '50%',
-            left: '50%',
-            width: 'min(90vw, 960px)',
-            height: 'min(90vh, 680px)',
-            transform: 'translate(-50%, -50%)',
+            top: `${coverTop}px`,
+            left: `${coverLeft}px`,
+            width: `${coverWidth}px`,
+            height: `${coverHeight}px`,
+            transform: 'none',
             zIndex: '9999',
         });
         return;
     }
 
-    const targetWidth = window.innerWidth * 0.9;
-    const targetHeight = window.innerHeight * 0.9;
-    const targetTop = (window.innerHeight - targetHeight) / 2;
-    const targetLeft = (window.innerWidth - targetWidth) / 2;
-
-    expandedRect.value = {
-        top: targetTop,
-        left: targetLeft,
-        width: targetWidth,
-        height: targetHeight,
-    };
-
+    // Start at the card position
     setCardStyle({
         position: 'fixed',
         top: `${props.cardPosition.top}px`,
         left: `${props.cardPosition.left}px`,
         width: `${props.cardPosition.width}px`,
         height: `${props.cardPosition.height}px`,
-        transform: 'perspective(2000px) rotateY(0deg) scale(1)',
+        transform: 'none',
         zIndex: '9999',
         transition: 'none',
     });
 
     await nextTick();
+    loadBook();
 
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             animationPhase.value = 'flipping';
-            loadBook();
 
+            // Simple grow animation to centered cover position (no flip)
             setCardStyle({
                 position: 'fixed',
-                top: `${targetTop}px`,
-                left: `${targetLeft}px`,
-                width: `${targetWidth}px`,
-                height: `${targetHeight}px`,
-                transform: 'perspective(2000px) rotateY(180deg) scale(1)',
+                top: `${coverTop}px`,
+                left: `${coverLeft}px`,
+                width: `${coverWidth}px`,
+                height: `${coverHeight}px`,
+                transform: 'none',
                 zIndex: '9999',
-                transition: `all ${FLIP_DURATION}ms ${TRANSITION_EASING}`,
+                transition: `all 600ms ${TRANSITION_EASING}`,
             });
 
             scheduleTimeout(() => {
-                frontVisible.value = false;
-                backVisible.value = true;
                 showContent.value = true;
-            }, HALF_FLIP);
-
-            scheduleTimeout(() => {
                 animationPhase.value = 'complete';
-            }, FLIP_DURATION);
+            }, 600);
         });
     });
 };
@@ -391,15 +645,31 @@ const finalizeClose = () => {
     animationPhase.value = 'initial';
     showContent.value = false;
     frontVisible.value = true;
-    backVisible.value = false;
+    backVisible.value = true;
     expandedRect.value = null;
+    coverRect.value = null;
     cardStyle.value = {};
     book.value = null;
     loading.value = false;
+    isBookOpened.value = false;
+    isPageTurning.value = false;
+    isCoverFading.value = false;
+    isTitlePageFading.value = false;
     isEditing.value = false;
     isSaving.value = false;
     isDeleting.value = false;
     showDeleteConfirm.value = false;
+    // Reset chapter state
+    currentChapterNumber.value = 0;
+    currentChapter.value = null;
+    totalChapters.value = 0;
+    isLoadingChapter.value = false;
+    isGeneratingChapter.value = false;
+    chapterError.value = null;
+    nextChapterPrompt.value = '';
+    isFinalChapter.value = false;
+    readingView.value = 'title';
+    isPageFlipping.value = false;
     resetEditFeedback();
 };
 
@@ -419,47 +689,46 @@ const reverseAnimation = async () => {
     isClosing.value = true;
     animationPhase.value = 'flipping';
     showContent.value = false;
-    frontVisible.value = false;
-    backVisible.value = true;
+    isBookOpened.value = false;
 
-    const { top, left, width, height } = expandedRect.value;
+    // If we're in the expanded (opened book) state, first shrink back to cover size
+    const coverHeight = window.innerHeight * 0.96;
+    const coverWidth = coverHeight * 0.67;
+    const coverTop = (window.innerHeight - coverHeight) / 2;
+    const coverLeft = (window.innerWidth - coverWidth) / 2;
 
     setCardStyle({
         position: 'fixed',
-        top: `${top}px`,
-        left: `${left}px`,
-        width: `${width}px`,
-        height: `${height}px`,
-        transform: 'perspective(2000px) rotateY(180deg) scale(1)',
+        top: `${coverTop}px`,
+        left: `${coverLeft}px`,
+        width: `${coverWidth}px`,
+        height: `${coverHeight}px`,
+        transform: 'none',
         zIndex: '9999',
-        transition: 'none',
+        transition: 'all 300ms ease-out',
     });
 
     await nextTick();
 
+    scheduleTimeout(() => {
     requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+            // Shrink back to card position
             setCardStyle({
                 position: 'fixed',
                 top: `${sourceCard.top}px`,
                 left: `${sourceCard.left}px`,
                 width: `${sourceCard.width}px`,
                 height: `${sourceCard.height}px`,
-                transform: 'perspective(2000px) rotateY(0deg) scale(1)',
+                transform: 'none',
                 zIndex: '9999',
-                transition: `all ${FLIP_DURATION}ms ${TRANSITION_EASING}`,
-            });
-        });
+                transition: 'all 500ms ease-in-out',
     });
 
     scheduleTimeout(() => {
-        frontVisible.value = true;
-        backVisible.value = false;
-    }, HALF_FLIP);
-
-    scheduleTimeout(() => {
         finalizeClose();
-    }, FLIP_DURATION);
+            }, 500);
+        });
+    }, 300);
 };
 
 const loadBook = async () => {
@@ -578,23 +847,19 @@ onBeforeUnmount(() => {
             v-if="isRendered"
             ref="modalElement"
             :style="cardStyle"
-            class="book-modal-container rounded-2xl overflow-hidden shadow-2xl bg-white"
+            class="book-modal-container rounded-2xl overflow-hidden shadow-2xl"
         >
-            <!-- Card Front Face (cover image) - Visible from 0-90deg -->
+            <!-- Card Front Face (shown during shrink-back close animation) -->
             <div
-                v-show="frontVisible"
-                class="absolute inset-0 bg-card"
-                style="backface-visibility: hidden; transform: rotateY(0deg);"
+                v-show="frontVisible && isClosing"
+                class="absolute inset-0 bg-card rounded-2xl overflow-hidden"
             >
-                <!-- With Cover Image -->
                 <img
                     v-if="props.coverImage"
                     :src="props.coverImage"
                     class="h-full w-full object-cover"
                     alt="Book cover"
                 />
-                
-                <!-- Without Cover Image - Show Gradient with Title -->
                 <div
                     v-else-if="props.bookId"
                     class="absolute inset-0 flex items-center justify-center p-6"
@@ -609,16 +874,15 @@ onBeforeUnmount(() => {
                 </div>
             </div>
 
-            <!-- Card Back Face (title page) - Pre-rotated 180deg, visible from 90-180deg -->
+            <!-- Book Content -->
             <div 
                 v-show="backVisible"
-                class="absolute inset-0 bg-gradient-to-br from-white via-gray-50 to-gray-100 dark:from-neutral-900 dark:via-neutral-900/90 dark:to-neutral-800 overflow-auto"
-                style="transform: rotateY(180deg); backface-visibility: visible; transform-style: preserve-3d;"
+                class="absolute inset-0 overflow-hidden"
             >
-                <!-- Loading State (shows while flipping and loading) -->
+                <!-- Loading State -->
                 <div 
                     v-if="!showContent"
-                    class="absolute inset-0 flex items-center justify-center"
+                    class="absolute inset-0 flex items-center justify-center bg-amber-50 dark:bg-amber-100"
                 >
                     <div class="text-center space-y-4">
                         <Spinner class="mx-auto h-12 w-12 text-amber-600 dark:text-amber-400" />
@@ -628,8 +892,8 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <!-- Book Title Page Content (shows when loaded) -->
-                <div v-else class="book-page relative h-full w-full">
+                <!-- Book Interior Content -->
+                <div v-else class="relative h-full w-full">
                     <!-- Delete Confirmation Modal -->
                     <Transition
                         enter-active-class="transition-all duration-300 ease-out"
@@ -674,17 +938,31 @@ onBeforeUnmount(() => {
                         </div>
                     </Transition>
 
+                    <!-- Loading/Saving Overlay -->
+                    <div 
+                        v-if="loading || isSaving || isDeleting"
+                        class="absolute inset-0 z-20 flex items-center justify-center bg-white/80 backdrop-blur-sm dark:bg-black/70"
+                    >
+                        <div class="text-center space-y-4">
+                            <Spinner class="mx-auto h-12 w-12 text-amber-600 dark:text-amber-400" />
+                            <p class="text-lg font-medium text-amber-900 dark:text-amber-100">
+                                {{ loading ? 'Opening your story...' : isSaving ? 'Saving changes...' : 'Deleting story...' }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Header Controls -->
                     <div
                         v-if="animationPhase === 'complete' && !isClosing"
-                        class="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-end px-8 pt-6"
+                        class="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-end px-4 pt-4"
                     >
                         <div class="pointer-events-auto flex items-center gap-2">
-                            <DropdownMenu v-if="book">
+                            <DropdownMenu v-if="book && isBookOpened">
                                 <DropdownMenuTrigger :as-child="true">
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        class="cursor-pointer rounded-full bg-white/90 p-2 text-amber-900 shadow-lg backdrop-blur-sm transition-colors hover:bg-white dark:bg-black/80 dark:text-amber-100 dark:hover:bg-black"
+                                        class="cursor-pointer rounded-full bg-white/70 p-2 text-amber-900 shadow-md backdrop-blur-sm transition-colors hover:bg-white/90 dark:bg-white/70 dark:text-amber-900 dark:hover:bg-white/90"
                                         :disabled="isEditing || isSaving || isDeleting"
                                     >
                                         <MoreVertical class="h-5 w-5" />
@@ -713,9 +991,9 @@ onBeforeUnmount(() => {
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                class="cursor-pointer rounded-full bg-white/90 p-2 text-amber-900 shadow-lg backdrop-blur-sm transition-colors hover:bg-white dark:bg-black/80 dark:text-amber-100 dark:hover:bg-black"
+                                class="cursor-pointer rounded-full bg-white/70 p-2 text-amber-900 shadow-md backdrop-blur-sm transition-colors hover:bg-white/90 dark:bg-white/70 dark:text-amber-900 dark:hover:bg-white/90"
                                 @click="closeModal"
-                                :disabled="isSaving || isDeleting"
+                                :disabled="isSaving || isDeleting || isPageTurning"
                             >
                                 <X class="h-5 w-5" />
                                 <span class="sr-only">Close</span>
@@ -723,63 +1001,281 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
 
+                    <!-- ==================== CLOSED BOOK VIEW (Cover Centered) ==================== -->
                     <div 
-                        v-if="loading || isSaving || isDeleting"
-                        class="absolute inset-0 z-20 flex items-center justify-center bg-white/80 backdrop-blur-sm dark:bg-black/70"
+                        v-if="!isBookOpened" 
+                        class="book-closed-view relative h-full w-full"
                     >
-                        <div class="text-center space-y-4">
-                            <Spinner class="mx-auto h-12 w-12 text-amber-600 dark:text-amber-400" />
-                            <p class="text-lg font-medium text-amber-900 dark:text-amber-100">
-                                {{ loading ? 'Opening your story...' : isSaving ? 'Saving changes...' : 'Deleting story...' }}
-                            </p>
+                        <!-- During expansion: show two-page layout with cover fading on right -->
+                        <template v-if="isPageTurning">
+                            <div class="relative flex h-full w-full">
+                                <!-- Left Side: Blank decorative page -->
+                                <div class="relative w-1/2 h-full bg-amber-50 dark:bg-amber-100 overflow-hidden">
+                                    <div class="absolute inset-0 opacity-[0.08]" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.5\' numOctaves=\'2\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E');" />
+                                    <div class="absolute inset-y-8 left-4 w-px bg-amber-300/60 dark:bg-amber-400/50" />
+                                    <div class="absolute inset-y-8 left-8 w-px bg-amber-300/40 dark:bg-amber-400/30" />
+                                </div>
+
+                                <!-- Book Spine / Center Seam - positioned above content for curved effect -->
+                                <div class="pointer-events-none absolute left-1/2 top-0 bottom-0 z-30 w-24 -translate-x-1/2">
+                                    <!-- Wide soft shadow for page curve effect -->
+                                    <div class="h-full w-full bg-gradient-to-r from-transparent via-amber-950/20 to-transparent" />
+                                    <!-- Inner darker shadow -->
+                                    <div class="absolute inset-y-0 left-1/2 w-10 -translate-x-1/2 bg-gradient-to-r from-transparent via-amber-950/25 to-transparent" />
+                                    <!-- Core shadow at binding -->
+                                    <div class="absolute inset-y-0 left-1/2 w-4 -translate-x-1/2 bg-gradient-to-r from-transparent via-amber-950/30 to-transparent" />
+                                    <!-- Highlight line in center -->
+                                    <div class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-amber-200/5 via-amber-100/20 to-amber-200/5" />
+                                </div>
+
+                                <!-- Right Side: Cover fading out over blank page -->
+                                <div class="relative w-1/2 h-full overflow-hidden">
+                                    <!-- Blank page underneath -->
+                                    <div class="absolute inset-0 bg-amber-50 dark:bg-amber-100">
+                                        <div class="absolute inset-0 opacity-[0.08]" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.5\' numOctaves=\'2\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E');" />
+                                        <div class="absolute inset-y-8 right-4 w-px bg-amber-300/60 dark:bg-amber-400/50" />
+                                        <div class="absolute inset-y-8 right-8 w-px bg-amber-300/40 dark:bg-amber-400/30" />
+                                        <div class="absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-amber-900/10 to-transparent" />
+                                    </div>
+                                    
+                                    <!-- Cover image that fades out (synced with modal expansion) -->
+                                    <div 
+                                        :class="[
+                                            'absolute inset-0 transition-opacity duration-600',
+                                            isCoverFading ? 'opacity-0' : 'opacity-100'
+                                        ]"
+                                        style="transition-duration: 550ms;"
+                                    >
+                                        <img
+                                            v-if="props.coverImage || book?.cover_image"
+                                            :src="props.coverImage || book?.cover_image || ''"
+                                            class="h-full w-full object-cover"
+                                            alt="Book cover"
+                                        />
+                                        <div
+                                            v-else-if="props.bookId"
+                                            class="absolute inset-0 flex items-center justify-center p-8"
+                                            :class="getGradientColors(props.bookId)"
+                                        >
+                                            <h2 class="text-3xl md:text-4xl font-bold text-center text-white drop-shadow-lg"
+                                                style="text-shadow: 0 2px 8px rgba(0,0,0,0.3)">
+                                                {{ displayTitle }}
+                                            </h2>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Initial state: Full Cover with Overlay -->
+                        <template v-else>
+                            <div class="cover-page relative h-full w-full overflow-hidden">
+                                <!-- Cover Image -->
+                                <div class="absolute inset-0">
+                                    <img
+                                        v-if="props.coverImage || book?.cover_image"
+                                        :src="props.coverImage || book?.cover_image || ''"
+                                        class="h-full w-full object-cover"
+                                        alt="Book cover"
+                                    />
+                                    <div
+                                        v-else-if="props.bookId"
+                                        class="absolute inset-0 flex items-center justify-center p-8"
+                                        :class="getGradientColors(props.bookId)"
+                                    >
+                                        <h2 class="text-3xl md:text-4xl font-bold text-center text-white drop-shadow-lg"
+                                            style="text-shadow: 0 2px 8px rgba(0,0,0,0.3)">
+                                            {{ displayTitle }}
+                                        </h2>
+                                    </div>
+                                </div>
+                                
+                                <!-- Gradient Overlay for Text Legibility (bottom portion only) -->
+                                <div class="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/90 via-black/60 to-transparent" />
+                                
+                                <!-- Title, Author & Begin Button Overlay -->
+                                <div class="absolute inset-x-0 bottom-0 p-6 md:p-8 text-white">
+                                    <h1 class="mb-2 font-serif text-2xl md:text-4xl font-bold tracking-tight drop-shadow-lg line-clamp-2">
+                                        {{ displayTitle }}
+                                    </h1>
+                                    <p v-if="displayAuthor" class="mb-4 font-serif text-base md:text-lg italic text-white/90 drop-shadow">
+                                        by {{ displayAuthor }}
+                                    </p>
+                                    <button 
+                                        @click="openBook"
+                                        :disabled="isPageTurning || loading"
+                                        class="group flex cursor-pointer items-center gap-2 rounded-full bg-white/20 px-4 py-2 md:px-6 md:py-3 text-sm md:text-base font-semibold text-white backdrop-blur-sm transition-all duration-300 hover:bg-white/30 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <BookOpen class="h-4 w-4 md:h-5 md:w-5 transition-transform group-hover:scale-110" />
+                                        <span>Begin Reading</span>
+                                        <ChevronRight class="h-4 w-4 md:h-5 md:w-5 transition-transform group-hover:translate-x-1" />
+                                    </button>
                         </div>
+                            </div>
+                        </template>
                     </div>
 
-                    <!-- Magical Background Effects -->
-                    <div class="absolute inset-0 opacity-30">
-                        <div class="absolute top-10 left-10 w-32 h-32 bg-amber-300 dark:bg-amber-600 rounded-full blur-3xl animate-pulse"></div>
-                        <div class="absolute bottom-10 right-10 w-40 h-40 bg-rose-300 dark:bg-rose-600 rounded-full blur-3xl animate-pulse" style="animation-delay: 1s"></div>
-                        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-orange-300 dark:bg-orange-600 rounded-full blur-3xl animate-pulse" style="animation-delay: 2s"></div>
-                    </div>
-
-                    <!-- Sparkle Effects -->
-                    <div v-if="showContent" class="absolute inset-0 pointer-events-none">
-                        <div class="sparkle" style="top: 20%; left: 15%; animation-delay: 0s"></div>
-                        <div class="sparkle" style="top: 40%; right: 20%; animation-delay: 0.5s"></div>
-                        <div class="sparkle" style="bottom: 30%; left: 25%; animation-delay: 1s"></div>
-                        <div class="sparkle" style="top: 60%; right: 30%; animation-delay: 1.5s"></div>
-                    </div>
-
-                    <!-- Content -->
+                    <!-- ==================== OPENED BOOK VIEW (Two Pages) ==================== -->
                     <div 
-                        class="relative z-10 flex flex-col items-center justify-center min-h-[600px] p-12 text-center"
+                        v-else 
+                        class="book-opened-view relative flex h-full w-full"
                     >
-                        <div
-                            v-if="actionError"
-                            class="mb-8 w-full max-w-2xl rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left text-sm font-medium text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200"
+                        <!-- Loading Chapter Overlay -->
+                        <div 
+                            v-if="isLoadingChapter || isGeneratingChapter"
+                            class="absolute inset-0 z-40 flex items-center justify-center bg-amber-50/90 dark:bg-amber-100/90 backdrop-blur-sm"
                         >
-                            {{ actionError }}
+                            <div class="text-center space-y-6">
+                                <div class="relative">
+                                    <div class="magical-spinner mx-auto h-20 w-20">
+                                        <Sparkles class="absolute inset-0 m-auto h-8 w-8 text-amber-600 dark:text-amber-500 animate-pulse" />
+                                        <div class="absolute inset-0 rounded-full border-4 border-amber-200 dark:border-amber-300" />
+                                        <div class="absolute inset-0 rounded-full border-4 border-t-amber-600 dark:border-t-amber-500 animate-spin" />
+                                    </div>
+                                    <div class="absolute -inset-4 animate-ping opacity-20">
+                                        <Sparkles class="h-6 w-6 text-amber-500" style="position: absolute; top: 0; left: 50%; transform: translateX(-50%);" />
+                                        <Sparkles class="h-4 w-4 text-amber-400" style="position: absolute; bottom: 0; right: 0;" />
+                                        <Sparkles class="h-5 w-5 text-amber-600" style="position: absolute; bottom: 20%; left: 0;" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <p class="text-xl font-serif font-semibold text-amber-900 dark:text-amber-800">
+                                        {{ isGeneratingChapter ? 'Crafting your story...' : 'Loading chapter...' }}
+                                    </p>
+                                    <p v-if="isGeneratingChapter" class="mt-2 text-sm text-amber-700 dark:text-amber-600">
+                                        The magic is happening ✨
+                                    </p>
+                                </div>
+                            </div>
+                    </div>
+
+                        <!-- Left Page -->
+                        <div class="relative w-1/2 h-full bg-amber-50 dark:bg-amber-100 overflow-hidden">
+                            <!-- Paper texture -->
+                            <div class="absolute inset-0 opacity-[0.08]" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.5\' numOctaves=\'2\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E');" />
+                            
+                            <!-- Decorative page lines -->
+                            <div class="absolute inset-y-8 left-4 w-px bg-amber-300/60 dark:bg-amber-400/50" />
+                            <div class="absolute inset-y-8 left-8 w-px bg-amber-300/40 dark:bg-amber-400/30" />
+                            
+                            <!-- Left Page Content Based on View -->
+                            <template v-if="readingView === 'title'">
+                                <!-- Decorative element for title page -->
+                                <div class="flex h-full items-center justify-center p-12">
+                                    <div class="text-center opacity-40">
+                                        <div class="mx-auto mb-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
+                                        <Sparkles class="mx-auto h-10 w-10 text-amber-500 dark:text-amber-400" />
+                                        <div class="mx-auto mt-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
+                    </div>
+                                </div>
+                            </template>
+                            
+                            <template v-else-if="readingView === 'chapter-image' && currentChapter">
+                                <!-- Chapter image on left page -->
+                                <div class="flex h-full flex-col">
+                                    <div 
+                                        v-if="currentChapter.image"
+                                        class="flex-1 p-6"
+                                    >
+                                        <img
+                                            :src="currentChapter.image"
+                                            :alt="currentChapter.title || `Chapter ${currentChapter.sort}`"
+                                            class="h-full w-full object-contain rounded-lg shadow-md"
+                                        />
+                                    </div>
+                                    <div v-else class="flex h-full items-center justify-center p-12">
+                                        <div class="text-center opacity-40">
+                                            <div class="mx-auto mb-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
+                                            <BookOpen class="mx-auto h-12 w-12 text-amber-500 dark:text-amber-400" />
+                                            <div class="mx-auto mt-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            
+                            <template v-else-if="readingView === 'chapter-content' && currentChapter">
+                                <!-- First half of chapter content on left page -->
+                                <div class="h-full overflow-auto p-8 pt-12">
+                                    <div class="prose prose-amber max-w-none text-amber-950 dark:text-amber-900">
+                                        <p 
+                                            v-for="(paragraph, idx) in (currentChapter.body || '').split('\n\n').slice(0, Math.ceil((currentChapter.body || '').split('\n\n').length / 2))"
+                                            :key="idx"
+                                            class="mb-4 font-serif text-base leading-relaxed first-letter:text-3xl first-letter:font-bold first-letter:mr-1 first-letter:float-left"
+                                        >
+                                            {{ paragraph }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </template>
+                            
+                            <template v-else-if="readingView === 'create-chapter'">
+                                <!-- Decorative element for create chapter page -->
+                                <div class="flex h-full items-center justify-center p-12">
+                                    <div class="text-center opacity-40">
+                                        <div class="mx-auto mb-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
+                                        <Wand2 class="mx-auto h-12 w-12 text-amber-500 dark:text-amber-400" />
+                                        <div class="mx-auto mt-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
+                                    </div>
+                                </div>
+                            </template>
                         </div>
 
+                        <!-- Book Spine / Center Seam - positioned above content for curved effect -->
+                        <div class="pointer-events-none absolute left-1/2 top-0 bottom-0 z-30 w-24 -translate-x-1/2">
+                            <!-- Wide soft shadow for page curve effect -->
+                            <div class="h-full w-full bg-gradient-to-r from-transparent via-amber-950/20 to-transparent" />
+                            <!-- Inner darker shadow -->
+                            <div class="absolute inset-y-0 left-1/2 w-10 -translate-x-1/2 bg-gradient-to-r from-transparent via-amber-950/25 to-transparent" />
+                            <!-- Core shadow at binding -->
+                            <div class="absolute inset-y-0 left-1/2 w-4 -translate-x-1/2 bg-gradient-to-r from-transparent via-amber-950/30 to-transparent" />
+                            <!-- Highlight line in center -->
+                            <div class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-amber-200/5 via-amber-100/20 to-amber-200/5" />
+                        </div>
+
+                        <!-- Right Page (Content) -->
+                        <div 
+                            class="relative w-1/2 h-full bg-amber-50 dark:bg-amber-100 overflow-auto"
+                            :class="{ 'cursor-pointer': readingView === 'chapter-image' }"
+                            @click="readingView === 'chapter-image' ? flipToChapterContent() : null"
+                        >
+                            <!-- Paper texture -->
+                            <div class="absolute inset-0 opacity-[0.08] pointer-events-none" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.5\' numOctaves=\'2\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E');" />
+                            
+                            <!-- Decorative page lines -->
+                            <div class="absolute inset-y-8 right-4 w-px bg-amber-300/60 dark:bg-amber-400/50" />
+                            <div class="absolute inset-y-8 right-8 w-px bg-amber-300/40 dark:bg-amber-400/30" />
+                            
+                            <!-- Left shadow from spine -->
+                            <div class="absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-amber-900/10 to-transparent pointer-events-none" />
+
+                            <!-- Action/Chapter Error -->
+                            <div
+                                v-if="actionError || chapterError"
+                                class="mx-8 mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left text-sm font-medium text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200"
+                            >
+                                {{ actionError || chapterError }}
+                        </div>
+
+                            <!-- Edit Form -->
                         <template v-if="isEditing">
-                            <div class="w-full max-w-3xl text-left">
-                                <form @submit.prevent="submitEdit" class="space-y-6">
+                                <div class="relative z-10 p-8 pt-16">
+                                    <form @submit.prevent="submitEdit" class="space-y-5">
                                     <div class="grid gap-2">
-                                        <Label for="edit-title" class="text-base font-semibold text-foreground">Story Title</Label>
+                                            <Label for="edit-title" class="text-sm font-semibold text-foreground">Story Title</Label>
                                         <Input
                                             id="edit-title"
                                             v-model="editForm.title"
                                             placeholder="Enter your story title"
                                             :disabled="isSaving || isDeleting"
-                                            class="h-12 bg-white/70 text-lg dark:bg-white/5"
+                                                class="h-10 bg-white/70 dark:bg-white/5"
                                         />
                                         <InputError :message="editErrors.title" />
                                     </div>
 
                                     <div class="grid gap-2">
-                                        <Label for="edit-genre" class="text-base font-semibold text-foreground">Genre</Label>
+                                            <Label for="edit-genre" class="text-sm font-semibold text-foreground">Genre</Label>
                                         <Select v-model="editForm.genre" :disabled="isSaving || isDeleting">
-                                            <SelectTrigger id="edit-genre" class="h-12 text-left text-base">
+                                                <SelectTrigger id="edit-genre" class="h-10 text-left">
                                                 <SelectValue placeholder="Select a genre" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -796,9 +1292,9 @@ onBeforeUnmount(() => {
                                     </div>
 
                                     <div class="grid gap-2">
-                                        <Label for="edit-age-level" class="text-base font-semibold text-foreground">Age Level</Label>
+                                            <Label for="edit-age-level" class="text-sm font-semibold text-foreground">Age Level</Label>
                                         <Select v-model="editForm.age_level" :disabled="isSaving || isDeleting">
-                                            <SelectTrigger id="edit-age-level" class="h-12 text-left text-base">
+                                                <SelectTrigger id="edit-age-level" class="h-10 text-left">
                                                 <SelectValue placeholder="Select age level" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -815,36 +1311,37 @@ onBeforeUnmount(() => {
                                     </div>
 
                                     <div class="grid gap-2">
-                                        <Label for="edit-author" class="text-base font-semibold text-foreground">Author</Label>
+                                            <Label for="edit-author" class="text-sm font-semibold text-foreground">Author</Label>
                                         <Input
                                             id="edit-author"
                                             v-model="editForm.author"
                                             placeholder="Author name"
                                             :disabled="isSaving || isDeleting"
-                                            class="h-12 bg-white/70 text-lg dark:bg-white/5"
+                                                class="h-10 bg-white/70 dark:bg-white/5"
                                         />
                                         <InputError :message="editErrors.author" />
                                     </div>
 
                                     <div class="grid gap-2">
-                                        <Label for="edit-plot" class="text-base font-semibold text-foreground">Plot Summary</Label>
+                                            <Label for="edit-plot" class="text-sm font-semibold text-foreground">Plot Summary</Label>
                                         <Textarea
                                             id="edit-plot"
                                             v-model="editForm.plot"
                                             placeholder="Briefly describe your story's plot..."
-                                            rows="6"
+                                                rows="4"
                                             :disabled="isSaving || isDeleting"
-                                            class="min-h-[160px] text-base leading-relaxed"
+                                                class="min-h-[100px] text-sm leading-relaxed"
                                         />
                                         <InputError :message="editErrors.plot" />
                                     </div>
 
                                     <InputError v-if="editErrors.general" :message="editErrors.general" />
 
-                                    <div class="flex items-center justify-end gap-3">
+                                        <div class="flex items-center justify-end gap-3 pt-2">
                                         <Button
                                             type="button"
                                             variant="outline"
+                                                size="sm"
                                             @click="cancelEditing"
                                             :disabled="isSaving || isDeleting"
                                         >
@@ -852,6 +1349,7 @@ onBeforeUnmount(() => {
                                         </Button>
                                         <Button
                                             type="submit"
+                                                size="sm"
                                             :disabled="isSaving || isDeleting"
                                         >
                                             <Spinner v-if="isSaving" class="mr-2 h-4 w-4" />
@@ -862,53 +1360,210 @@ onBeforeUnmount(() => {
                             </div>
                         </template>
 
-                        <template v-else>
-                            <!-- Decorative Top Border -->
-                            <div class="mb-8 flex items-center gap-4">
-                                <div class="h-px w-20 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400"></div>
-                                <Sparkles class="h-6 w-6 text-amber-600 dark:text-amber-400 animate-spin-slow" />
-                                <div class="h-px w-20 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400"></div>
+                            <!-- ==================== TITLE PAGE VIEW ==================== -->
+                            <template v-else-if="readingView === 'title'">
+                                <div 
+                                    :class="[
+                                        'relative z-10 flex h-full flex-col items-center p-6 pt-8 text-center transition-opacity duration-500',
+                                        isTitlePageFading ? 'opacity-0' : 'opacity-100'
+                                    ]"
+                                >
+                                    <!-- Cover Image (full width, natural height) -->
+                                    <div 
+                                        v-if="props.coverImage || book?.cover_image"
+                                        class="mb-6 w-full overflow-hidden rounded-lg shadow-lg"
+                                    >
+                                        <img
+                                            :src="props.coverImage || book?.cover_image || ''"
+                                            :alt="displayTitle"
+                                            class="h-auto w-full object-contain"
+                                        />
+                                    </div>
+
+                                    <!-- Decorative Border -->
+                                    <div class="mb-4 flex items-center gap-3">
+                                        <div class="h-px w-12 bg-gradient-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
+                                        <Sparkles class="h-4 w-4 text-amber-700 dark:text-amber-500 animate-spin-slow" />
+                                        <div class="h-px w-12 bg-gradient-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
                             </div>
 
                             <!-- Title -->
-                            <h1 class="mb-6 text-6xl md:text-7xl font-serif font-bold text-amber-950 dark:text-amber-50 tracking-tight drop-shadow-lg">
+                                    <h1 class="mb-3 font-serif text-2xl md:text-3xl lg:text-4xl font-bold text-amber-950 dark:text-amber-900 tracking-tight">
                                 {{ displayTitle }}
                             </h1>
 
                             <!-- Author -->
-                            <div v-if="displayAuthor" class="mb-6 text-2xl font-serif italic text-amber-800 dark:text-amber-200">
+                                    <p v-if="displayAuthor" class="mb-2 font-serif text-base md:text-lg italic text-amber-800 dark:text-amber-800">
                                 by {{ displayAuthor }}
-                            </div>
+                                    </p>
 
                             <!-- Created Date -->
-                            <div v-if="displayCreatedAt" class="mb-8 text-xl font-serif text-amber-700 dark:text-amber-300">
+                                    <p v-if="displayCreatedAt" class="font-serif text-xs text-amber-700 dark:text-amber-700">
                                 {{ displayCreatedAt }}
+                                    </p>
+
+                                    <!-- Decorative Bottom Border -->
+                                    <div class="mt-4 flex items-center gap-3">
+                                        <div class="h-px w-12 bg-gradient-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
+                                        <Sparkles class="h-4 w-4 text-amber-700 dark:text-amber-500 animate-spin-slow" style="animation-delay: 1s" />
+                                        <div class="h-px w-12 bg-gradient-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
                             </div>
 
-                            <!-- Plot Summary -->
-                            <div v-if="displayPlot" class="mb-8 max-w-2xl">
-                                <p class="text-lg leading-relaxed text-amber-900 dark:text-amber-100 italic">
-                                    "{{ displayPlot }}"
-                                </p>
+                                    <!-- Next Button -->
+                                    <button 
+                                        @click="goToChapter1"
+                                        :disabled="isTitlePageFading || isLoadingChapter"
+                                        class="group mt-6 flex cursor-pointer items-center gap-2 rounded-full bg-gradient-to-r from-amber-700 to-orange-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                    >
+                                        <span>Continue to Chapter 1</span>
+                                        <ChevronRight class="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                                    </button>
+                                </div>
+                            </template>
+
+                            <!-- ==================== CHAPTER IMAGE VIEW ==================== -->
+                            <template v-else-if="readingView === 'chapter-image' && currentChapter">
+                                <div class="relative z-10 flex h-full flex-col items-center justify-center p-6 text-center">
+                                    <!-- Chapter Number Badge -->
+                                    <div class="mb-4">
+                                        <span class="inline-block rounded-full bg-amber-200/60 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-amber-800 dark:bg-amber-300/60 dark:text-amber-900">
+                                            Chapter {{ currentChapter.sort }}
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Chapter Title -->
+                                    <h2 class="mb-6 font-serif text-2xl md:text-3xl font-bold text-amber-950 dark:text-amber-900">
+                                        {{ currentChapter.title || `Chapter ${currentChapter.sort}` }}
+                                    </h2>
+                                    
+                                    <!-- Decorative -->
+                                    <div class="mb-6 flex items-center gap-3">
+                                        <div class="h-px w-16 bg-gradient-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
+                                        <Sparkles class="h-4 w-4 text-amber-700 dark:text-amber-500" />
+                                        <div class="h-px w-16 bg-gradient-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
+                                    </div>
+                                    
+                                    <!-- Click to continue hint -->
+                                    <p class="text-sm text-amber-700 dark:text-amber-600 animate-pulse">
+                                        Click to read chapter →
+                                    </p>
+                                    
+                                    <!-- Navigation -->
+                                    <div class="absolute bottom-6 left-6 right-6 flex items-center justify-between">
+                                        <button 
+                                            @click.stop="goToPreviousChapter"
+                                            class="flex cursor-pointer items-center gap-1 text-sm text-amber-700 hover:text-amber-900 transition-colors dark:text-amber-600 dark:hover:text-amber-800"
+                                        >
+                                            <ChevronLeft class="h-4 w-4" />
+                                            <span>{{ currentChapterNumber > 1 ? 'Previous' : 'Title Page' }}</span>
+                                        </button>
+                            </div>
+                                </div>
+                            </template>
+
+                            <!-- ==================== CHAPTER CONTENT VIEW ==================== -->
+                            <template v-else-if="readingView === 'chapter-content' && currentChapter">
+                                <div class="h-full overflow-auto p-8 pt-12">
+                                    <!-- Second half of chapter content on right page -->
+                                    <div class="prose prose-amber max-w-none text-amber-950 dark:text-amber-900">
+                                        <p 
+                                            v-for="(paragraph, idx) in (currentChapter.body || '').split('\n\n').slice(Math.ceil((currentChapter.body || '').split('\n\n').length / 2))"
+                                            :key="idx"
+                                            class="mb-4 font-serif text-base leading-relaxed"
+                                        >
+                                            {{ paragraph }}
+                                        </p>
                             </div>
 
-                            <!-- Decorative Bottom Border -->
-                            <div class="mt-8 flex items-center gap-4">
-                                <div class="h-px w-20 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400"></div>
-                                <Sparkles class="h-6 w-6 text-amber-600 dark:text-amber-400 animate-spin-slow" style="animation-delay: 1s" />
-                                <div class="h-px w-20 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400"></div>
-                            </div>
-
-                            <!-- Continue Button -->
-                            <div class="mt-12">
+                                    <!-- Navigation -->
+                                    <div class="mt-8 flex items-center justify-between border-t border-amber-200 pt-6 dark:border-amber-300">
                                 <button 
-                                    class="group relative px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-amber-600 to-orange-600 dark:from-amber-500 dark:to-orange-500 rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 overflow-hidden"
-                                >
-                                    <span class="relative z-10">Begin Reading</span>
-                                    <div class="absolute inset-0 bg-gradient-to-r from-orange-600 to-rose-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                            @click="goBackToChapterImage"
+                                            class="flex cursor-pointer items-center gap-1 text-sm text-amber-700 hover:text-amber-900 transition-colors dark:text-amber-600 dark:hover:text-amber-800"
+                                        >
+                                            <ChevronLeft class="h-4 w-4" />
+                                            <span>Back</span>
+                                        </button>
+                                        
+                                        <button 
+                                            @click="goToNextChapter"
+                                            :disabled="isLoadingChapter"
+                                            class="group flex cursor-pointer items-center gap-2 rounded-full bg-gradient-to-r from-amber-700 to-orange-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <span>{{ currentChapter.final_chapter ? 'The End' : (currentChapterNumber < totalChapters ? 'Next Chapter' : 'Continue Story') }}</span>
+                                            <ChevronRight v-if="!currentChapter.final_chapter" class="h-5 w-5 transition-transform group-hover:translate-x-1" />
                                 </button>
+                                    </div>
                             </div>
                         </template>
+
+                            <!-- ==================== CREATE CHAPTER VIEW ==================== -->
+                            <template v-else-if="readingView === 'create-chapter'">
+                                <div class="relative z-10 flex h-full flex-col p-8 pt-12">
+                                    <div class="flex-1">
+                                        <!-- Header -->
+                                        <div class="mb-6 text-center">
+                                            <div class="mb-3">
+                                                <span class="inline-block rounded-full bg-amber-200/60 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-amber-800 dark:bg-amber-300/60 dark:text-amber-900">
+                                                    Chapter {{ currentChapterNumber }}
+                                                </span>
+                    </div>
+                                            <h2 class="font-serif text-2xl font-bold text-amber-950 dark:text-amber-900">
+                                                What happens next?
+                                            </h2>
+                                            <p class="mt-2 text-sm text-amber-700 dark:text-amber-600">
+                                                Describe what you'd like to happen in the next chapter (optional)
+                                            </p>
+                                        </div>
+                                        
+                                        <!-- Form -->
+                                        <div class="space-y-4">
+                                            <Textarea
+                                                v-model="nextChapterPrompt"
+                                                placeholder="The hero discovers a hidden door behind the waterfall..."
+                                                rows="5"
+                                                :disabled="isGeneratingChapter"
+                                                class="w-full resize-none bg-white/70 dark:bg-white/10 font-serif text-amber-950 dark:text-amber-900 placeholder:text-amber-500"
+                                            />
+                                            
+                                            <div class="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id="final-chapter"
+                                                    v-model="isFinalChapter"
+                                                    :disabled="isGeneratingChapter"
+                                                    class="h-4 w-4 rounded border-amber-300 text-amber-700 focus:ring-amber-500"
+                                                />
+                                                <label for="final-chapter" class="text-sm text-amber-800 dark:text-amber-700">
+                                                    This is the final chapter
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Actions -->
+                                    <div class="flex items-center justify-between border-t border-amber-200 pt-6 dark:border-amber-300">
+                                        <button 
+                                            @click="goToPreviousChapter"
+                                            :disabled="isGeneratingChapter"
+                                            class="flex cursor-pointer items-center gap-1 text-sm text-amber-700 hover:text-amber-900 transition-colors dark:text-amber-600 dark:hover:text-amber-800 disabled:opacity-50"
+                                        >
+                                            <ChevronLeft class="h-4 w-4" />
+                                            <span>Back</span>
+                                        </button>
+                                        
+                                        <button 
+                                            @click="generateNextChapter"
+                                            :disabled="isGeneratingChapter"
+                                            class="group flex cursor-pointer items-center gap-2 rounded-full bg-gradient-to-r from-amber-700 to-orange-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <Wand2 class="h-4 w-4" />
+                                            <span>{{ isGeneratingChapter ? 'Creating...' : 'Create Chapter' }}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -920,6 +1575,46 @@ onBeforeUnmount(() => {
 .book-modal-container {
     transform-style: preserve-3d;
     backface-visibility: visible;
+    background: linear-gradient(to right, #fef3c7, #fff7ed, #fef3c7);
+}
+
+:is(.dark .book-modal-container) {
+    background: linear-gradient(to right, #262626, #1c1c1c, #262626);
+}
+
+/* Cover page turning animation */
+.cover-page {
+    transform-style: preserve-3d;
+    transition: transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1);
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.cover-page.turning {
+    transform: perspective(2000px) rotateY(-180deg);
+}
+
+/* Shadow that appears during page turn */
+.page-shadow {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.cover-page.turning .page-shadow {
+    opacity: 1;
+}
+
+/* Book opened animation */
+.book-opened-view {
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes sparkleFloat {
@@ -941,7 +1636,6 @@ onBeforeUnmount(() => {
         transform: rotate(360deg);
     }
 }
-
 
 .sparkle {
     position: absolute;
@@ -982,6 +1676,36 @@ onBeforeUnmount(() => {
 :is(.dark .sparkle) {
     background: radial-gradient(circle, #fcd34d, transparent);
     box-shadow: 0 0 10px #fcd34d;
+}
+
+/* Magical spinner */
+.magical-spinner {
+    position: relative;
+}
+
+/* Page flip animation */
+.page-flip-enter-active,
+.page-flip-leave-active {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.page-flip-enter-from {
+    opacity: 0;
+    transform: translateX(20px);
+}
+
+.page-flip-leave-to {
+    opacity: 0;
+    transform: translateX(-20px);
+}
+
+/* Prose styling for chapter content */
+.prose p:first-of-type::first-letter {
+    font-size: 3rem;
+    font-weight: 700;
+    float: left;
+    margin-right: 0.5rem;
+    line-height: 1;
 }
 </style>
 

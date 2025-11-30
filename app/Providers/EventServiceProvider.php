@@ -41,6 +41,9 @@ class EventServiceProvider extends ServiceProvider
         //     \App\Listeners\Book\CreateBookMetaDataListener::class,
         //     \App\Listeners\Chapter\CreateFirstChapterListener::class,
         // ],
+        \App\Events\Character\CharacterCreatedEvent::class => [
+            \App\Listeners\Character\GenerateCharacterPortraitListener::class,
+        ],
     ];
 
     /**

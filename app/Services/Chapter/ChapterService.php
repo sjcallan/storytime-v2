@@ -4,7 +4,6 @@ namespace App\Services\Chapter;
 
 use App\Repositories\Chapter\ChapterRepository;
 use App\Services\Book\BookService;
-use App\Services\Builder\ChapterBuilderService;
 use App\Services\OpenAi\ChatService;
 use App\Services\OpenAi\DalleService;
 use App\Services\RequestLog\RequestLogService;
@@ -12,11 +11,10 @@ use App\Traits\Service\Creatable;
 use App\Traits\Service\Deletable;
 use App\Traits\Service\Gettable;
 use App\Traits\Service\Updatable;
-use Illuminate\Support\Facades\Log;
 
 class ChapterService
 {
-    use Gettable, Creatable, Updatable, Deletable;
+    use Creatable, Deletable, Gettable, Updatable;
 
     /** @var \App\Repositories\Chapter\ChapterRepository */
     protected $repository;
@@ -37,9 +35,9 @@ class ChapterService
     protected $requestLogService;
 
     /**
-     * @param \App\Repositories\Chapter\ChapterRepository $ChapterRepository
+     * @param  \App\Repositories\Chapter\ChapterRepository  $ChapterRepository
      */
-    public function __construct(ChapterRepository $chapterRepository, ChatService $chatService, BookService $bookService, DalleService $dalleService, RequestLogService $requestLogService) 
+    public function __construct(ChapterRepository $chapterRepository, ChatService $chatService, BookService $bookService, DalleService $dalleService, RequestLogService $requestLogService)
     {
         $this->repository = $chapterRepository;
         $this->chatService = $chatService;
@@ -48,24 +46,29 @@ class ChapterService
         $this->requestLogService = $requestLogService;
     }
 
-    /**
-     * @param int $userId
-     * @param array $fields
-     * @param array $options
-     */
-    public function getAllByUserId(int $userId, array $fields = null, array $options = null)
+    public function getAllByUserId(int $userId, ?array $fields = null, ?array $options = null)
     {
         return $this->repository->getAllByUserId($userId, $fields, $options);
     }
 
-    /**
-     * @param string $bookId
-     * @param array $fields
-     * @param array $options
-     */
-    public function getAllByBookId(string $bookId, array $fields = null, array $options = null)
+    public function getAllByBookId(string $bookId, ?array $fields = null, ?array $options = null)
     {
         return $this->repository->getAllByBookId($bookId, $fields, $options);
     }
 
+    /**
+     * Get a chapter by book ID and sort number.
+     */
+    public function getByBookIdAndSort(string $bookId, int $sort, ?array $fields = null, ?array $options = null)
+    {
+        return $this->repository->getByBookIdAndSort($bookId, $sort, $fields, $options);
+    }
+
+    /**
+     * Get the total count of complete chapters for a book.
+     */
+    public function getCompleteChapterCount(string $bookId): int
+    {
+        return $this->repository->getCompleteChapterCount($bookId);
+    }
 }
