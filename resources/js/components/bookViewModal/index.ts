@@ -20,4 +20,6 @@ export { default as BookHeaderControls } from './BookHeaderControls.vue';
 export { default as BookLoadingOverlay } from './BookLoadingOverlay.vue';
 export { default as CreateChapterForm } from './CreateChapterForm.vue';
 export { default as DeleteConfirmDialog } from './DeleteConfirmDialog.vue';
+export { default as CharacterGrid } from './CharacterGrid.vue';
+export { default as CharacterDetail } from './CharacterDetail.vue';
 

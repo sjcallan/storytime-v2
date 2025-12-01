@@ -16,7 +16,7 @@ import {
     BookLoadingOverlay,
     DeleteConfirmDialog,
 } from '@/components/bookViewModal';
-import type { Book, CardPosition, BookEditFormData, ApiFetchFn } from '@/components/bookViewModal';
+import type { Book, CardPosition, BookEditFormData, ApiFetchFn, Character } from '@/components/bookViewModal';
 
 interface Props {
     bookId: string | null;
@@ -61,6 +61,9 @@ const editForm = ref<BookEditFormData>({
     author: '',
     plot: '',
 });
+
+// Character selection state
+const selectedCharacter = ref<Character | null>(null);
 
 // Computed display values
 const displayTitle = computed(() => {
@@ -301,6 +304,15 @@ const handleGenerateChapter = () => {
     }
 };
 
+// Character selection handlers
+const handleSelectCharacter = (character: Character) => {
+    selectedCharacter.value = character;
+};
+
+const handleClearSelectedCharacter = () => {
+    selectedCharacter.value = null;
+};
+
 // Reset all state
 const resetAllState = () => {
     animation.resetState();
@@ -311,6 +323,7 @@ const resetAllState = () => {
     isSaving.value = false;
     isDeleting.value = false;
     showDeleteConfirm.value = false;
+    selectedCharacter.value = null;
     resetEditFeedback();
 };
 
@@ -478,6 +491,9 @@ onBeforeUnmount(() => {
                             :reading-view="chapters.readingView.value"
                             :chapter="chapters.currentChapter.value"
                             :spread="chapters.currentSpread.value"
+                            :characters="book?.characters"
+                            :selected-character-id="selectedCharacter?.id ?? null"
+                            @select-character="handleSelectCharacter"
                         />
 
                         <!-- Book Spine -->
@@ -506,6 +522,7 @@ onBeforeUnmount(() => {
                             :next-chapter-prompt="chapters.nextChapterPrompt.value"
                             :is-final-chapter="chapters.isFinalChapter.value"
                             :is-generating-chapter="chapters.isGeneratingChapter.value"
+                            :selected-character="selectedCharacter"
                             @continue-to-chapter1="handleContinueToChapter1"
                             @update:edit-form="editForm = $event"
                             @submit-edit="submitEdit"
@@ -514,6 +531,7 @@ onBeforeUnmount(() => {
                             @update:is-final-chapter="chapters.isFinalChapter.value = $event"
                             @generate-chapter="handleGenerateChapter"
                             @go-back="handleGoToPreviousChapter"
+                            @clear-selected-character="handleClearSelectedCharacter"
                         />
 
                         <!-- Footer Navigation -->

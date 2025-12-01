@@ -4,7 +4,8 @@ import BookTitlePage from './BookTitlePage.vue';
 import BookChapterContent from './BookChapterContent.vue';
 import BookEditForm from './BookEditForm.vue';
 import CreateChapterForm from './CreateChapterForm.vue';
-import type { Book, Chapter, PageSpread, ReadingView, BookEditFormData } from './types';
+import CharacterDetail from './CharacterDetail.vue';
+import type { Book, Chapter, PageSpread, ReadingView, BookEditFormData, Character } from './types';
 
 interface Props {
     book: Book | null;
@@ -28,6 +29,7 @@ interface Props {
     nextChapterPrompt: string;
     isFinalChapter: boolean;
     isGeneratingChapter: boolean;
+    selectedCharacter?: Character | null;
 }
 
 defineProps<Props>();
@@ -41,6 +43,7 @@ const emit = defineEmits<{
     (e: 'update:isFinalChapter', value: boolean): void;
     (e: 'generateChapter'): void;
     (e: 'goBack'): void;
+    (e: 'clearSelectedCharacter'): void;
 }>();
 </script>
 
@@ -74,6 +77,13 @@ const emit = defineEmits<{
             @update:form="emit('update:editForm', $event)"
             @submit="emit('submitEdit')"
             @cancel="emit('cancelEdit')"
+        />
+
+        <!-- Character Detail View (when character is selected from grid) -->
+        <CharacterDetail
+            v-else-if="readingView === 'title' && selectedCharacter"
+            :character="selectedCharacter"
+            @back="emit('clearSelectedCharacter')"
         />
 
         <!-- Title Page View -->

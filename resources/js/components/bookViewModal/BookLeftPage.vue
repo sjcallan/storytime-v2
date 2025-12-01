@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import BookPageTexture from './BookPageTexture.vue';
 import BookPageDecorative from './BookPageDecorative.vue';
+import CharacterGrid from './CharacterGrid.vue';
 import { BookOpen } from 'lucide-vue-next';
-import type { Chapter, PageSpread, ReadingView } from './types';
+import type { Chapter, PageSpread, ReadingView, Character } from './types';
 
 interface Props {
     readingView: ReadingView;
     chapter: Chapter | null;
     spread: PageSpread | null;
+    characters?: Character[];
+    selectedCharacterId?: string | null;
 }
 
 defineProps<Props>();
+
+const emit = defineEmits<{
+    (e: 'selectCharacter', character: Character): void;
+}>();
 </script>
 
 <template>
@@ -24,7 +31,13 @@ defineProps<Props>();
         
         <!-- Left Page Content Based on View -->
         <template v-if="readingView === 'title'">
-            <BookPageDecorative variant="sparkles" />
+            <CharacterGrid
+                v-if="characters && characters.length > 0"
+                :characters="characters"
+                :selected-character-id="selectedCharacterId ?? null"
+                @select-character="emit('selectCharacter', $event)"
+            />
+            <BookPageDecorative v-else variant="sparkles" />
         </template>
         
         <template v-else-if="(readingView === 'chapter-image' || readingView === 'chapter-content') && chapter && spread">

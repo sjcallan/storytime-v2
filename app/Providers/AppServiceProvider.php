@@ -50,8 +50,11 @@ class AppServiceProvider extends ServiceProvider
             ->needs(AiApiServiceInterface::class)
             ->give(\App\Services\Ai\Llama\ApiService::class);
 
-        $this->app->when(\App\Services\OpenAi\ChatService::class)
-            ->needs(AiApiServiceInterface::class)
-            ->give(\App\Services\OpenAi\ApiService::class);
+        $this->app->bind(\App\Services\OpenAi\ChatService::class, function ($app) {
+            return new \App\Services\OpenAi\ChatService(
+                $app->make(\App\Services\OpenAi\ApiService::class),
+                $app->make(\App\Services\RequestLog\RequestLogService::class)
+            );
+        });
     }
 }

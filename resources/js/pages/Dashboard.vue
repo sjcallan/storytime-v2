@@ -361,9 +361,10 @@ const formatGenreName = (genre: string) => {
 
             <!-- Genre Sections -->
             <div
-                v-for="[genre, books] in sortedBooksByGenre"
+                v-for="([genre, books], index) in sortedBooksByGenre"
                 :key="genre"
                 class="space-y-4"
+                :class="{ 'border-t border-border dark:border-border/70 pt-10': index > 0 }"
             >
                 <!-- Genre Header -->
                 <div class="flex items-center justify-between">

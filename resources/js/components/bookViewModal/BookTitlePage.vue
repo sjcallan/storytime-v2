@@ -71,7 +71,7 @@ const emit = defineEmits<{
             :disabled="isFading || isLoading"
             class="group mt-6 flex cursor-pointer items-center gap-2 rounded-full bg-gradient-to-r from-amber-700 to-orange-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
-            <span>Continue to Chapter 1</span>
+            <span>Start Reading</span>
             <ChevronRight class="h-5 w-5 transition-transform group-hover:translate-x-1" />
         </button>
     </div>

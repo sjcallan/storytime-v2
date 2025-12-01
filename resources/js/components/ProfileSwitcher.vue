@@ -31,9 +31,7 @@ const handleSwitchProfile = (profile: Profile) => {
     
     router.post(switchProfile.url(profile.id), {}, {
         preserveScroll: true,
-        onSuccess: () => {
-            router.reload();
-        },
+        preserveState: false,
     });
 };
 

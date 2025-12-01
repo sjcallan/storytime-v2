@@ -102,7 +102,11 @@ const gradientColors = computed(() => {
 
         <!-- Initial state: Full Cover with Overlay -->
         <template v-else>
-            <div class="cover-page relative h-full w-full overflow-hidden">
+            <div 
+                class="cover-page relative h-full w-full overflow-hidden cursor-pointer"
+                :class="{ 'pointer-events-none': isPageTurning || loading }"
+                @click="emit('open')"
+            >
                 <!-- Cover Image -->
                 <div class="absolute inset-0">
                     <img
@@ -134,15 +138,13 @@ const gradientColors = computed(() => {
                     <p v-if="author" class="mb-6 font-serif text-sm md:text-base italic text-white/80 drop-shadow">
                         by {{ author }}
                     </p>
-                    <button 
-                        @click="emit('open')"
-                        :disabled="isPageTurning || loading"
-                        class="group flex cursor-pointer items-center gap-2 rounded-full bg-white/20 px-4 py-2 md:px-6 md:py-3 text-sm md:text-base font-semibold text-white backdrop-blur-sm transition-all duration-300 hover:bg-white/30 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    <div 
+                        class="group inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 md:px-6 md:py-3 text-sm md:text-base font-semibold text-white backdrop-blur-sm transition-all duration-300 hover:bg-white/30 hover:scale-105"
                     >
                         <BookOpen class="h-4 w-4 md:h-5 md:w-5 transition-transform group-hover:scale-110" />
                         <span>Begin Reading</span>
                         <ChevronRight class="h-4 w-4 md:h-5 md:w-5 transition-transform group-hover:translate-x-1" />
-                    </button>
+                    </div>
                 </div>
             </div>
         </template>

@@ -3,6 +3,18 @@ export interface Profile {
     name: string;
 }
 
+export interface Character {
+    id: string;
+    name: string;
+    gender: string | null;
+    description: string | null;
+    type: string | null;
+    age: string | null;
+    nationality: string | null;
+    backstory: string | null;
+    portrait_image: string | null;
+}
+
 export interface Book {
     id: string;
     title: string;
@@ -14,6 +26,7 @@ export interface Book {
     status: string;
     created_at: string;
     profile?: Profile | null;
+    characters?: Character[];
 }
 
 export interface Chapter {

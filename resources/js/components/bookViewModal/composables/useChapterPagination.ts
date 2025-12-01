@@ -2,9 +2,9 @@ import { ref, computed } from 'vue';
 import type { Chapter, ChapterResponse, PageSpread, ReadingView, ApiFetchFn } from '../types';
 import { apiFetch } from '@/composables/ApiFetch';
 
-const CHARS_PER_LINE = 32;
-const LINES_PER_FULL_PAGE = 18;
-const FIRST_PAGE_LINES = 7;
+const CHARS_PER_LINE = 55;
+const LINES_PER_FULL_PAGE = 28;
+const FIRST_PAGE_LINES = 14;
 const CHARS_PER_FULL_PAGE = CHARS_PER_LINE * LINES_PER_FULL_PAGE;
 const CHARS_FIRST_PAGE = CHARS_PER_LINE * FIRST_PAGE_LINES;
 

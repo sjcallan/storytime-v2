@@ -290,6 +290,7 @@ const matureGenres = [
     { value: 'drama', label: '🎭 Drama', emoji: '🎭' },
     { value: 'romance', label: '💕 Romance', emoji: '💕' },
     { value: 'horror', label: '👻 Horror', emoji: '👻' },
+    { value: 'erotica', label: '🍷 Erotica', emoji: '🍷' },
 ];
 
 const genres = computed(() => {
