@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { MagicalSparklesLoader } from '@/components/ui/magical-book-loader';
 import { Textarea } from '@/components/ui/textarea';
 import {
     DropdownMenu,
@@ -115,6 +116,109 @@ const isFinalChapter = ref(false);
 const readingView = ref<'title' | 'chapter-image' | 'chapter-content' | 'create-chapter'>('title');
 const isPageFlipping = ref(false);
 
+// Pagination state for chapter content across spreads
+const currentSpreadIndex = ref(0);
+
+// Page content calculation - estimates characters that fit per page
+// Based on typical book page dimensions and font sizing (text-lg = 18px)
+const CHARS_PER_LINE = 32;
+const LINES_PER_FULL_PAGE = 18;
+const FIRST_PAGE_LINES = 7; // ~40% of page used for title/margin, leaves ~60% for text
+const CHARS_PER_FULL_PAGE = CHARS_PER_LINE * LINES_PER_FULL_PAGE;
+const CHARS_FIRST_PAGE = CHARS_PER_LINE * FIRST_PAGE_LINES;
+
+// Split chapter body into pages
+const chapterPages = computed(() => {
+    if (!currentChapter.value?.body) return [];
+    
+    const body = currentChapter.value.body;
+    const paragraphs = body.split('\n\n').filter(p => p.trim());
+    
+    if (paragraphs.length === 0) return [];
+    
+    const pages: string[][] = [];
+    let currentPage: string[] = [];
+    let currentPageChars = 0;
+    let pageIndex = 0;
+    
+    for (const paragraph of paragraphs) {
+        // First page (index 0) has less space due to title + 40% top margin
+        const maxChars = pageIndex === 0 ? CHARS_FIRST_PAGE : CHARS_PER_FULL_PAGE;
+        const paragraphChars = paragraph.length + 20; // Add padding for paragraph spacing
+        
+        if (currentPageChars + paragraphChars > maxChars && currentPage.length > 0) {
+            // Current page is full, start new page
+            pages.push(currentPage);
+            currentPage = [paragraph];
+            currentPageChars = paragraphChars;
+            pageIndex++;
+        } else {
+            currentPage.push(paragraph);
+            currentPageChars += paragraphChars;
+        }
+    }
+    
+    // Don't forget the last page
+    if (currentPage.length > 0) {
+        pages.push(currentPage);
+    }
+    
+    return pages;
+});
+
+// Group pages into spreads (pairs of left/right pages)
+// Spread 0: left = chapter image, right = first page (title + content start)
+// Spread 1+: left = continuation, right = continuation
+interface PageSpread {
+    leftContent: string[] | null;
+    rightContent: string[] | null;
+    isFirstSpread: boolean;
+    showImage: boolean;
+}
+
+const chapterSpreads = computed((): PageSpread[] => {
+    const pages = chapterPages.value;
+    if (pages.length === 0) return [];
+    
+    const spreads: PageSpread[] = [];
+    
+    // First spread: left = image/decorative, right = first page of content
+    spreads.push({
+        leftContent: null, // Will show image or decorative
+        rightContent: pages[0] || null,
+        isFirstSpread: true,
+        showImage: true
+    });
+    
+    // Subsequent spreads pair remaining pages (left, right)
+    for (let i = 1; i < pages.length; i += 2) {
+        spreads.push({
+            leftContent: pages[i] || null,
+            rightContent: pages[i + 1] || null,
+            isFirstSpread: false,
+            showImage: false
+        });
+    }
+    
+    return spreads;
+});
+
+const currentSpread = computed(() => {
+    return chapterSpreads.value[currentSpreadIndex.value] || null;
+});
+
+const hasNextSpread = computed(() => {
+    return currentSpreadIndex.value < chapterSpreads.value.length - 1;
+});
+
+const hasPrevSpread = computed(() => {
+    return currentSpreadIndex.value > 0;
+});
+
+const totalSpreads = computed(() => {
+    return chapterSpreads.value.length;
+});
+
 const loadChapter = async (chapterNumber: number) => {
     if (!props.bookId || isLoadingChapter.value) {
         return;
@@ -140,6 +244,7 @@ const loadChapter = async (chapterNumber: number) => {
         if (response.chapter) {
             currentChapter.value = response.chapter;
             currentChapterNumber.value = chapterNumber;
+            currentSpreadIndex.value = 0; // Reset to first spread
             readingView.value = 'chapter-image';
         } else {
             // No chapter exists - show create form
@@ -185,6 +290,7 @@ const generateNextChapter = async () => {
             totalChapters.value = response.total_chapters;
             nextChapterPrompt.value = '';
             isFinalChapter.value = false;
+            currentSpreadIndex.value = 0; // Reset to first spread
             readingView.value = 'chapter-image';
         }
     } catch (err) {
@@ -207,60 +313,50 @@ const goToChapter1 = () => {
     }, 500);
 };
 
-const flipToChapterContent = () => {
-    if (isPageFlipping.value || !currentChapter.value) {
-        return;
-    }
-    isPageFlipping.value = true;
-    
-    scheduleTimeout(() => {
-        readingView.value = 'chapter-content';
-        isPageFlipping.value = false;
-    }, 400);
-};
-
+// Navigate to next spread within chapter, or next chapter if at end
 const goToNextChapter = () => {
     if (isLoadingChapter.value || isPageFlipping.value) {
         return;
     }
     
-    const nextNumber = currentChapterNumber.value + 1;
-    
-    if (nextNumber <= totalChapters.value) {
-        loadChapter(nextNumber);
+    if (hasNextSpread.value) {
+        // More spreads in current chapter
+        currentSpreadIndex.value++;
     } else {
-        // No more chapters - show create form
-        currentChapter.value = null;
-        currentChapterNumber.value = nextNumber;
-        readingView.value = 'create-chapter';
+        // At last spread - go to next chapter or create form
+        const nextNumber = currentChapterNumber.value + 1;
+        
+        if (nextNumber <= totalChapters.value) {
+            loadChapter(nextNumber);
+        } else {
+            // No more chapters - show create form
+            currentChapter.value = null;
+            currentChapterNumber.value = nextNumber;
+            currentSpreadIndex.value = 0;
+            readingView.value = 'create-chapter';
+        }
     }
 };
 
+// Navigate to previous spread within chapter, or previous chapter/title if at start
 const goToPreviousChapter = () => {
     if (isLoadingChapter.value || isPageFlipping.value) {
         return;
     }
     
-    if (currentChapterNumber.value > 1) {
+    if (hasPrevSpread.value) {
+        // More spreads in current chapter going back
+        currentSpreadIndex.value--;
+    } else if (currentChapterNumber.value > 1) {
+        // At first spread - go to previous chapter
         loadChapter(currentChapterNumber.value - 1);
     } else if (currentChapterNumber.value === 1) {
-        // Go back to title page
+        // At first spread of first chapter - go back to title page
         currentChapter.value = null;
         currentChapterNumber.value = 0;
+        currentSpreadIndex.value = 0;
         readingView.value = 'title';
     }
-};
-
-const goBackToChapterImage = () => {
-    if (isPageFlipping.value) {
-        return;
-    }
-    isPageFlipping.value = true;
-    
-    scheduleTimeout(() => {
-        readingView.value = 'chapter-image';
-        isPageFlipping.value = false;
-    }, 400);
 };
 
 const goBackToTitlePage = () => {
@@ -570,6 +666,7 @@ const startAnimation = async () => {
     chapterError.value = null;
     nextChapterPrompt.value = '';
     isFinalChapter.value = false;
+    currentSpreadIndex.value = 0;
     readingView.value = 'title';
     isPageFlipping.value = false;
     resetEditFeedback();
@@ -674,6 +771,7 @@ const finalizeClose = () => {
     chapterError.value = null;
     nextChapterPrompt.value = '';
     isFinalChapter.value = false;
+    currentSpreadIndex.value = 0;
     readingView.value = 'title';
     isPageFlipping.value = false;
     resetEditFeedback();
@@ -764,6 +862,12 @@ const closeModal = () => {
     isOpen.value = false;
 };
 
+const handleKeydown = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+        closeModal();
+    }
+};
+
 const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('en-US', { 
         year: 'numeric', 
@@ -824,13 +928,16 @@ watch(isOpen, async (open) => {
         isRendered.value = true;
         await nextTick();
         await startAnimation();
+        window.addEventListener('keydown', handleKeydown);
     } else if (isRendered.value) {
+        window.removeEventListener('keydown', handleKeydown);
         await reverseAnimation();
     }
 });
 
 onBeforeUnmount(() => {
     clearScheduledTimeouts();
+    window.removeEventListener('keydown', handleKeydown);
 });
 </script>
 
@@ -897,9 +1004,14 @@ onBeforeUnmount(() => {
                     v-if="!showContent"
                     class="absolute inset-0 flex items-center justify-center bg-amber-50 dark:bg-amber-100"
                 >
-                    <div class="text-center space-y-4">
-                        <Spinner class="mx-auto h-12 w-12 text-amber-600 dark:text-amber-400" />
-                        <p class="text-lg font-medium text-amber-900 dark:text-amber-100">
+                    <div class="text-center space-y-6">
+                        <MagicalSparklesLoader 
+                            size="xl" 
+                            color="text-amber-500" 
+                            accent-color="text-orange-400"
+                            class="mx-auto"
+                        />
+                        <p class="text-lg font-medium text-amber-900 dark:text-amber-800 animate-pulse">
                             Opening your story...
                         </p>
                     </div>
@@ -954,11 +1066,16 @@ onBeforeUnmount(() => {
                     <!-- Loading/Saving Overlay -->
                     <div 
                         v-if="loading || isSaving || isDeleting"
-                        class="absolute inset-0 z-20 flex items-center justify-center bg-white/80 backdrop-blur-sm dark:bg-black/70"
+                        class="absolute inset-0 z-20 flex items-center justify-center bg-amber-50/90 backdrop-blur-sm dark:bg-amber-100/90"
                     >
-                        <div class="text-center space-y-4">
-                            <Spinner class="mx-auto h-12 w-12 text-amber-600 dark:text-amber-400" />
-                            <p class="text-lg font-medium text-amber-900 dark:text-amber-100">
+                        <div class="text-center space-y-6">
+                            <MagicalSparklesLoader 
+                                size="lg" 
+                                color="text-amber-500" 
+                                accent-color="text-orange-400"
+                                class="mx-auto"
+                            />
+                            <p class="text-lg font-medium text-amber-900 dark:text-amber-800 animate-pulse">
                                 {{ loading ? 'Opening your story...' : isSaving ? 'Saving changes...' : 'Deleting story...' }}
                             </p>
                         </div>
@@ -1139,23 +1256,17 @@ onBeforeUnmount(() => {
                             class="absolute inset-0 z-40 flex items-center justify-center bg-amber-50/90 dark:bg-amber-100/90 backdrop-blur-sm"
                         >
                             <div class="text-center space-y-6">
-                                <div class="relative">
-                                    <div class="magical-spinner mx-auto h-20 w-20">
-                                        <Sparkles class="absolute inset-0 m-auto h-8 w-8 text-amber-600 dark:text-amber-500 animate-pulse" />
-                                        <div class="absolute inset-0 rounded-full border-4 border-amber-200 dark:border-amber-300" />
-                                        <div class="absolute inset-0 rounded-full border-4 border-t-amber-600 dark:border-t-amber-500 animate-spin" />
-                                    </div>
-                                    <div class="absolute -inset-4 animate-ping opacity-20">
-                                        <Sparkles class="h-6 w-6 text-amber-500" style="position: absolute; top: 0; left: 50%; transform: translateX(-50%);" />
-                                        <Sparkles class="h-4 w-4 text-amber-400" style="position: absolute; bottom: 0; right: 0;" />
-                                        <Sparkles class="h-5 w-5 text-amber-600" style="position: absolute; bottom: 20%; left: 0;" />
-                                    </div>
-                                </div>
+                                <MagicalSparklesLoader 
+                                    size="xl" 
+                                    color="text-amber-500" 
+                                    accent-color="text-orange-400"
+                                    class="mx-auto"
+                                />
                                 <div>
                                     <p class="text-xl font-serif font-semibold text-amber-900 dark:text-amber-800">
                                         {{ isGeneratingChapter ? 'Crafting your story...' : 'Loading chapter...' }}
                                     </p>
-                                    <p v-if="isGeneratingChapter" class="mt-2 text-sm text-amber-700 dark:text-amber-600">
+                                    <p v-if="isGeneratingChapter" class="mt-2 text-sm text-amber-700 dark:text-amber-600 animate-pulse">
                                         The magic is happening ✨
                                     </p>
                                 </div>
@@ -1183,41 +1294,53 @@ onBeforeUnmount(() => {
                                 </div>
                             </template>
                             
-                            <template v-else-if="readingView === 'chapter-image' && currentChapter">
-                                <!-- Chapter image on left page -->
+                            <template v-else-if="(readingView === 'chapter-image' || readingView === 'chapter-content') && currentChapter && currentSpread">
+                                <!-- Left page content based on spread -->
                                 <div class="flex h-full flex-col">
-                                    <div 
-                                        v-if="currentChapter.image"
-                                        class="flex-1 p-6"
-                                    >
-                                        <img
-                                            :src="currentChapter.image"
-                                            :alt="currentChapter.title || `Chapter ${currentChapter.sort}`"
-                                            class="h-full w-full object-contain rounded-lg shadow-md"
-                                        />
-                                    </div>
-                                    <div v-else class="flex h-full items-center justify-center p-12">
-                                        <div class="text-center opacity-40">
-                                            <div class="mx-auto mb-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
-                                            <BookOpen class="mx-auto h-12 w-12 text-amber-500 dark:text-amber-400" />
-                                            <div class="mx-auto mt-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </template>
-                            
-                            <template v-else-if="readingView === 'chapter-content' && currentChapter">
-                                <!-- First half of chapter content on left page -->
-                                <div class="h-full overflow-auto p-8 pt-12">
-                                    <div class="prose prose-amber max-w-none text-amber-950 dark:text-amber-900">
-                                        <p 
-                                            v-for="(paragraph, idx) in (currentChapter.body || '').split('\n\n').slice(0, Math.ceil((currentChapter.body || '').split('\n\n').length / 2))"
-                                            :key="idx"
-                                            class="mb-4 font-serif text-base leading-relaxed first-letter:text-3xl first-letter:font-bold first-letter:mr-1 first-letter:float-left"
+                                    <!-- First spread: show chapter image or decorative -->
+                                    <template v-if="currentSpread.showImage">
+                                        <div 
+                                            v-if="currentChapter.image"
+                                            class="flex-1 p-6"
                                         >
-                                            {{ paragraph }}
-                                        </p>
-                                    </div>
+                                            <img
+                                                :src="currentChapter.image"
+                                                :alt="currentChapter.title || `Chapter ${currentChapter.sort}`"
+                                                class="h-full w-full object-contain rounded-lg shadow-md"
+                                            />
+                                        </div>
+                                        <div v-else class="flex h-full items-center justify-center p-12">
+                                            <div class="text-center opacity-40">
+                                                <div class="mx-auto mb-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
+                                                <BookOpen class="mx-auto h-12 w-12 text-amber-500 dark:text-amber-400" />
+                                                <div class="mx-auto mt-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <!-- Subsequent spreads: show content continuation on left page (full height) -->
+                                    <template v-else-if="currentSpread.leftContent">
+                                        <div class="relative h-full px-12 py-8">
+                                            <div class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
+                                                <p 
+                                                    v-for="(paragraph, idx) in currentSpread.leftContent"
+                                                    :key="idx"
+                                                    class="mb-5 font-serif text-lg leading-relaxed"
+                                                >
+                                                    {{ paragraph }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <!-- Empty left page (e.g., last spread with only right content) -->
+                                    <template v-else>
+                                        <div class="flex h-full items-center justify-center p-12">
+                                            <div class="text-center opacity-40">
+                                                <div class="mx-auto mb-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
+                                                <BookOpen class="mx-auto h-12 w-12 text-amber-500 dark:text-amber-400" />
+                                                <div class="mx-auto mt-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
                             </template>
                             
@@ -1247,9 +1370,7 @@ onBeforeUnmount(() => {
 
                         <!-- Right Page (Content) -->
                         <div 
-                            class="relative w-1/2 h-full bg-amber-50 dark:bg-amber-100 overflow-auto"
-                            :class="{ 'cursor-pointer': readingView === 'chapter-image' }"
-                            @click="readingView === 'chapter-image' ? flipToChapterContent() : null"
+                            class="relative w-1/2 h-full bg-amber-50 dark:bg-amber-100 overflow-hidden"
                         >
                             <!-- Paper texture -->
                             <div class="absolute inset-0 opacity-[0.08] pointer-events-none" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.5\' numOctaves=\'2\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E');" />
@@ -1434,85 +1555,72 @@ onBeforeUnmount(() => {
                                 </div>
                             </template>
 
-                            <!-- ==================== CHAPTER IMAGE VIEW ==================== -->
-                            <template v-else-if="readingView === 'chapter-image' && currentChapter">
-                                <div class="relative z-10 flex h-full flex-col items-center justify-center p-6 text-center">
-                                    <!-- Chapter Number Badge -->
-                                    <div class="mb-4">
-                                        <span class="inline-block rounded-full bg-amber-200/60 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-amber-800 dark:bg-amber-300/60 dark:text-amber-900">
-                                            Chapter {{ currentChapter.sort }}
-                                        </span>
-                                    </div>
+                            <!-- ==================== CHAPTER VIEW (Paginated Content) ==================== -->
+                            <template v-else-if="(readingView === 'chapter-image' || readingView === 'chapter-content') && currentChapter && currentSpread">
+                                <div class="relative z-10 h-full overflow-hidden">
+                                    <!-- First spread: Title with 40% top margin + beginning of content -->
+                                    <template v-if="currentSpread.isFirstSpread">
+                                        <div class="flex h-full flex-col px-12 pt-8 pb-6">
+                                            <!-- 40% top margin space -->
+                                            <div class="h-[40%] flex items-end justify-center pb-4">
+                                                <div class="text-center">
+                                                    <h2 class="font-serif text-2xl md:text-3xl font-bold text-amber-950 dark:text-amber-900">
+                                                        {{ currentChapter.title || `Chapter ${currentChapter.sort}` }}
+                                                    </h2>
+                                                    
+                                                    <!-- Decorative -->
+                                                    <div class="mt-3 flex items-center justify-center gap-3">
+                                                        <div class="h-px w-12 bg-gradient-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
+                                                        <Sparkles class="h-3 w-3 text-amber-700 dark:text-amber-500" />
+                                                        <div class="h-px w-12 bg-gradient-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Remaining ~60% for content -->
+                                            <div class="flex-1 overflow-hidden">
+                                                <div v-if="currentSpread.rightContent" class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
+                                                    <p 
+                                                        v-for="(paragraph, idx) in currentSpread.rightContent"
+                                                        :key="idx"
+                                                        :class="[
+                                                            'mb-5 font-serif text-lg leading-relaxed',
+                                                            idx === 0 ? 'drop-cap' : ''
+                                                        ]"
+                                                    >
+                                                        {{ paragraph }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
                                     
-                                    <!-- Chapter Title -->
-                                    <h2 class="mb-6 font-serif text-2xl md:text-3xl font-bold text-amber-950 dark:text-amber-900">
-                                        {{ currentChapter.title || `Chapter ${currentChapter.sort}` }}
-                                    </h2>
-                                    
-                                    <!-- Decorative -->
-                                    <div class="mb-6 flex items-center gap-3">
-                                        <div class="h-px w-16 bg-gradient-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
-                                        <Sparkles class="h-4 w-4 text-amber-700 dark:text-amber-500" />
-                                        <div class="h-px w-16 bg-gradient-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
-                                    </div>
-                                    
-                                    <!-- Click to continue hint -->
-                                    <p class="text-sm text-amber-700 dark:text-amber-600 animate-pulse">
-                                        Click to read chapter →
-                                    </p>
-                                    
-                                    <!-- Navigation -->
-                                    <div class="absolute bottom-6 left-6 right-6 flex items-center justify-between">
-                                        <button 
-                                            @click.stop="goToPreviousChapter"
-                                            class="flex cursor-pointer items-center gap-1 text-sm text-amber-700 hover:text-amber-900 transition-colors dark:text-amber-600 dark:hover:text-amber-800"
-                                        >
-                                            <ChevronLeft class="h-4 w-4" />
-                                            <span>{{ currentChapterNumber > 1 ? 'Previous' : 'Title Page' }}</span>
-                                        </button>
-                            </div>
+                                    <!-- Subsequent spreads: Content continuation on right page (full height) -->
+                                    <template v-else>
+                                        <div class="h-full px-12 py-8">
+                                            <div v-if="currentSpread.rightContent" class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
+                                                <p 
+                                                    v-for="(paragraph, idx) in currentSpread.rightContent"
+                                                    :key="idx"
+                                                    class="mb-5 font-serif text-lg leading-relaxed"
+                                                >
+                                                    {{ paragraph }}
+                                                </p>
+                                            </div>
+                                            <!-- If no right content on this spread (odd number of continuation pages) -->
+                                            <div v-else class="flex h-full items-center justify-center">
+                                                <div class="text-center opacity-40">
+                                                    <Sparkles class="mx-auto h-8 w-8 text-amber-500 dark:text-amber-400" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
                             </template>
 
-                            <!-- ==================== CHAPTER CONTENT VIEW ==================== -->
-                            <template v-else-if="readingView === 'chapter-content' && currentChapter">
-                                <div class="h-full overflow-auto p-8 pt-12">
-                                    <!-- Second half of chapter content on right page -->
-                                    <div class="prose prose-amber max-w-none text-amber-950 dark:text-amber-900">
-                                        <p 
-                                            v-for="(paragraph, idx) in (currentChapter.body || '').split('\n\n').slice(Math.ceil((currentChapter.body || '').split('\n\n').length / 2))"
-                                            :key="idx"
-                                            class="mb-4 font-serif text-base leading-relaxed"
-                                        >
-                                            {{ paragraph }}
-                                        </p>
-                            </div>
-
-                                    <!-- Navigation -->
-                                    <div class="mt-8 flex items-center justify-between border-t border-amber-200 pt-6 dark:border-amber-300">
-                                <button 
-                                            @click="goBackToChapterImage"
-                                            class="flex cursor-pointer items-center gap-1 text-sm text-amber-700 hover:text-amber-900 transition-colors dark:text-amber-600 dark:hover:text-amber-800"
-                                        >
-                                            <ChevronLeft class="h-4 w-4" />
-                                            <span>Back</span>
-                                        </button>
-                                        
-                                        <button 
-                                            @click="goToNextChapter"
-                                            :disabled="isLoadingChapter"
-                                            class="group flex cursor-pointer items-center gap-2 rounded-full bg-gradient-to-r from-amber-700 to-orange-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            <span>{{ currentChapter.final_chapter ? 'The End' : (currentChapterNumber < totalChapters ? 'Next Chapter' : 'Continue Story') }}</span>
-                                            <ChevronRight v-if="!currentChapter.final_chapter" class="h-5 w-5 transition-transform group-hover:translate-x-1" />
-                                </button>
-                                    </div>
-                            </div>
-                        </template>
-
                             <!-- ==================== CREATE CHAPTER VIEW ==================== -->
                             <template v-else-if="readingView === 'create-chapter'">
-                                <div class="relative z-10 flex h-full flex-col p-8 pt-12">
+                                <div class="relative z-10 flex h-full flex-col p-8 pt-12 pb-6">
                                     <div class="flex-1">
                                         <!-- Header -->
                                         <div class="mb-6 text-center">
@@ -1576,6 +1684,34 @@ onBeforeUnmount(() => {
                                     </div>
                                 </div>
                             </template>
+                        </div>
+
+                        <!-- ==================== GLOBAL FOOTER NAVIGATION (Spans Both Pages) ==================== -->
+                        <div 
+                            v-if="(readingView === 'chapter-image' || readingView === 'chapter-content') && currentChapter && currentSpread"
+                            class="absolute bottom-0 left-0 right-0 z-40 flex items-center justify-between border-t border-amber-300/50 bg-amber-50/95 px-8 py-4 backdrop-blur-sm dark:border-amber-400/30 dark:bg-amber-100/95"
+                        >
+                            <button 
+                                @click.stop="goToPreviousChapter"
+                                class="flex cursor-pointer items-center gap-2 text-base text-amber-700 hover:text-amber-900 transition-colors dark:text-amber-600 dark:hover:text-amber-800"
+                            >
+                                <ChevronLeft class="h-5 w-5" />
+                                <span>{{ hasPrevSpread ? 'Previous' : (currentChapterNumber > 1 ? 'Prev Chapter' : 'Title Page') }}</span>
+                            </button>
+                            
+                            <!-- Page indicator -->
+                            <span class="text-sm text-amber-600 dark:text-amber-500">
+                                {{ currentSpreadIndex + 1 }} / {{ totalSpreads }}
+                            </span>
+                            
+                            <button 
+                                @click="goToNextChapter"
+                                :disabled="isLoadingChapter"
+                                class="group flex cursor-pointer items-center gap-2 rounded-full bg-gradient-to-r from-amber-700 to-orange-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <span>{{ !hasNextSpread ? (currentChapter.final_chapter ? 'The End' : (currentChapterNumber < totalChapters ? 'Next Chapter' : 'Continue Story')) : 'Next' }}</span>
+                                <ChevronRight v-if="hasNextSpread || !currentChapter.final_chapter" class="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1691,11 +1827,6 @@ onBeforeUnmount(() => {
     box-shadow: 0 0 10px #fcd34d;
 }
 
-/* Magical spinner */
-.magical-spinner {
-    position: relative;
-}
-
 /* Page flip animation */
 .page-flip-enter-active,
 .page-flip-leave-active {
@@ -1712,13 +1843,14 @@ onBeforeUnmount(() => {
     transform: translateX(-20px);
 }
 
-/* Prose styling for chapter content */
-.prose p:first-of-type::first-letter {
-    font-size: 3rem;
+/* Drop cap styling - only applied via specific class */
+.drop-cap::first-letter {
+    font-size: 3.5rem;
     font-weight: 700;
     float: left;
     margin-right: 0.5rem;
-    line-height: 1;
+    line-height: 0.8;
+    color: inherit;
 }
 </style>
 

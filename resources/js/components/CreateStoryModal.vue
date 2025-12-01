@@ -275,7 +275,7 @@ const bookTypes = [
     { value: 'screenplay', label: '🎬 Screenplay', description: 'A story written for the screen' },
 ];
 
-const genres = [
+const baseGenres = [
     { value: 'fantasy', label: '🧙 Fantasy', emoji: '🧙' },
     { value: 'adventure', label: '🗺️ Adventure', emoji: '🗺️' },
     { value: 'mystery', label: '🔍 Mystery', emoji: '🔍' },
@@ -286,12 +286,30 @@ const genres = [
     { value: 'animal_stories', label: '🐾 Animal Stories', emoji: '🐾' },
 ];
 
-const ageLevels = [
-    { value: '8', label: '👶 Kids', range: '7-10', emoji: '👶' },
-    { value: '12', label: '🧒 Pre-Teen', range: '11-13', emoji: '🧒' },
-    { value: '16', label: '🧑 Teen', range: '14-17', emoji: '🧑' },
-    { value: '18', label: '🧑‍🦱 Adult', range: '18+', emoji: '🧑‍🦱' },
+const matureGenres = [
+    { value: 'drama', label: '🎭 Drama', emoji: '🎭' },
+    { value: 'romance', label: '💕 Romance', emoji: '💕' },
+    { value: 'horror', label: '👻 Horror', emoji: '👻' },
 ];
+
+const genres = computed(() => {
+    const isMatureAge = formData.value.age_level === '16' || formData.value.age_level === '18';
+    return isMatureAge ? [...baseGenres, ...matureGenres] : baseGenres;
+});
+
+const ageLevels = [
+    { value: '8', label: 'Kids', range: '7-10' },
+    { value: '12', label: 'Pre-Teen', range: '11-13' },
+    { value: '16', label: 'Teen', range: '14-17' },
+    { value: '18', label: 'Adult', range: '18+' },
+];
+
+// Check if an age level is allowed based on the current profile's age group
+const isAgeLevelAllowed = (ageValue: string): boolean => {
+    const profileAge = currentProfile.value?.age_group;
+    if (!profileAge) return true; // Allow all if no profile age is set
+    return parseInt(ageValue) <= parseInt(profileAge);
+};
 
 const genderOptions = [
     { value: 'male', label: '👦 Boy' },
@@ -1113,6 +1131,39 @@ watch(() => props.defaultGenre, (newGenre) => {
                     <InputError :message="errors.type" />
                 </div>
 
+                        <!-- Age Level Selection -->
+                        <div class="space-y-3">
+                            <Label class="text-lg font-semibold">Who is this story for?</Label>
+                            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                <button
+                                v-for="age in ageLevels"
+                                :key="age.value"
+                                    type="button"
+                                    @click="isAgeLevelAllowed(age.value) && (formData.age_level = age.value, !['16', '18'].includes(age.value) && ['drama', 'romance', 'horror'].includes(formData.genre) && (formData.genre = ''))"
+                                    :disabled="processing || !isAgeLevelAllowed(age.value)"
+                                    class="relative flex flex-col items-center gap-1 rounded-2xl border-2 p-4 transition-all duration-200"
+                                    :class="[
+                                        !isAgeLevelAllowed(age.value) 
+                                            ? 'cursor-not-allowed border-border/50 bg-muted/30 opacity-50' 
+                                            : 'cursor-pointer hover:-translate-y-0.5 hover:border-orange-400/50 hover:bg-orange-50 hover:shadow-md active:scale-95 dark:hover:bg-orange-950/20',
+                                        formData.age_level === age.value 
+                                            ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 dark:bg-orange-950/30' 
+                                            : 'border-border'
+                                    ]"
+                                >
+                                    <span class="text-sm font-bold">{{ age.label }}</span>
+                                    <span class="text-xs text-muted-foreground">{{ age.range }}</span>
+                                    <div 
+                                        v-if="formData.age_level === age.value"
+                                        class="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white"
+                                    >
+                                        <Check class="h-3 w-3" />
+                                    </div>
+                                </button>
+                            </div>
+                            <InputError :message="errors.age_level" />
+                        </div>
+
                         <!-- Genre Selection -->
                         <div class="space-y-3">
                             <Label class="text-lg font-semibold">Pick a genre!</Label>
@@ -1129,7 +1180,7 @@ watch(() => props.defaultGenre, (newGenre) => {
                                         : 'border-border'"
                                 >
                                     <span class="text-2xl">{{ genre.emoji }}</span>
-                                    <span class="text-xs font-medium">{{ genre.label.replace(genre.emoji + ' ', '') }}</span>
+                                    <span class="text-xs font-bold">{{ genre.label.replace(genre.emoji + ' ', '') }}</span>
                                     <div 
                                         v-if="formData.genre === genre.value"
                                         class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-white"
@@ -1140,35 +1191,6 @@ watch(() => props.defaultGenre, (newGenre) => {
                             </div>
                     <InputError :message="errors.genre" />
                 </div>
-
-                        <!-- Age Level Selection -->
-                        <div class="space-y-3">
-                            <Label class="text-lg font-semibold">Who is this story for?</Label>
-                            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                <button
-                                v-for="age in ageLevels"
-                                :key="age.value"
-                                    type="button"
-                                    @click="formData.age_level = age.value"
-                                    :disabled="processing"
-                                    class="relative flex cursor-pointer flex-col items-center gap-1 rounded-2xl border-2 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-400/50 hover:bg-orange-50 hover:shadow-md active:scale-95 dark:hover:bg-orange-950/20"
-                                    :class="formData.age_level === age.value 
-                                        ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 dark:bg-orange-950/30' 
-                                        : 'border-border'"
-                                >
-                                    <span class="text-3xl">{{ age.emoji }}</span>
-                                    <span class="text-sm font-semibold">{{ age.label.replace(age.emoji + ' ', '') }}</span>
-                                    <span class="text-xs text-muted-foreground">{{ age.range }}</span>
-                                    <div 
-                                        v-if="formData.age_level === age.value"
-                                        class="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white"
-                                    >
-                                        <Check class="h-3 w-3" />
-                                    </div>
-                                </button>
-                            </div>
-                            <InputError :message="errors.age_level" />
-                        </div>
                     </div>
 
                     <!-- Step 2: Plot/Story Description -->

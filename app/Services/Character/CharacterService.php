@@ -49,11 +49,11 @@ class CharacterService
     }
 
     /**
-     * @param int $userId
+     * @param string $userId
      * @param array $fields
      * @param array $options
      */
-    public function getAllByUserId(int $userId, array $fields = null, array $options = null)
+    public function getAllByUserId(string $userId, array $fields = null, array $options = null)
     {
         return $this->repository->getAllByUserId($userId, $fields, $options);
     }

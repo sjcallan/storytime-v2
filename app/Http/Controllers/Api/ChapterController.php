@@ -54,8 +54,6 @@ class ChapterController extends Controller
      */
     public function show(Chapter $chapter): JsonResponse
     {
-        $this->authorize('view', $chapter);
-
         $chapter->load(['user', 'book', 'characters']);
 
         return response()->json($chapter);
@@ -66,8 +64,6 @@ class ChapterController extends Controller
      */
     public function update(UpdateChapterRequest $request, Chapter $chapter): JsonResponse
     {
-        $this->authorize('update', $chapter);
-
         $chapter->update($request->validated());
 
         $chapter->load(['user', 'book', 'characters']);
@@ -80,8 +76,6 @@ class ChapterController extends Controller
      */
     public function destroy(Chapter $chapter): JsonResponse
     {
-        $this->authorize('delete', $chapter);
-
         $chapter->delete();
 
         return response()->json(null, 204);
@@ -92,8 +86,6 @@ class ChapterController extends Controller
      */
     public function getByBookAndSort(Book $book, int $chapterNumber): JsonResponse
     {
-        $this->authorize('view', $book);
-
         $chapter = $this->chapterService->getByBookIdAndSort(
             $book->id,
             $chapterNumber,
@@ -124,7 +116,6 @@ class ChapterController extends Controller
      */
     public function generateNext(Request $request, Book $book): JsonResponse
     {
-        $this->authorize('update', $book);
 
         $validated = $request->validate([
             'user_prompt' => 'nullable|string|max:1000',

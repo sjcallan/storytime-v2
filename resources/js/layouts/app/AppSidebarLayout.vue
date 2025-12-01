@@ -49,7 +49,7 @@ provide('currentProfile', currentProfile);
                     <!-- Start a New Story Button -->
                     <button
                         @click="isCreateModalOpen = true"
-                        class="magic-button group relative cursor-pointer overflow-hidden rounded-full bg-gradient-to-r from-violet-600 via-fuchsia-500 to-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-[0_0_40px_rgba(167,139,250,0.5)] active:scale-95"
+                        class="magic-button group relative cursor-pointer overflow-hidden rounded-full bg-gradient-to-r from-violet-600 via-fuchsia-500 to-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-[0_0_40px_rgba(167,139,250,0.5)] active:scale-95 sm:px-6 sm:text-base"
                     >
                         <!-- Animated gradient overlay -->
                         <span class="absolute inset-0 bg-gradient-to-r from-amber-500 via-fuchsia-500 to-violet-600 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
@@ -65,10 +65,10 @@ provide('currentProfile', currentProfile);
                         
                         <!-- Button content -->
                         <span class="relative flex items-center gap-2">
-                            <Wand2 class="h-4 w-4 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                            <Wand2 class="h-4 w-4 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110 sm:h-5 sm:w-5" />
                             <span class="hidden sm:inline">Start a New Story</span>
                             <span class="sm:hidden">New Story</span>
-                            <Sparkles class="h-3 w-3 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:animate-pulse" />
+                            <Sparkles class="h-3 w-3 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:animate-pulse sm:h-4 sm:w-4" />
                         </span>
                     </button>
 

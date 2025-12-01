@@ -136,7 +136,7 @@ class ChatService
         ];
     }
 
-    public function trackRequestLog(string $bookId, string $chapterId, int $userId, string $itemType, array $response)
+    public function trackRequestLog(string $bookId, string $chapterId, string $userId, string $itemType, array $response)
     {
         dispatch(new TrackRequestJob(
             $bookId,

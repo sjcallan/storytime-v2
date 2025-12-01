@@ -24,11 +24,11 @@ class ConversationService
     }
 
     /**
-     * @param int $userId
+     * @param string $userId
      * @param array $fields
      * @param array $options
      */
-    public function getByUserCharacterId(int $userId, int $characterId, array $fields = null, array $options = null)
+    public function getByUserCharacterId(string $userId, int $characterId, array $fields = null, array $options = null)
     {
         return $this->repository->getByUserCharacterId($userId, $characterId, $fields, $options);
     }

@@ -28,11 +28,11 @@ class ConversationRepository
     }
 
     /**
-     * @param int $userId
+     * @param string $userId
      * @param array $fields
      * @param array $options
      */
-    public function getByUserCharacterId(int $userId, int $characterId, array $fields = null, array $options = null)
+    public function getByUserCharacterId(string $userId, int $characterId, array $fields = null, array $options = null)
     {
         $this->reset();
         $this->setFields($fields);

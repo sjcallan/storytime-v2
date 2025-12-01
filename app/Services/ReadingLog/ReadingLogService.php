@@ -26,7 +26,7 @@ class ReadingLogService
     /**
      * 
      */
-    public function getBookmark(int $userId, string $bookId, array $fields = null, array $options = null)
+    public function getBookmark(string $userId, string $bookId, array $fields = null, array $options = null)
     {
         return $this->repository->getBookmark($userId, $bookId, $fields, $options);
     }
@@ -34,7 +34,7 @@ class ReadingLogService
     /**
      * 
      */
-    public function setBookmark(int $userId, string $bookId, string $chapterId = null)
+    public function setBookmark(string $userId, string $bookId, string $chapterId = null)
     {
         return $this->repository->store([
             'user_id' => $userId,

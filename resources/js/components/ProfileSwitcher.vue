@@ -56,7 +56,7 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
     <DropdownMenu>
         <DropdownMenuTrigger as-child>
             <button
-                class="flex items-center gap-2 rounded-full p-1 transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                class="flex cursor-pointer items-center gap-2 rounded-full p-1 transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 data-test="profile-menu-trigger"
             >
                 <Avatar class="h-8 w-8 ring-2 ring-border">

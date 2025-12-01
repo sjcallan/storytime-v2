@@ -22,25 +22,31 @@ class BookService
     /** @var \App\Services\OpenAi\ChatService */
     protected $chatService;
 
-    /** @var \App\Services\Builder\BookBuilderService */
-    protected $bookBuilderService;
-
-    /** @var \App\Services\Builder\CharacterBuilderService */
-    protected $characterBuilderService;
-
     public function __construct(
         BookRepository $bookRepository,
-        ChatService $chatService,
-        BookBuilderService $bookBuilderService,
-        CharacterBuilderService $characterBuilderService
+        ChatService $chatService
     ) {
         $this->repository = $bookRepository;
         $this->chatService = $chatService;
-        $this->bookBuilderService = $bookBuilderService;
-        $this->characterBuilderService = $characterBuilderService;
     }
 
-    public function getAllByUserId(int $userId, ?array $fields = null, ?array $options = null)
+    /**
+     * Get BookBuilderService on-demand to avoid circular dependency.
+     */
+    protected function getBookBuilderService(): BookBuilderService
+    {
+        return app(BookBuilderService::class);
+    }
+
+    /**
+     * Get CharacterBuilderService on-demand to avoid circular dependency.
+     */
+    protected function getCharacterBuilderService(): CharacterBuilderService
+    {
+        return app(CharacterBuilderService::class);
+    }
+
+    public function getAllByUserId(string $userId, ?array $fields = null, ?array $options = null)
     {
         return $this->repository->getAllByUserId($userId, $fields, $options);
     }
@@ -62,7 +68,7 @@ class BookService
 
         Log::info("Creating book metadata for book: {$bookId}");
 
-        $metaData = $this->bookBuilderService->getBookMetaData($bookId, $userCharacters);
+        $metaData = $this->getBookBuilderService()->getBookMetaData($bookId, $userCharacters);
 
         if (! empty($metaData['title'])) {
             $this->updateById($bookId, ['title' => $metaData['title']]);
@@ -71,7 +77,7 @@ class BookService
 
         if (! empty($metaData['characters'])) {
             $characterResponse = json_encode(['characters' => $metaData['characters']]);
-            $this->characterBuilderService->saveCharacterResponse($characterResponse, $bookId);
+            $this->getCharacterBuilderService()->saveCharacterResponse($characterResponse, $bookId);
             Log::info('Book characters saved: '.count($metaData['characters']).' characters');
         }
 

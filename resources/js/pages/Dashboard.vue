@@ -62,38 +62,48 @@ watch(booksByGenre, newValue => {
 
 const hasBooks = computed(() => Object.values(booksByGenreState.value).some(list => list.length > 0));
 
-// Carousel functionality
-const carouselRefs = ref<Record<string, HTMLElement | null>>({});
+// Carousel functionality - use a non-reactive Map to avoid recursive updates
+const carouselRefs = new Map<string, HTMLElement>();
 const scrollStates = ref<Record<string, { canScrollLeft: boolean; canScrollRight: boolean }>>({});
 
 const setCarouselRef = (genre: string, el: HTMLElement | null) => {
-    carouselRefs.value[genre] = el;
     if (el) {
-        updateScrollState(genre);
+        if (carouselRefs.get(genre) !== el) {
+            carouselRefs.set(genre, el);
+            nextTick(() => updateScrollState(genre));
+        }
+    } else {
+        carouselRefs.delete(genre);
     }
 };
 
 const updateScrollState = (genre: string) => {
-    const container = carouselRefs.value[genre];
+    const container = carouselRefs.get(genre);
     if (!container) {
         return;
     }
 
     const { scrollLeft, scrollWidth, clientWidth } = container;
-    scrollStates.value[genre] = {
+    const newState = {
         canScrollLeft: scrollLeft > 1,
         canScrollRight: scrollLeft < scrollWidth - clientWidth - 1,
     };
+    
+    // Only update if values actually changed to prevent unnecessary re-renders
+    const current = scrollStates.value[genre];
+    if (!current || current.canScrollLeft !== newState.canScrollLeft || current.canScrollRight !== newState.canScrollRight) {
+        scrollStates.value[genre] = newState;
+    }
 };
 
 const updateAllScrollStates = () => {
-    Object.keys(carouselRefs.value).forEach(genre => {
+    carouselRefs.forEach((_, genre) => {
         updateScrollState(genre);
     });
 };
 
 const scrollCarousel = (genre: string, direction: 'left' | 'right') => {
-    const container = carouselRefs.value[genre];
+    const container = carouselRefs.get(genre);
     if (!container) {
         return;
     }

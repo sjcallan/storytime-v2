@@ -30,7 +30,7 @@ class ReadingLogRepository
     /**
      * 
      */
-    public function getBookmark(int $userId, string $bookId, array $fields = null, array $options = null)
+    public function getBookmark(string $userId, string $bookId, array $fields = null, array $options = null)
     {
         $this->setFields($fields);
         $this->setOptions($options);

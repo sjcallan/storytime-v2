@@ -5,9 +5,9 @@ namespace App\Traits\Service;
 trait Deletable
 {
     /**
-     * @param int $id
+     * @param string $id
      */
-    public function deleteById(int $id) {
+    public function deleteById(string $id) {
         return $this->repository->deleteById($id);
     }
 

@@ -44,7 +44,7 @@ class TrackRequestJob implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct(string $bookId, string $chapterId, int $userId, string $itemType, string $request, string $response, string $rawResponse, int $responseStatusCode, float $responseTime)
+    public function __construct(string $bookId, string $chapterId, string $userId, string $itemType, string $request, string $response, string $rawResponse, int $responseStatusCode, float $responseTime)
     {
         $this->chapterId = $chapterId;
         $this->bookId = $bookId;

@@ -4,55 +4,43 @@ namespace App\Traits\Repository;
 
 trait Gettable
 {
-    /**
-     * 
-     */
     protected function reset()
     {
         $this->query = $this->model;
     }
 
-    /**
-     * @param array $fields 
-     */
-    protected function setFields(array $fields = null)
+    protected function setFields(?array $fields = null)
     {
-        if(!$fields) {
+        if (! $fields) {
             return;
         }
 
         $this->query = $this->query->select($fields);
     }
 
-    /**
-     * @param array $options
-     */
-    protected function setOptions(array $options = null)
+    protected function setOptions(?array $options = null)
     {
-        if(!$options) {
+        if (! $options) {
             return;
         }
 
-        foreach($options AS $type => $option) {
-            if($type == 'with') {
+        foreach ($options as $type => $option) {
+            if ($type == 'with') {
                 $this->query = $this->query->with($option);
             }
 
-            if($type == 'withCount') {
+            if ($type == 'withCount') {
                 $this->query = $this->query->withCount($option);
             }
 
-            if($type == 'withTrashed') {
+            if ($type == 'withTrashed') {
                 $this->query = $this->query->withTrashed();
             }
         }
     }
 
-    /**
-     * @param array $fields
-     * @param array $options
-     */
-    public function getAll(array $fields = null, array $options = null) {
+    public function getAll(?array $fields = null, ?array $options = null)
+    {
         $this->reset();
         $this->setFields($fields);
         $this->setOptions($options);
@@ -65,11 +53,10 @@ trait Gettable
     }
 
     /**
-     * @param int $id
-     * @param array $fields
-     * @param array $options
+     * @param  int  $id
      */
-    public function getById(int $id, array $fields = null, array $options = null) {
+    public function getById(string|int $id, ?array $fields = null, ?array $options = null)
+    {
         $this->reset();
         $this->setFields($fields);
         $this->setOptions($options);

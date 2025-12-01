@@ -23,7 +23,7 @@ class ChapterRepository
         $this->query = $model;
     }
 
-    public function getAllByUserId(int $userId, ?array $fields = null, ?array $options = null)
+    public function getAllByUserId(string $userId, ?array $fields = null, ?array $options = null)
     {
         $this->reset();
         $this->setFields($fields);

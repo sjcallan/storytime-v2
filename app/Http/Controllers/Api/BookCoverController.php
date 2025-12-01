@@ -97,6 +97,9 @@ class BookCoverController extends Controller
         $systemPrompt .= "- Focus on: characters, setting, mood, lighting, colors, action, and atmosphere\n";
         $systemPrompt .= "- Describe what you SEE in the scene, as if describing a painting or photograph\n";
         $systemPrompt .= "- Include specific visual details about character appearances and environment\n";
+        $systemPrompt .= "- If the age level is teen or adule ensure the image is realistic, gritty and not cartoonish or manufactured.\n";
+        $systemPrompt .= "- If the age level is pree-teen make sure the image is a gritty graphic novel style.\n";
+        $systemPrompt .= "- If the age level is kids make sure the image is a bright, friendly cartoon style.\n";
         $systemPrompt .= 'Respond ONLY with valid JSON in this exact format: '.json_encode($responseTemplate);
 
         $userMessage = "Story Details:\n";

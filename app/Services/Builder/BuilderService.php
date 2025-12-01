@@ -6,7 +6,6 @@ use App\Services\Book\BookService;
 use App\Services\Chapter\ChapterService;
 use App\Services\Character\CharacterService;
 use App\Services\OpenAi\ChatService;
-use App\Services\OpenAi\DalleService;
 use App\Services\StabilityAI\StabilityAIService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -20,9 +19,6 @@ class BuilderService
     /** @var \App\Services\Book\BookService */
     protected $bookService;
 
-    /** @var \App\Services\OpenAi\DalleService */
-    protected $dalleService;
-
     /** @var \App\Services\Chapter\ChapterService */
     protected $chapterService;
 
@@ -33,11 +29,10 @@ class BuilderService
 
     /**
      */
-    public function __construct(ChatService $chatService, BookService $bookService, ChapterService $chapterService, DalleService $dalleService, StabilityAIService $stabilityAIService, CharacterService $characterService) 
+    public function __construct(ChatService $chatService, BookService $bookService, ChapterService $chapterService, StabilityAIService $stabilityAIService, CharacterService $characterService) 
     {
         $this->chatService = $chatService;
         $this->bookService = $bookService;
-        $this->dalleService = $dalleService;
         $this->chapterService = $chapterService;
         $this->characterService = $characterService;
         $this->stabilityAIService = $stabilityAIService;

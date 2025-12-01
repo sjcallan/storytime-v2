@@ -8,11 +8,11 @@ trait Updatable
 {
 
     /**
-     * @param int $id
+     * @param string $id
      * @param array $data
      * @param array $options
      */
-    public function updateById(int $id, array $data, array $options = null)
+    public function updateById(string $id, array $data, array $options = null)
     {
         $model = $this->model->where('id', $id)->first();
         foreach($data AS $field => $value) {

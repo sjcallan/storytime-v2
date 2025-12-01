@@ -29,7 +29,7 @@ class RequestLogRepository
     }
 
     /**
-     * @param int $userId
+     * @param string $userId
      * @param array $fields
      * @param array $options
      */
