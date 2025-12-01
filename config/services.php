@@ -40,6 +40,11 @@ return [
         'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
     ],
 
+    'llama' => [
+        'base_url' => env('LLAMA_BASE_URL', 'http://127.0.0.1:5009'),
+        'endpoint' => env('LLAMA_ENDPOINT', '/generate'),
+    ],
+
     'replicate' => [
         'api_key' => env('REPLICATE_API_KEY'),
     ],

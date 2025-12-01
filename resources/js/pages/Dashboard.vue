@@ -62,6 +62,12 @@ watch(booksByGenre, newValue => {
 
 const hasBooks = computed(() => Object.values(booksByGenreState.value).some(list => list.length > 0));
 
+// Sort genres alphabetically
+const sortedBooksByGenre = computed(() => {
+    return Object.entries(booksByGenreState.value)
+        .sort(([a], [b]) => a.localeCompare(b));
+});
+
 // Carousel functionality - use a non-reactive Map to avoid recursive updates
 const carouselRefs = new Map<string, HTMLElement>();
 const scrollStates = ref<Record<string, { canScrollLeft: boolean; canScrollRight: boolean }>>({});
@@ -355,7 +361,7 @@ const formatGenreName = (genre: string) => {
 
             <!-- Genre Sections -->
             <div
-                v-for="(books, genre) in booksByGenreState"
+                v-for="[genre, books] in sortedBooksByGenre"
                 :key="genre"
                 class="space-y-4"
             >
