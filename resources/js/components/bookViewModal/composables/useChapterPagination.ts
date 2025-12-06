@@ -350,7 +350,7 @@ export function useChapterPagination() {
         }
     };
 
-    const goToPreviousChapter = (bookId: string): void => {
+    const goToPreviousChapter = async (bookId: string): Promise<void> => {
         if (isLoadingChapter.value || isPageFlipping.value) {
             return;
         }
@@ -358,7 +358,69 @@ export function useChapterPagination() {
         if (hasPrevSpread.value) {
             currentSpreadIndex.value--;
         } else if (currentChapterNumber.value > 1) {
-            loadChapter(bookId, currentChapterNumber.value - 1);
+            // Load the previous chapter and go to its last spread
+            const prevChapterNumber = currentChapterNumber.value - 1;
+            isLoadingChapter.value = true;
+            chapterError.value = null;
+            nextChapterData.value = null;
+
+            try {
+                const { data, error } = await requestApiFetch(
+                    `/api/books/${bookId}/chapters/${prevChapterNumber}`,
+                    'GET'
+                );
+
+                if (error) {
+                    chapterError.value = extractErrorMessage(error) ?? 'Could not load chapter.';
+                    return;
+                }
+
+                const response = data as ChapterResponse;
+                totalChapters.value = response.total_chapters;
+
+                if (response.chapter) {
+                    currentChapter.value = response.chapter;
+                    currentChapterNumber.value = prevChapterNumber;
+                    
+                    // Calculate spreads for this chapter to find the last one
+                    const pages = calculateChapterPages(response.chapter);
+                    const spreads: PageSpread[] = [];
+                    
+                    spreads.push({
+                        leftContent: null,
+                        rightContent: pages[0] || null,
+                        isFirstSpread: true,
+                        showImage: true
+                    });
+
+                    for (let i = 1; i < pages.length; i += 2) {
+                        spreads.push({
+                            leftContent: pages[i] || null,
+                            rightContent: pages[i + 1] || null,
+                            isFirstSpread: false,
+                            showImage: false
+                        });
+                    }
+                    
+                    // Set to the last spread of the previous chapter
+                    currentSpreadIndex.value = spreads.length - 1;
+                    readingView.value = 'chapter-content';
+                    
+                    // Pre-fetch next chapter (which is the chapter we just came from)
+                    if (prevChapterNumber < response.total_chapters) {
+                        loadNextChapterData(bookId, prevChapterNumber + 1);
+                    }
+                } else {
+                    currentChapter.value = null;
+                    currentChapterNumber.value = prevChapterNumber;
+                    currentSpreadIndex.value = 0;
+                    readingView.value = 'create-chapter';
+                }
+            } catch (err) {
+                chapterError.value = extractErrorMessage(err) ?? 'An error occurred loading the chapter.';
+            } finally {
+                isLoadingChapter.value = false;
+            }
         } else if (currentChapterNumber.value === 1) {
             currentChapter.value = null;
             currentChapterNumber.value = 0;

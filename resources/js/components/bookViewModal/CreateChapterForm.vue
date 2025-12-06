@@ -1,21 +1,28 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Textarea } from '@/components/ui/textarea';
 import { Wand2, Sparkles, BookOpen, Check } from 'lucide-vue-next';
+import type { BookType } from './types';
+import { getChapterLabel, isSceneBasedBook } from './types';
 
 interface Props {
     chapterNumber: number;
     prompt: string;
     isFinalChapter: boolean;
     isGenerating: boolean;
+    bookType?: BookType;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'update:prompt', value: string): void;
     (e: 'update:isFinalChapter', value: boolean): void;
     (e: 'generate'): void;
 }>();
+
+const chapterLabel = computed(() => getChapterLabel(props.bookType));
+const isScript = computed(() => isSceneBasedBook(props.bookType));
 </script>
 
 <template>
@@ -31,17 +38,15 @@ const emit = defineEmits<{
         <div class="w-full max-w-sm space-y-6">
             <!-- Header -->
             <div class="text-center">
-                <div class="mb-3 inline-flex items-center gap-2 rounded-full bg-amber-800 px-4 py-1.5">
-                    <BookOpen class="h-4 w-4 text-amber-100" />
-                    <span class="text-sm font-semibold uppercase tracking-wider text-amber-100">
-                        Chapter {{ chapterNumber }}
-                    </span>
-                </div>
+                
                 <h2 class="font-serif text-3xl font-bold text-stone-800 dark:text-stone-900">
-                    Continue the Story...
+                    {{ isScript ? 'Continue the Script...' : 'Continue the Story...' }}
                 </h2>
                 <p class="mt-2 text-base text-stone-600 dark:text-stone-700">
-                    What adventure awaits in the next chapter? Share your ideas below.
+                    {{ isScript 
+                        ? `What happens in the next scene? Share your ideas below.`
+                        : `What adventure awaits in the next chapter? Share your ideas below.` 
+                    }}
                 </p>
             </div>
             
@@ -63,7 +68,7 @@ const emit = defineEmits<{
             <!-- Final chapter question -->
             <div class="rounded-xl border border-stone-200 bg-stone-50 p-5 dark:border-stone-300 dark:bg-stone-100">
                 <p class="mb-4 text-center text-base font-medium text-stone-700 dark:text-stone-800">
-                    Will this be the final chapter?
+                    Will this be the final {{ chapterLabel.toLowerCase() }}?
                 </p>
                 <div class="flex items-center justify-center gap-4">
                     <button 
@@ -107,7 +112,10 @@ const emit = defineEmits<{
             >
                 <span class="flex items-center justify-center gap-2">
                     <Wand2 :class="['h-5 w-5 transition-transform duration-300', isGenerating ? 'animate-pulse' : 'group-hover:rotate-12']" />
-                    <span>{{ isGenerating ? 'Crafting your story...' : 'Create Chapter' }}</span>
+                    <span>{{ isGenerating 
+                        ? (isScript ? 'Writing your script...' : 'Crafting your story...') 
+                        : `Create ${chapterLabel}` 
+                    }}</span>
                 </span>
             </button>
         </div>

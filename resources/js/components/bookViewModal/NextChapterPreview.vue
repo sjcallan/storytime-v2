@@ -1,13 +1,19 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Sparkles } from 'lucide-vue-next';
-import type { Chapter, PageContentItem } from './types';
+import type { Chapter, PageContentItem, BookType } from './types';
+import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
 
 interface Props {
     chapter: Chapter;
     firstPageContent: PageContentItem[];
+    bookType?: BookType;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
+
+const chapterLabel = computed(() => getChapterLabel(props.bookType));
+const isScript = computed(() => isSceneBasedBook(props.bookType));
 
 const isFirstParagraph = (items: PageContentItem[], idx: number): boolean => {
     let paragraphCount = 0;
@@ -18,6 +24,11 @@ const isFirstParagraph = (items: PageContentItem[], idx: number): boolean => {
     }
     return paragraphCount === 1 && items[idx]?.type === 'paragraph';
 };
+
+// Format content - applies script formatting for theatre/screenplay
+const formatContent = (content: string): string => {
+    return formatScriptDialogue(content, isScript.value);
+};
 </script>
 
 <template>
@@ -27,10 +38,10 @@ const isFirstParagraph = (items: PageContentItem[], idx: number): boolean => {
             <div class="h-[40%] flex items-end justify-center pb-4">
                 <div class="text-center">
                     <div class="text-xs uppercase tracking-widest text-amber-700 dark:text-amber-600 mb-2 font-medium">
-                        Chapter {{ chapter.sort }}
+                        {{ chapterLabel }} {{ chapter.sort }}
                     </div>
                     <h2 class="font-serif text-2xl md:text-3xl font-bold text-amber-950 dark:text-amber-900">
-                        {{ chapter.title || `Chapter ${chapter.sort}` }}
+                        {{ chapter.title || `${chapterLabel} ${chapter.sort}` }}
                     </h2>
                     
                     <!-- Decorative -->
@@ -50,11 +61,10 @@ const isFirstParagraph = (items: PageContentItem[], idx: number): boolean => {
                             v-if="item.type === 'paragraph'"
                             :class="[
                                 'mb-5 font-serif text-lg leading-relaxed',
-                                isFirstParagraph(firstPageContent, idx) ? 'drop-cap' : ''
+                                isFirstParagraph(firstPageContent, idx) && !isScript ? 'drop-cap' : ''
                             ]"
-                        >
-                            {{ item.content }}
-                        </p>
+                            v-html="formatContent(item.content)"
+                        />
                         <figure v-else-if="item.type === 'image'" class="my-6">
                             <img
                                 :src="item.imageUrl"

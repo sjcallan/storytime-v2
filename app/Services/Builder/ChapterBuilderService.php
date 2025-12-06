@@ -177,7 +177,7 @@ class ChapterBuilderService extends BuilderService
             $book = $this->bookService->getById($bookId, null, ['with' => ['chapters', 'characters']]);
 
             if ($book->type == 'theatre') {
-                $chapterLabel = 'act';
+                $chapterLabel = 'scene';
                 $bookTypeLabel = 'theatre play script';
             } elseif ($book->type == 'screenplay') {
                 $chapterLabel = 'scene';
@@ -186,6 +186,8 @@ class ChapterBuilderService extends BuilderService
                 $chapterLabel = 'chapter';
                 $bookTypeLabel = 'chapter book';
             }
+
+            $isScriptFormat = in_array($book->type, ['theatre', 'screenplay']);
 
             $chapters = $book->chapters->where('status', 'complete');
             $completedChaptersCount = $chapters->count();
@@ -210,6 +212,11 @@ class ChapterBuilderService extends BuilderService
                     'The characters must not be in more than 1 physical location.',
                 ],
             ];
+
+            if ($isScriptFormat) {
+                $scriptRules = $this->getScriptFormattingRules($book->type);
+                $systemPrompt['rules'] = array_merge($systemPrompt['rules'], $scriptRules);
+            }
 
             if ($book->user_characters) {
                 $systemPrompt['story_details']['main_characters'] = $book->user_characters;
@@ -590,7 +597,7 @@ class ChapterBuilderService extends BuilderService
             $finalChapter = $data['final_chapter'] ?? false;
 
             if ($book->type == 'theatre') {
-                $chapterLabel = 'act';
+                $chapterLabel = 'scene';
                 $bookTypeLabel = 'theatre play script';
             } elseif ($book->type == 'screenplay') {
                 $chapterLabel = 'scene';
@@ -600,9 +607,12 @@ class ChapterBuilderService extends BuilderService
                 $bookTypeLabel = 'chapter book';
             }
 
+            $isScriptFormat = in_array($book->type, ['theatre', 'screenplay']);
+
             Log::debug('[ChapterBuilderService::getChapterChat] Labels determined', [
                 'chapter_label' => $chapterLabel,
                 'book_type_label' => $bookTypeLabel,
+                'is_script_format' => $isScriptFormat,
             ]);
 
             $chapters = $book->chapters->where('status', 'complete');
@@ -633,6 +643,11 @@ class ChapterBuilderService extends BuilderService
                     'The characters must not be in more than 1 physical location.',
                 ],
             ];
+
+            if ($isScriptFormat) {
+                $scriptRules = $this->getScriptFormattingRules($book->type);
+                $systemPrompt['rules'] = array_merge($systemPrompt['rules'], $scriptRules);
+            }
 
             if ($book->user_characters) {
                 $systemPrompt['story_details']['main_characters'] = $book->user_characters;
@@ -725,10 +740,13 @@ class ChapterBuilderService extends BuilderService
         ]);
 
         try {
+            $book = $this->bookService->getById($bookId, ['type']);
+            $chapterLabel = $this->getChapterLabel($book->type);
+
             $this->setBackstory($bookId);
             $this->chatService->setResponseFormat('text');
-            $this->chatService->addAssistantMessage('In the latest act/chapter: '.$chapterMessage);
-            $this->chatService->addUserMessage('In plain text, write a act/chapter title for this latest scene. Do not include the word "Scene", "Chapter" or the chapter number.');
+            $this->chatService->addAssistantMessage('In the latest '.$chapterLabel.': '.$chapterMessage);
+            $this->chatService->addUserMessage('In plain text, write a '.$chapterLabel.' title. Do not include the word "Scene", "Chapter" or the '.$chapterLabel.' number.');
 
             $titleresponse = $this->chatService->chat();
             $this->chatService->trackRequestLog($bookId, $chapterId, $userId, 'chapter_title', $titleresponse);
@@ -765,9 +783,18 @@ class ChapterBuilderService extends BuilderService
         ]);
 
         try {
+            $book = $this->bookService->getById($bookId, ['type']);
+            $chapterLabel = $this->getChapterLabel($book->type);
+            $isScript = $this->isScriptBasedType($book->type);
+
             $this->setBackstory($bookId);
-            $this->chatService->addAssistantMessage('In this act/chapter: '.$chapterMessage);
-            $this->chatService->addUserMessage('Write a single exciting question in less than 14 words that will entice the reader to want to read further.');
+            $this->chatService->addAssistantMessage('In this '.$chapterLabel.': '.$chapterMessage);
+
+            $ctaPrompt = $isScript
+                ? 'Write a single compelling question in less than 14 words that will entice the audience to want to see what happens next in this script.'
+                : 'Write a single exciting question in less than 14 words that will entice the reader to want to read further.';
+
+            $this->chatService->addUserMessage($ctaPrompt);
 
             $cta = $this->chatService->chat();
             $this->chatService->trackRequestLog($bookId, $chapterId, $userId, 'chapter_cta', $cta);
@@ -799,11 +826,14 @@ class ChapterBuilderService extends BuilderService
         ]);
 
         try {
+            $book = $this->bookService->getById($bookId, ['type']);
+            $chapterLabel = $this->getChapterLabel($book->type);
+
             $this->setBackstory($bookId);
-            $this->chatService->addUserMessage('What is the act/chapter text?');
+            $this->chatService->addUserMessage('What is the '.$chapterLabel.' text?');
             $this->chatService->addAssistantMessage($chapterMessage);
 
-            $this->chatService->addUserMessage('Summarize this text. Respond in plain text with the key events of only this act/chapter. Include character names, descriptions, age, gender, experiences, thoughts, goals and nationalities. Do not add commentary.');
+            $this->chatService->addUserMessage('Summarize this text. Respond in plain text with the key events of only this '.$chapterLabel.'. Include character names, descriptions, age, gender, experiences, thoughts, goals and nationalities. Do not add commentary.');
 
             $result = $this->chatService->chat();
 
@@ -877,5 +907,64 @@ class ChapterBuilderService extends BuilderService
 
             throw $e;
         }
+    }
+
+    /**
+     * Get the appropriate label for a chapter/scene based on book type.
+     */
+    protected function getChapterLabel(?string $bookType): string
+    {
+        if ($bookType === 'theatre' || $bookType === 'screenplay') {
+            return 'scene';
+        }
+
+        return 'chapter';
+    }
+
+    /**
+     * Check if the book type uses script-based formatting (theatre/screenplay).
+     */
+    protected function isScriptBasedType(?string $bookType): bool
+    {
+        return in_array($bookType, ['theatre', 'screenplay']);
+    }
+
+    /**
+     * Get formatting rules for script-based book types (theatre/screenplay).
+     *
+     * @return array<string>
+     */
+    protected function getScriptFormattingRules(string $bookType): array
+    {
+        $rules = [];
+
+        if ($bookType === 'theatre') {
+            $rules = [
+                'Format as a professional theatre play script',
+                'Start with a scene heading describing the location and time (e.g., "INT. LIVING ROOM - NIGHT")',
+                'Include stage directions in parentheses or italicized format describing character movements, emotions, and scene setup',
+                'Write dialogue with CHARACTER NAME in capitals followed by a colon, then their spoken line',
+                'Add parenthetical notes before dialogue to indicate tone or action (e.g., "(nervously)" or "(crossing to the window)")',
+                'Include blocking directions for character positions and movements on stage',
+                'Describe any sound effects or lighting changes needed for the scene',
+                'Each paragraph should either be a stage direction or a character\'s dialogue',
+                'Keep dialogue natural and speakable - actors will perform these lines aloud',
+            ];
+        } elseif ($bookType === 'screenplay') {
+            $rules = [
+                'Format as a professional screenplay/film script',
+                'Start with a scene heading (slugline) in ALL CAPS (e.g., "INT. COFFEE SHOP - DAY" or "EXT. FOREST - NIGHT")',
+                'Write action lines in present tense describing what the camera sees',
+                'Format character names in ALL CAPS when they first appear, and before each dialogue block',
+                'Include parentheticals for specific delivery instructions (e.g., "(whispered)" or "(O.S.)" for off-screen)',
+                'Add brief visual descriptions of settings, characters\' appearances, and important props',
+                'Use transitions sparingly (CUT TO:, FADE OUT:) only when dramatically necessary',
+                'Write dialogue that sounds natural when spoken - avoid overly literary language',
+                'Include character reactions and expressions as action lines between dialogue',
+                'Keep action descriptions concise and visual - show, don\'t tell',
+            ];
+        }
+
+        return $rules;
     }
 }

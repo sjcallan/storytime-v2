@@ -42,6 +42,9 @@ interface Props {
     nextChapterFirstPage?: PageContentItem[] | null;
 }
 
+// Book type is derived from the book prop
+const bookType = computed(() => props.book?.type);
+
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
@@ -141,6 +144,7 @@ const showInlineCreateForm = computed(() => {
                 v-if="shouldShowNextChapterOnRight && nextChapterData && nextChapterFirstPage"
                 :chapter="nextChapterData"
                 :first-page-content="nextChapterFirstPage"
+                :book-type="bookType"
             />
             <!-- Show inline create form when on last spread with no right content and no next chapter -->
             <CreateChapterForm
@@ -149,6 +153,7 @@ const showInlineCreateForm = computed(() => {
                 :prompt="nextChapterPrompt"
                 :is-final-chapter="isFinalChapter"
                 :is-generating="isGeneratingChapter"
+                :book-type="bookType"
                 @update:prompt="emit('update:nextChapterPrompt', $event)"
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
@@ -159,6 +164,7 @@ const showInlineCreateForm = computed(() => {
                 :chapter="chapter"
                 :spread="spread"
                 :spread-index="spreadIndex"
+                :book-type="bookType"
             />
         </template>
 
@@ -171,6 +177,7 @@ const showInlineCreateForm = computed(() => {
                 :prompt="nextChapterPrompt"
                 :is-final-chapter="isFinalChapter"
                 :is-generating="isGeneratingChapter"
+                :book-type="bookType"
                 @update:prompt="emit('update:nextChapterPrompt', $event)"
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
@@ -184,6 +191,7 @@ const showInlineCreateForm = computed(() => {
                 :prompt="nextChapterPrompt"
                 :is-final-chapter="isFinalChapter"
                 :is-generating="isGeneratingChapter"
+                :book-type="bookType"
                 @update:prompt="emit('update:nextChapterPrompt', $event)"
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"

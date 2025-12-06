@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { MoreVertical, X, List } from 'lucide-vue-next';
 import TableOfContents from './TableOfContents.vue';
-import type { ChapterSummary } from './types';
+import type { ChapterSummary, BookType } from './types';
 
 interface Props {
     hasBook: boolean;
@@ -21,6 +21,7 @@ interface Props {
     hasChapters?: boolean;
     chapters?: ChapterSummary[];
     currentChapterNumber?: number;
+    bookType?: BookType;
 }
 
 defineProps<Props>();
@@ -42,6 +43,7 @@ const emit = defineEmits<{
                 v-if="hasBook && hasChapters"
                 :chapters="chapters || []"
                 :current-chapter-number="currentChapterNumber || 0"
+                :book-type="bookType"
                 @select-chapter="emit('tocSelectChapter', $event)"
                 @go-to-title="emit('tocGoToTitle')"
             >

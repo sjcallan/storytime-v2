@@ -54,7 +54,7 @@ class ReplicateApiService
             'input_images_count' => isset($input['input_images']) ? count($input['input_images']) : 0,
         ]);
 
-        $response = $this->makeRequest($input);
+        $response = $this->makeRequestWithRetry($input);
 
         if ($response->failed()) {
             Log::error('Replicate API error', [
@@ -74,6 +74,63 @@ class ReplicateApiService
             'url' => $data['output'] ?? null,
             'error' => null,
         ];
+    }
+
+    /**
+     * Make a request to the Replicate API with retry logic for rate limiting.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    protected function makeRequestWithRetry(array $input, int $maxRetries = 3): Response
+    {
+        $attempt = 0;
+
+        while ($attempt <= $maxRetries) {
+            $response = $this->makeRequest($input);
+
+            if ($response->status() === 429) {
+                $attempt++;
+
+                if ($attempt > $maxRetries) {
+                    Log::warning('Replicate API: Max retries reached for rate limit');
+
+                    return $response;
+                }
+
+                $waitTime = $this->extractWaitTime($response->json('detail', ''));
+                $waitSeconds = max($waitTime + 1, 5);
+
+                Log::info('Replicate API: Rate limited, waiting before retry', [
+                    'attempt' => $attempt,
+                    'max_retries' => $maxRetries,
+                    'wait_seconds' => $waitSeconds,
+                ]);
+
+                sleep($waitSeconds);
+
+                continue;
+            }
+
+            return $response;
+        }
+
+        return $this->makeRequest($input);
+    }
+
+    /**
+     * Extract wait time from rate limit error message.
+     */
+    protected function extractWaitTime(string $errorMessage): int
+    {
+        if (preg_match('/resets in ~?(\d+)s/', $errorMessage, $matches)) {
+            return (int) $matches[1];
+        }
+
+        if (preg_match('/resets in ~?(\d+)\s*seconds?/', $errorMessage, $matches)) {
+            return (int) $matches[1];
+        }
+
+        return 5;
     }
 
     /**

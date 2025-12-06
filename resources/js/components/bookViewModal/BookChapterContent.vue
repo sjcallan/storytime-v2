@@ -1,15 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Sparkles } from 'lucide-vue-next';
-import type { Chapter, PageSpread, PageContentItem } from './types';
+import type { Chapter, PageSpread, PageContentItem, BookType } from './types';
+import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
 
 interface Props {
     chapter: Chapter;
     spread: PageSpread;
     spreadIndex?: number;
+    bookType?: BookType;
 }
 
 const props = defineProps<Props>();
+
+const chapterLabel = computed(() => getChapterLabel(props.bookType));
+const isScript = computed(() => isSceneBasedBook(props.bookType));
 
 const isFirstParagraph = (items: PageContentItem[] | null, idx: number): boolean => {
     if (!items) {
@@ -22,6 +27,11 @@ const isFirstParagraph = (items: PageContentItem[] | null, idx: number): boolean
         }
     }
     return paragraphCount === 1 && items[idx]?.type === 'paragraph';
+};
+
+// Format content - applies script formatting for theatre/screenplay
+const formatContent = (content: string): string => {
+    return formatScriptDialogue(content, isScript.value);
 };
 
 // Calculate right page number
@@ -43,10 +53,10 @@ const rightPageNumber = computed(() => {
                 <div class="h-[40%] flex items-end justify-center pb-4">
                     <div class="text-center">
                         <div class="text-xs uppercase tracking-widest text-amber-700 dark:text-amber-600 mb-2 font-medium">
-                            Chapter {{ chapter.sort }}
+                            {{ chapterLabel }} {{ chapter.sort }}
                         </div>
                         <h2 class="font-serif text-2xl md:text-3xl font-bold text-amber-950 dark:text-amber-900">
-                            {{ chapter.title || `Chapter ${chapter.sort}` }}
+                            {{ chapter.title || `${chapterLabel} ${chapter.sort}` }}
                         </h2>
                         
                         <!-- Decorative -->
@@ -66,11 +76,10 @@ const rightPageNumber = computed(() => {
                                 v-if="item.type === 'paragraph'"
                                 :class="[
                                     'mb-5 font-serif text-lg leading-relaxed',
-                                    isFirstParagraph(spread.rightContent, idx) ? 'drop-cap' : ''
+                                    isFirstParagraph(spread.rightContent, idx) && !isScript ? 'drop-cap' : ''
                                 ]"
-                            >
-                                {{ item.content }}
-                            </p>
+                                v-html="formatContent(item.content)"
+                            />
                             <figure v-else-if="item.type === 'image'" class="my-6">
                                 <img
                                     :src="item.imageUrl"
@@ -93,9 +102,8 @@ const rightPageNumber = computed(() => {
                         <p 
                             v-if="item.type === 'paragraph'"
                             class="mb-5 font-serif text-lg leading-relaxed"
-                        >
-                            {{ item.content }}
-                        </p>
+                            v-html="formatContent(item.content)"
+                        />
                         <figure v-else-if="item.type === 'image'" class="my-6">
                             <img
                                 :src="item.imageUrl"

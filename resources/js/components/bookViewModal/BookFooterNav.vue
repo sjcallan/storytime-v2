@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
+import type { BookType } from './types';
+import { getChapterLabel, isSceneBasedBook } from './types';
 
 interface Props {
     currentSpreadIndex: number;
@@ -10,6 +13,7 @@ interface Props {
     totalChapters: number;
     isFinalChapter: boolean;
     isLoadingChapter: boolean;
+    bookType?: BookType;
 }
 
 const props = defineProps<Props>();
@@ -19,12 +23,15 @@ const emit = defineEmits<{
     (e: 'next'): void;
 }>();
 
+const chapterLabel = computed(() => getChapterLabel(props.bookType));
+const isScript = computed(() => isSceneBasedBook(props.bookType));
+
 const getPreviousLabel = () => {
     if (props.hasPrevSpread) {
         return 'Previous';
     }
     if (props.currentChapterNumber > 1) {
-        return 'Prev Chapter';
+        return `Prev ${chapterLabel.value}`;
     }
     return 'Title Page';
 };
@@ -34,12 +41,12 @@ const getNextLabel = () => {
         return 'Next';
     }
     if (props.isFinalChapter) {
-        return 'The End';
+        return isScript.value ? 'Fin' : 'The End';
     }
     if (props.currentChapterNumber < props.totalChapters) {
-        return 'Next Chapter';
+        return `Next ${chapterLabel.value}`;
     }
-    return 'Continue Story';
+    return isScript.value ? 'Continue Script' : 'Continue Story';
 };
 </script>
 

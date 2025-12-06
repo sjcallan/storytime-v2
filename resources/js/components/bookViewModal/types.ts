@@ -22,11 +22,14 @@ export interface ChapterSummary {
     final_chapter: boolean;
 }
 
+export type BookType = 'chapter' | 'story' | 'theatre' | 'screenplay';
+
 export interface Book {
     id: string;
     title: string;
     author: string | null;
     genre: string;
+    type?: BookType;
     age_level: number | null;
     plot: string | null;
     cover_image: string | null;
@@ -36,6 +39,70 @@ export interface Book {
     profile?: Profile | null;
     characters?: Character[];
     chapters?: ChapterSummary[];
+}
+
+/**
+ * Check if a book type uses scene-based format (theatre/screenplay)
+ */
+export function isSceneBasedBook(type?: BookType | string): boolean {
+    return type === 'theatre' || type === 'screenplay';
+}
+
+/**
+ * Get the label for chapters/scenes based on book type
+ */
+export function getChapterLabel(type?: BookType | string, capitalize: boolean = true): string {
+    const label = isSceneBasedBook(type) ? 'scene' : 'chapter';
+    return capitalize ? label.charAt(0).toUpperCase() + label.slice(1) : label;
+}
+
+/**
+ * Format script dialogue with bold character names.
+ * Matches patterns like "CHARACTER NAME: dialogue" or "CHARACTER NAME: (parenthetical) dialogue"
+ * and wraps the character name in <strong> tags.
+ */
+export function formatScriptDialogue(content: string, isScript: boolean): string {
+    if (!isScript || !content) {
+        return escapeHtml(content);
+    }
+    
+    // Pattern matches: CHARACTER NAME (in caps, may include spaces, hyphens, apostrophes) followed by colon
+    // Examples: "ELIZABETH:", "MARY-JANE:", "DR. SMITH:", "O'BRIEN:"
+    const dialoguePattern = /^([A-Z][A-Z\s.'-]{0,30}?):\s*/;
+    const match = content.match(dialoguePattern);
+    
+    if (match) {
+        const characterName = match[1];
+        const restOfLine = content.slice(match[0].length);
+        return `<strong class="font-bold">${escapeHtml(characterName)}:</strong> ${escapeHtml(restOfLine)}`;
+    }
+    
+    // Also handle stage directions in parentheses at the start
+    const stageDirectionPattern = /^\(([^)]+)\)\s*/;
+    const stageMatch = content.match(stageDirectionPattern);
+    
+    if (stageMatch) {
+        const direction = stageMatch[1];
+        const restOfLine = content.slice(stageMatch[0].length);
+        return `<em class="italic text-amber-700 dark:text-amber-600">(${escapeHtml(direction)})</em> ${escapeHtml(restOfLine)}`;
+    }
+    
+    return escapeHtml(content);
+}
+
+/**
+ * Escape HTML special characters to prevent XSS
+ */
+function escapeHtml(text: string): string {
+    if (!text) return '';
+    const map: Record<string, string> = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, (char) => map[char] || char);
 }
 
 export interface InlineImage {

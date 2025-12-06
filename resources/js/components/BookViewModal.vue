@@ -365,6 +365,11 @@ const handleKeydown = (event: KeyboardEvent) => {
     
     // Handle right arrow key - go forward
     if (event.key === 'ArrowRight') {
+        // Don't allow going forward in create-chapter view (end of book)
+        if (chapters.readingView.value === 'create-chapter') {
+            return;
+        }
+        
         // From title page, start reading
         if (chapters.readingView.value === 'title') {
             event.preventDefault();
@@ -581,6 +586,7 @@ onBeforeUnmount(() => {
                         :is-saving="isSaving"
                         :is-deleting="isDeleting"
                         :is-page-turning="animation.isPageTurning.value"
+                        :book-type="book?.type"
                         @edit="startEditing"
                         @delete="requestDelete"
                         @close="closeModal"
@@ -647,6 +653,7 @@ onBeforeUnmount(() => {
                             :next-chapter-prompt="chapters.nextChapterPrompt.value"
                             :is-final-chapter="chapters.isFinalChapter.value"
                             :is-generating-chapter="chapters.isGeneratingChapter.value"
+                            :book-type="book?.type"
                             @select-character="handleSelectCharacter"
                             @update:next-chapter-prompt="chapters.nextChapterPrompt.value = $event"
                             @update:is-final-chapter="chapters.isFinalChapter.value = $event"
@@ -700,7 +707,7 @@ onBeforeUnmount(() => {
 
                         <!-- Right Edge Click Zone (Go Forward / Start Reading) -->
                         <button
-                            v-if="(chapters.readingView.value === 'title' || chapters.hasNextSpread.value || chapters.readingView.value === 'chapter-image' || chapters.readingView.value === 'chapter-content') && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
+                            v-if="chapters.readingView.value !== 'create-chapter' && (chapters.readingView.value === 'title' || chapters.hasNextSpread.value || chapters.readingView.value === 'chapter-image' || chapters.readingView.value === 'chapter-content') && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
                             class="edge-nav-zone edge-nav-right group absolute right-0 inset-y-0 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none"
                             @click="chapters.readingView.value === 'title' ? handleContinueToChapter1() : handleGoToNextChapter()"
                             :aria-label="chapters.readingView.value === 'title' ? 'Start reading' : 'Next page'"

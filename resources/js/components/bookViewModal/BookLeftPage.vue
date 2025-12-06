@@ -5,7 +5,8 @@ import BookPageDecorative from './BookPageDecorative.vue';
 import CharacterGrid from './CharacterGrid.vue';
 import CreateChapterForm from './CreateChapterForm.vue';
 import { BookOpen } from 'lucide-vue-next';
-import type { Chapter, PageSpread, ReadingView, Character } from './types';
+import type { Chapter, PageSpread, ReadingView, Character, BookType } from './types';
+import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
 
 interface Props {
     readingView: ReadingView;
@@ -21,6 +22,7 @@ interface Props {
     nextChapterPrompt?: string;
     isFinalChapter?: boolean;
     isGeneratingChapter?: boolean;
+    bookType?: BookType;
 }
 
 const props = defineProps<Props>();
@@ -50,6 +52,14 @@ const showCreateFormOnLeft = computed(() => {
            !props.chapterEndsOnLeft && 
            !props.hasNextChapter;
 });
+
+const chapterLabel = computed(() => getChapterLabel(props.bookType));
+const isScript = computed(() => isSceneBasedBook(props.bookType));
+
+// Format content - applies script formatting for theatre/screenplay
+const formatContent = (content: string): string => {
+    return formatScriptDialogue(content, isScript.value);
+};
 </script>
 
 <template>
@@ -82,7 +92,7 @@ const showCreateFormOnLeft = computed(() => {
                     >
                         <img
                             :src="chapter.image"
-                            :alt="chapter.title || `Chapter ${chapter.sort}`"
+                            :alt="chapter.title || `${chapterLabel} ${chapter.sort}`"
                             class="h-full w-full object-contain rounded-lg shadow-md"
                         />
                     </div>
@@ -102,9 +112,8 @@ const showCreateFormOnLeft = computed(() => {
                                 <p 
                                     v-if="item.type === 'paragraph'"
                                     class="mb-5 font-serif text-lg leading-relaxed"
-                                >
-                                    {{ item.content }}
-                                </p>
+                                    v-html="formatContent(item.content)"
+                                />
                                 <figure v-else-if="item.type === 'image'" class="my-6">
                                     <img
                                         :src="item.imageUrl"
@@ -132,6 +141,7 @@ const showCreateFormOnLeft = computed(() => {
                 :prompt="nextChapterPrompt ?? ''"
                 :is-final-chapter="isFinalChapter ?? false"
                 :is-generating="isGeneratingChapter ?? false"
+                :book-type="bookType"
                 @update:prompt="emit('update:nextChapterPrompt', $event)"
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"

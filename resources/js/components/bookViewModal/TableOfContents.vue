@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Sparkles, Crown } from 'lucide-vue-next';
 import {
     DropdownMenu,
@@ -7,25 +8,29 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import type { ChapterSummary } from './types';
+import type { ChapterSummary, BookType } from './types';
+import { getChapterLabel } from './types';
 
 interface Props {
     chapters: ChapterSummary[];
     currentChapterNumber: number;
+    bookType?: BookType;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'selectChapter', chapterNumber: number): void;
     (e: 'goToTitle'): void;
 }>();
 
+const chapterLabel = computed(() => getChapterLabel(props.bookType));
+
 const getChapterDisplayTitle = (chapter: ChapterSummary): string => {
     if (chapter.title && chapter.title.trim()) {
         return chapter.title;
     }
-    return `Chapter ${chapter.sort}`;
+    return `${chapterLabel.value} ${chapter.sort}`;
 };
 </script>
 
