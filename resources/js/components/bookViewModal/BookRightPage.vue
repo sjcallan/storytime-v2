@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import BookPageTexture from './BookPageTexture.vue';
 import BookPageDecorative from './BookPageDecorative.vue';
 import BookTitlePage from './BookTitlePage.vue';
@@ -6,7 +7,8 @@ import BookChapterContent from './BookChapterContent.vue';
 import BookEditForm from './BookEditForm.vue';
 import CreateChapterForm from './CreateChapterForm.vue';
 import CharacterDetail from './CharacterDetail.vue';
-import type { Book, Chapter, PageSpread, ReadingView, BookEditFormData, Character } from './types';
+import NextChapterPreview from './NextChapterPreview.vue';
+import type { Book, Chapter, PageSpread, ReadingView, BookEditFormData, Character, PageContentItem } from './types';
 
 interface Props {
     book: Book | null;
@@ -32,9 +34,15 @@ interface Props {
     isFinalChapter: boolean;
     isGeneratingChapter: boolean;
     selectedCharacter?: Character | null;
+    hasNextChapter?: boolean;
+    chapterEndsOnLeft?: boolean;
+    isOnLastSpread?: boolean;
+    shouldShowNextChapterOnRight?: boolean;
+    nextChapterData?: Chapter | null;
+    nextChapterFirstPage?: PageContentItem[] | null;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'continueToChapter1'): void;
@@ -47,6 +55,31 @@ const emit = defineEmits<{
     (e: 'goBack'): void;
     (e: 'clearSelectedCharacter'): void;
 }>();
+
+// Show create form on right when in create-chapter view and chapter ended on left
+const showCreateFormOnRight = computed(() => {
+    return props.readingView === 'create-chapter' && 
+           props.chapterEndsOnLeft && 
+           !props.hasNextChapter;
+});
+
+// Show decorative on right when in create-chapter view and chapter ended on right
+const showDecorativeOnRight = computed(() => {
+    return props.readingView === 'create-chapter' && 
+           !props.chapterEndsOnLeft && 
+           !props.hasNextChapter;
+});
+
+// Show inline create form when on last spread with no right content and no next chapter
+const showInlineCreateForm = computed(() => {
+    const isChapterView = props.readingView === 'chapter-image' || props.readingView === 'chapter-content';
+    const hasNoRightContent = props.spread && (props.spread.rightContent === null || props.spread.rightContent === undefined);
+    return isChapterView && 
+           hasNoRightContent && 
+           props.isOnLastSpread && 
+           !props.hasNextChapter &&
+           !props.shouldShowNextChapterOnRight;
+});
 </script>
 
 <template>
@@ -55,11 +88,11 @@ const emit = defineEmits<{
         <BookPageTexture />
         
         <!-- Decorative page lines -->
-        <div class="absolute inset-y-8 right-4 w-px bg-amber-300/60 dark:bg-amber-400/50" />
-        <div class="absolute inset-y-8 right-8 w-px bg-amber-300/40 dark:bg-amber-400/30" />
+        <div class="absolute inset-y-0 right-4 w-px bg-amber-300/60 dark:bg-amber-400/50" />
+        <div class="absolute inset-y-0 right-8 w-px bg-amber-300/40 dark:bg-amber-400/30" />
         
         <!-- Left shadow from spine -->
-        <div class="absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-amber-900/10 to-transparent pointer-events-none" />
+        <div class="absolute inset-y-0 left-0 w-6 bg-linear-to-r from-amber-900/10 to-transparent pointer-events-none" />
 
         <!-- Action/Chapter Error -->
         <div
@@ -102,25 +135,60 @@ const emit = defineEmits<{
         />
 
         <!-- Chapter Content View -->
-        <BookChapterContent
-            v-else-if="(readingView === 'chapter-image' || readingView === 'chapter-content') && chapter && spread"
-            :chapter="chapter"
-            :spread="spread"
-            :spread-index="spreadIndex"
-        />
+        <template v-else-if="(readingView === 'chapter-image' || readingView === 'chapter-content') && chapter && spread">
+            <!-- Show next chapter preview when current chapter ends on left and there's a next chapter -->
+            <NextChapterPreview
+                v-if="shouldShowNextChapterOnRight && nextChapterData && nextChapterFirstPage"
+                :chapter="nextChapterData"
+                :first-page-content="nextChapterFirstPage"
+            />
+            <!-- Show inline create form when on last spread with no right content and no next chapter -->
+            <CreateChapterForm
+                v-else-if="showInlineCreateForm"
+                :chapter-number="currentChapterNumber + 1"
+                :prompt="nextChapterPrompt"
+                :is-final-chapter="isFinalChapter"
+                :is-generating="isGeneratingChapter"
+                @update:prompt="emit('update:nextChapterPrompt', $event)"
+                @update:is-final-chapter="emit('update:isFinalChapter', $event)"
+                @generate="emit('generateChapter')"
+            />
+            <!-- Otherwise show chapter content -->
+            <BookChapterContent
+                v-else
+                :chapter="chapter"
+                :spread="spread"
+                :spread-index="spreadIndex"
+            />
+        </template>
 
         <!-- Create Chapter View -->
-        <CreateChapterForm
-            v-else-if="readingView === 'create-chapter'"
-            :chapter-number="currentChapterNumber"
-            :prompt="nextChapterPrompt"
-            :is-final-chapter="isFinalChapter"
-            :is-generating="isGeneratingChapter"
-            @update:prompt="emit('update:nextChapterPrompt', $event)"
-            @update:is-final-chapter="emit('update:isFinalChapter', $event)"
-            @generate="emit('generateChapter')"
-            @back="emit('goBack')"
-        />
+        <template v-else-if="readingView === 'create-chapter'">
+            <!-- Show create form on right when chapter ended on left -->
+            <CreateChapterForm
+                v-if="showCreateFormOnRight"
+                :chapter-number="currentChapterNumber"
+                :prompt="nextChapterPrompt"
+                :is-final-chapter="isFinalChapter"
+                :is-generating="isGeneratingChapter"
+                @update:prompt="emit('update:nextChapterPrompt', $event)"
+                @update:is-final-chapter="emit('update:isFinalChapter', $event)"
+                @generate="emit('generateChapter')"
+            />
+            <!-- Show decorative on right when chapter ended on right (form is on left) -->
+            <BookPageDecorative v-else-if="showDecorativeOnRight" variant="wand" />
+            <!-- Fallback for edge cases -->
+            <CreateChapterForm
+                v-else
+                :chapter-number="currentChapterNumber"
+                :prompt="nextChapterPrompt"
+                :is-final-chapter="isFinalChapter"
+                :is-generating="isGeneratingChapter"
+                @update:prompt="emit('update:nextChapterPrompt', $event)"
+                @update:is-final-chapter="emit('update:isFinalChapter', $event)"
+                @generate="emit('generateChapter')"
+            />
+        </template>
 
         <!-- Table of Contents View - show decorative right page -->
         <BookPageDecorative

@@ -9,6 +9,8 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { MoreVertical, X, List } from 'lucide-vue-next';
+import TableOfContents from './TableOfContents.vue';
+import type { ChapterSummary } from './types';
 
 interface Props {
     hasBook: boolean;
@@ -17,6 +19,8 @@ interface Props {
     isDeleting: boolean;
     isPageTurning: boolean;
     hasChapters?: boolean;
+    chapters?: ChapterSummary[];
+    currentChapterNumber?: number;
 }
 
 defineProps<Props>();
@@ -25,30 +29,37 @@ const emit = defineEmits<{
     (e: 'edit'): void;
     (e: 'delete'): void;
     (e: 'close'): void;
-    (e: 'openToc'): void;
+    (e: 'tocSelectChapter', chapterNumber: number): void;
+    (e: 'tocGoToTitle'): void;
 }>();
 </script>
 
 <template>
     <div class="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-between px-6 pt-6">
-        <!-- Left side: Table of Contents -->
-        <div class="pointer-events-auto">
-            <Button
-                v-if="hasBook"
-                variant="ghost"
-                size="icon"
-                class="cursor-pointer rounded-full bg-white/70 p-2 text-amber-900 shadow-md backdrop-blur-sm transition-colors hover:bg-white/90 dark:bg-white/70 dark:text-amber-900 dark:hover:bg-white/90"
-                @click="emit('openToc')"
-                :disabled="isEditing || isSaving || isDeleting || isPageTurning"
-                title="Table of Contents"
-            >
-                <List class="h-5 w-5" />
-                <span class="sr-only">Table of Contents</span>
-            </Button>
-        </div>
-
-        <!-- Right side: Actions and Close -->
+        <!-- Left side: Table of Contents and Actions -->
         <div class="pointer-events-auto flex items-center gap-2">
+            <TableOfContents
+                v-if="hasBook && hasChapters"
+                :chapters="chapters || []"
+                :current-chapter-number="currentChapterNumber || 0"
+                @select-chapter="emit('tocSelectChapter', $event)"
+                @go-to-title="emit('tocGoToTitle')"
+            >
+                <template #trigger>
+                    <DropdownMenuTrigger :as-child="true">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            class="cursor-pointer rounded-full bg-white/70 p-2 text-amber-900 shadow-md backdrop-blur-sm transition-colors hover:bg-white/90 dark:bg-white/70 dark:text-amber-900 dark:hover:bg-white/90"
+                            :disabled="isEditing || isSaving || isDeleting || isPageTurning"
+                            title="Table of Contents"
+                        >
+                            <List class="h-5 w-5" />
+                            <span class="sr-only">Table of Contents</span>
+                        </Button>
+                    </DropdownMenuTrigger>
+                </template>
+            </TableOfContents>
             <DropdownMenu v-if="hasBook">
                 <DropdownMenuTrigger :as-child="true">
                     <Button
@@ -62,7 +73,7 @@ const emit = defineEmits<{
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal>
-                    <DropdownMenuContent align="end" class="z-[10001] w-48">
+                    <DropdownMenuContent align="start" class="z-10001 w-48">
                         <DropdownMenuItem
                             @select="emit('edit')"
                             :disabled="isEditing || isSaving || isDeleting"
@@ -80,6 +91,10 @@ const emit = defineEmits<{
                     </DropdownMenuContent>
                 </DropdownMenuPortal>
             </DropdownMenu>
+        </div>
+
+        <!-- Right side: Close button -->
+        <div class="pointer-events-auto">
             <Button
                 variant="ghost"
                 size="icon"

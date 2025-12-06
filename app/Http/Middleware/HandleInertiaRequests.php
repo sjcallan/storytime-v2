@@ -73,6 +73,11 @@ class HandleInertiaRequests extends Middleware
                 'currentProfile' => $currentProfile,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'config' => [
+                'storytime' => [
+                    'adult_genres_enabled' => config('storytime.adult_genres_enabled'),
+                ],
+            ],
         ];
     }
 }

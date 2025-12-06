@@ -41,15 +41,15 @@ const emit = defineEmits<{
             </div>
         </div>
 
-        <!-- Cover Image (full width, natural height) -->
+        <!-- Cover Image (2/3 page height, center-cropped) -->
         <div 
             v-else-if="coverImage"
-            class="mb-6 w-full overflow-hidden rounded-lg shadow-lg"
+            class="mb-6 w-full h-[66vh] overflow-hidden rounded-lg shadow-lg"
         >
             <img
                 :src="coverImage"
                 :alt="title"
-                class="h-auto w-full object-contain"
+                class="h-full w-full object-cover object-center"
             />
         </div>
 

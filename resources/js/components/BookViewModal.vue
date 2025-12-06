@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onBeforeUnmount, computed } from 'vue';
 import { apiFetch } from '@/composables/ApiFetch';
+import { echo } from '@laravel/echo-vue';
 import { MagicalSparklesLoader } from '@/components/ui/magical-book-loader';
 
 // Import from bookViewModal module
@@ -14,7 +15,6 @@ import {
     BookHeaderControls,
     BookLoadingOverlay,
     DeleteConfirmDialog,
-    TableOfContents,
 } from '@/components/bookViewModal';
 import type { Book, CardPosition, BookEditFormData, ApiFetchFn, Character, ChapterSummary } from '@/components/bookViewModal';
 
@@ -64,6 +64,75 @@ const editForm = ref<BookEditFormData>({
 
 // Character selection state
 const selectedCharacter = ref<Character | null>(null);
+
+// Echo channel for real-time book updates
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const bookChannel = ref<any>(null);
+
+type BookUpdatedPayload = {
+    id: string;
+    title: string | null;
+    genre: string;
+    author: string | null;
+    age_level: number | null;
+    status: string;
+    cover_image: string | null;
+    plot: string | null;
+    is_published: boolean;
+    updated_at: string;
+};
+
+// Handle real-time book update events
+const handleBookUpdatedEvent = (payload: BookUpdatedPayload) => {
+    if (!book.value || book.value.id !== payload.id) {
+        return;
+    }
+    
+    // Update the local book state with the new data
+    book.value = {
+        ...book.value,
+        title: payload.title ?? book.value.title,
+        genre: payload.genre,
+        author: payload.author,
+        age_level: payload.age_level,
+        status: payload.status,
+        cover_image: payload.cover_image,
+        plot: payload.plot,
+    };
+    
+    // Emit the update to the parent (Dashboard)
+    emit('updated', book.value);
+};
+
+// Subscribe to book channel for real-time updates
+const subscribeToBookChannel = (bookId: string) => {
+    if (bookChannel.value) {
+        return;
+    }
+    
+    try {
+        const channel = echo().private(`book.${bookId}`);
+        channel.listen('.book.updated', handleBookUpdatedEvent);
+        bookChannel.value = channel;
+    } catch (err) {
+        console.error(`[Echo] Failed to subscribe to book.${bookId}:`, err);
+    }
+};
+
+// Unsubscribe from book channel
+const unsubscribeFromBookChannel = () => {
+    if (!bookChannel.value || !props.bookId) {
+        return;
+    }
+    
+    try {
+        bookChannel.value.stopListening('.book.updated');
+        echo().leave(`book.${props.bookId}`);
+    } catch (err) {
+        // Ignore cleanup errors
+    }
+    bookChannel.value = null;
+};
 
 // Computed display values
 const displayTitle = computed(() => {
@@ -276,6 +345,38 @@ const closeModal = () => {
 const handleKeydown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') {
         closeModal();
+        return;
+    }
+    
+    // Don't handle navigation keys if loading or generating
+    if (chapters.isLoadingChapter.value || chapters.isGeneratingChapter.value) {
+        return;
+    }
+    
+    // Handle left arrow key - go back
+    if (event.key === 'ArrowLeft') {
+        // Only navigate back if we have a previous spread or we're past the title page
+        if (chapters.hasPrevSpread.value || chapters.currentChapterNumber.value >= 1) {
+            event.preventDefault();
+            handleGoToPreviousChapter();
+        }
+        return;
+    }
+    
+    // Handle right arrow key - go forward
+    if (event.key === 'ArrowRight') {
+        // From title page, start reading
+        if (chapters.readingView.value === 'title') {
+            event.preventDefault();
+            handleContinueToChapter1();
+        }
+        // Otherwise navigate forward if we have a next spread or we're in a chapter view
+        else if (chapters.hasNextSpread.value || 
+                 chapters.readingView.value === 'chapter-image' || 
+                 chapters.readingView.value === 'chapter-content') {
+            event.preventDefault();
+            handleGoToNextChapter();
+        }
     }
 };
 
@@ -323,10 +424,6 @@ const completedChapters = computed((): ChapterSummary[] => {
         .sort((a, b) => a.sort - b.sort);
 });
 
-const handleOpenToc = () => {
-    chapters.goToTableOfContents();
-};
-
 const handleTocSelectChapter = (chapterNumber: number) => {
     if (props.bookId) {
         chapters.jumpToChapter(props.bookId, chapterNumber);
@@ -341,6 +438,7 @@ const handleTocGoToTitle = () => {
 const resetAllState = () => {
     animation.resetState();
     chapters.resetChapterState();
+    unsubscribeFromBookChannel();
     book.value = null;
     loading.value = false;
     isEditing.value = false;
@@ -363,6 +461,10 @@ watch(isOpen, async (open) => {
     if (open) {
         animation.isRendered.value = true;
         await nextTick();
+        // Subscribe to real-time updates for this book
+        if (props.bookId) {
+            subscribeToBookChannel(props.bookId);
+        }
         await animation.startAnimation(props.cardPosition, loadBook);
         window.addEventListener('keydown', handleKeydown);
     } else if (animation.isRendered.value) {
@@ -374,6 +476,7 @@ watch(isOpen, async (open) => {
 onBeforeUnmount(() => {
     animation.clearScheduledTimeouts();
     window.removeEventListener('keydown', handleKeydown);
+    unsubscribeFromBookChannel();
 });
 </script>
 
@@ -391,7 +494,7 @@ onBeforeUnmount(() => {
             <div
                 v-if="animation.isRendered.value"
                 :class="[
-                    'fixed inset-0 bg-black/80 backdrop-blur-sm z-[9998]',
+                    'fixed inset-0 bg-black/80 backdrop-blur-sm z-9998',
                     { 'pointer-events-none': animation.isClosing.value }
                 ]"
                 @click="closeModal"
@@ -418,7 +521,7 @@ onBeforeUnmount(() => {
                 />
                 <div
                     v-else-if="props.bookId"
-                    class="absolute inset-0 flex items-center justify-center p-6 bg-gradient-to-br from-violet-600 to-violet-300"
+                    class="absolute inset-0 flex items-center justify-center p-6 bg-linear-to-br from-violet-600 to-violet-300"
                 >
                     <h3 
                         class="text-2xl md:text-3xl lg:text-4xl font-bold text-center text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
@@ -472,6 +575,8 @@ onBeforeUnmount(() => {
                         v-if="animation.animationPhase.value === 'complete' && !animation.isClosing.value && animation.isBookOpened.value"
                         :has-book="!!book"
                         :has-chapters="completedChapters.length > 0"
+                        :chapters="completedChapters"
+                        :current-chapter-number="chapters.currentChapterNumber.value"
                         :is-editing="isEditing"
                         :is-saving="isSaving"
                         :is-deleting="isDeleting"
@@ -479,7 +584,8 @@ onBeforeUnmount(() => {
                         @edit="startEditing"
                         @delete="requestDelete"
                         @close="closeModal"
-                        @open-toc="handleOpenToc"
+                        @toc-select-chapter="handleTocSelectChapter"
+                        @toc-go-to-title="handleTocGoToTitle"
                     />
 
                     <!-- ==================== CLOSED BOOK VIEW (Cover Centered) ==================== -->
@@ -515,7 +621,7 @@ onBeforeUnmount(() => {
                         <!-- Left Edge Click Zone (Go Back) -->
                         <button
                             v-if="(chapters.hasPrevSpread.value || chapters.currentChapterNumber.value >= 1) && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
-                            class="edge-nav-zone edge-nav-left group absolute left-0 top-12 bottom-4 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none"
+                            class="edge-nav-zone edge-nav-left group absolute left-0 inset-y-0 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none"
                             @click="handleGoToPreviousChapter"
                             aria-label="Previous page"
                         >
@@ -534,12 +640,17 @@ onBeforeUnmount(() => {
                             :spread-index="chapters.currentSpreadIndex.value"
                             :characters="book?.characters"
                             :selected-character-id="selectedCharacter?.id ?? null"
-                            :chapters="completedChapters"
+                            :has-next-chapter="chapters.hasNextChapter.value"
+                            :chapter-ends-on-left="chapters.chapterEndsOnLeft.value"
+                            :is-on-last-spread="chapters.isOnLastSpread.value"
                             :current-chapter-number="chapters.currentChapterNumber.value"
-                            :book-title="displayTitle"
+                            :next-chapter-prompt="chapters.nextChapterPrompt.value"
+                            :is-final-chapter="chapters.isFinalChapter.value"
+                            :is-generating-chapter="chapters.isGeneratingChapter.value"
                             @select-character="handleSelectCharacter"
-                            @toc-select-chapter="handleTocSelectChapter"
-                            @toc-go-to-title="handleTocGoToTitle"
+                            @update:next-chapter-prompt="chapters.nextChapterPrompt.value = $event"
+                            @update:is-final-chapter="chapters.isFinalChapter.value = $event"
+                            @generate-chapter="handleGenerateChapter"
                         />
 
                         <!-- Book Spine -->
@@ -570,6 +681,12 @@ onBeforeUnmount(() => {
                             :is-final-chapter="chapters.isFinalChapter.value"
                             :is-generating-chapter="chapters.isGeneratingChapter.value"
                             :selected-character="selectedCharacter"
+                            :has-next-chapter="chapters.hasNextChapter.value"
+                            :chapter-ends-on-left="chapters.chapterEndsOnLeft.value"
+                            :is-on-last-spread="chapters.isOnLastSpread.value"
+                            :should-show-next-chapter-on-right="chapters.shouldShowNextChapterOnRight.value"
+                            :next-chapter-data="chapters.nextChapterData.value"
+                            :next-chapter-first-page="chapters.nextChapterFirstPage.value"
                             @continue-to-chapter1="handleContinueToChapter1"
                             @update:edit-form="editForm = $event"
                             @submit-edit="submitEdit"
@@ -581,12 +698,12 @@ onBeforeUnmount(() => {
                             @clear-selected-character="handleClearSelectedCharacter"
                         />
 
-                        <!-- Right Edge Click Zone (Go Forward) -->
+                        <!-- Right Edge Click Zone (Go Forward / Start Reading) -->
                         <button
-                            v-if="(chapters.hasNextSpread.value || (chapters.readingView.value === 'chapter-image' || chapters.readingView.value === 'chapter-content')) && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
-                            class="edge-nav-zone edge-nav-right group absolute right-0 top-12 bottom-4 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none"
-                            @click="handleGoToNextChapter"
-                            aria-label="Next page"
+                            v-if="(chapters.readingView.value === 'title' || chapters.hasNextSpread.value || chapters.readingView.value === 'chapter-image' || chapters.readingView.value === 'chapter-content') && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
+                            class="edge-nav-zone edge-nav-right group absolute right-0 inset-y-0 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none"
+                            @click="chapters.readingView.value === 'title' ? handleContinueToChapter1() : handleGoToNextChapter()"
+                            :aria-label="chapters.readingView.value === 'title' ? 'Start reading' : 'Next page'"
                         >
                             <div class="absolute inset-y-0 right-0 w-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                 <svg class="w-6 h-6 text-amber-700/60 dark:text-amber-500/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

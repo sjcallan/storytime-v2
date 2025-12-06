@@ -338,8 +338,9 @@ const matureGenres = [
 ];
 
 const genres = computed(() => {
-    const isMatureAge = formData.value.age_level === '16' || formData.value.age_level === '18';
-    return isMatureAge ? [...baseGenres, ...matureGenres] : baseGenres;
+    const adultGenresEnabled = (page.props.config as { storytime: { adult_genres_enabled: boolean } })?.storytime?.adult_genres_enabled ?? false;
+    const isAdult = formData.value.age_level === '18';
+    return isAdult && adultGenresEnabled ? [...baseGenres, ...matureGenres] : baseGenres;
 });
 
 const ageLevels = [
@@ -1188,7 +1189,7 @@ watch(
                                 v-for="age in ageLevels"
                                 :key="age.value"
                                     type="button"
-                                    @click="isAgeLevelAllowed(age.value) && (formData.age_level = age.value, !['16', '18'].includes(age.value) && ['drama', 'romance', 'horror'].includes(formData.genre) && (formData.genre = ''))"
+                                    @click="isAgeLevelAllowed(age.value) && (formData.age_level = age.value, age.value !== '18' && ['drama', 'romance', 'horror', 'erotica'].includes(formData.genre) && (formData.genre = ''))"
                                     :disabled="processing || !isAgeLevelAllowed(age.value)"
                                     class="relative flex flex-col items-center gap-1 rounded-2xl border-2 p-4 transition-all duration-200"
                                     :class="[

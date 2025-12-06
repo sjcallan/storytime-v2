@@ -54,7 +54,7 @@ const getAvatarGradient = (characterId: string): string => {
         <!-- Character Grid -->
         <div 
             v-if="characters.length > 0"
-            class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-amber-300 scrollbar-track-transparent px-2"
+            class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-amber-300 scrollbar-track-transparent p-2"
         >
             <div class="grid grid-cols-3 gap-3 pb-4">
                 <button
@@ -62,7 +62,7 @@ const getAvatarGradient = (characterId: string): string => {
                     :key="character.id"
                     @click="emit('selectCharacter', character)"
                     :class="[
-                        'group flex flex-col items-center p-2 rounded-xl transition-all duration-200',
+                        'group flex flex-col items-center p-2 rounded-xl transition-all duration-200 cursor-pointer',
                         'hover:bg-amber-200/50 dark:hover:bg-amber-200/30',
                         'focus:outline-none focus:ring-2 focus:ring-amber-500/50',
                         selectedCharacterId === character.id 

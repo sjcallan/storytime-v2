@@ -90,7 +90,7 @@ export interface BookEditFormData {
     plot: string;
 }
 
-export type ReadingView = 'title' | 'toc' | 'chapter-image' | 'chapter-content' | 'create-chapter';
+export type ReadingView = 'title' | 'chapter-image' | 'chapter-content' | 'create-chapter' | 'toc';
 
 export type AnimationPhase = 'initial' | 'flipping' | 'complete';
 

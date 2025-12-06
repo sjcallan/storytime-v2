@@ -5,6 +5,7 @@ import BookViewModal from '@/components/BookViewModal.vue';
 import { Button } from '@/components/ui/button';
 import { useCreateStoryModal } from '@/composables/useCreateStoryModal';
 import { Head } from '@inertiajs/vue3';
+import { echo } from '@laravel/echo-vue';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -37,6 +38,19 @@ type BookSummary = {
 type BookDetails = BookSummary & {
     plot: string | null;
     created_at: string;
+};
+
+type BookUpdatedPayload = {
+    id: string;
+    title: string | null;
+    genre: string;
+    author: string | null;
+    age_level: number | null;
+    status: string;
+    cover_image: string | null;
+    plot: string | null;
+    is_published: boolean;
+    updated_at: string;
 };
 
 const cloneBooksByGenre = (source: Record<string, BookSummary[]>): Record<string, BookSummary[]> => {
@@ -133,14 +147,130 @@ const handleScroll = (genre: string) => {
 onMounted(() => {
     window.addEventListener('resize', updateAllScrollStates);
     nextTick(() => updateAllScrollStates());
+    subscribeToAllBooks();
 });
 
 onUnmounted(() => {
     window.removeEventListener('resize', updateAllScrollStates);
+    cleanupAllSubscriptions();
 });
 
 // Use shared composable for modal state
 const { open: openCreateStoryModal } = useCreateStoryModal();
+
+// Echo channel subscriptions for real-time book updates
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const bookChannels = ref<Map<string, any>>(new Map());
+
+// Handle book update events from Echo
+const handleBookUpdatedEvent = (payload: BookUpdatedPayload) => {
+    const location = findBookLocation(payload.id);
+    
+    if (location) {
+        const { genre, index } = location;
+        const existingBook = booksByGenreState.value[genre][index];
+        
+        // Check if genre changed
+        if (payload.genre !== genre) {
+            // Remove from old genre
+            booksByGenreState.value[genre].splice(index, 1);
+            if (booksByGenreState.value[genre].length === 0) {
+                delete booksByGenreState.value[genre];
+            }
+            
+            // Add to new genre
+            if (!booksByGenreState.value[payload.genre]) {
+                booksByGenreState.value[payload.genre] = [];
+            }
+            booksByGenreState.value[payload.genre].unshift({
+                ...existingBook,
+                title: payload.title ?? existingBook.title,
+                genre: payload.genre,
+                author: payload.author,
+                age_level: payload.age_level,
+                status: payload.status,
+                cover_image: payload.cover_image ?? undefined,
+            });
+        } else {
+            // Update in place
+            booksByGenreState.value[genre][index] = {
+                ...existingBook,
+                title: payload.title ?? existingBook.title,
+                genre: payload.genre,
+                author: payload.author,
+                age_level: payload.age_level,
+                status: payload.status,
+                cover_image: payload.cover_image ?? undefined,
+            };
+        }
+        
+        nextTick(() => updateAllScrollStates());
+    }
+};
+
+// Subscribe to a book's private channel for updates
+const subscribeToBook = (bookId: string) => {
+    if (bookChannels.value.has(bookId)) {
+        return;
+    }
+    
+    try {
+        const channel = echo().private(`book.${bookId}`);
+        channel.listen('.book.updated', handleBookUpdatedEvent);
+        bookChannels.value.set(bookId, channel);
+    } catch (err) {
+        console.error(`[Echo] Failed to subscribe to book.${bookId}:`, err);
+    }
+};
+
+// Unsubscribe from a book's channel
+const unsubscribeFromBook = (bookId: string) => {
+    const channel = bookChannels.value.get(bookId);
+    if (channel) {
+        try {
+            channel.stopListening('.book.updated');
+            echo().leave(`book.${bookId}`);
+        } catch (err) {
+            // Ignore cleanup errors
+        }
+        bookChannels.value.delete(bookId);
+    }
+};
+
+// Subscribe to all current books
+const subscribeToAllBooks = () => {
+    Object.values(booksByGenreState.value)
+        .flat()
+        .forEach(book => subscribeToBook(book.id));
+};
+
+// Cleanup all subscriptions
+const cleanupAllSubscriptions = () => {
+    bookChannels.value.forEach((_, bookId) => {
+        unsubscribeFromBook(bookId);
+    });
+};
+
+// Watch for books changes to update subscriptions
+watch(booksByGenreState, (newState) => {
+    const currentBookIds = new Set(
+        Object.values(newState).flat().map(book => book.id)
+    );
+    
+    // Subscribe to new books
+    currentBookIds.forEach(bookId => {
+        if (!bookChannels.value.has(bookId)) {
+            subscribeToBook(bookId);
+        }
+    });
+    
+    // Unsubscribe from removed books
+    bookChannels.value.forEach((_, bookId) => {
+        if (!currentBookIds.has(bookId)) {
+            unsubscribeFromBook(bookId);
+        }
+    });
+}, { deep: true });
 
 const isBookViewOpen = ref(false);
 const selectedBookId = ref<string | null>(null);

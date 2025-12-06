@@ -38,10 +38,13 @@ const rightPageNumber = computed(() => {
     <div class="relative z-10 h-full overflow-hidden">
         <!-- First spread: Title with 40% top margin + beginning of content -->
         <template v-if="spread.isFirstSpread">
-            <div class="flex h-full flex-col px-12 pt-24 pb-6">
+            <div class="flex h-full flex-col px-16 pt-24 pb-6">
                 <!-- 40% top margin space -->
                 <div class="h-[40%] flex items-end justify-center pb-4">
                     <div class="text-center">
+                        <div class="text-xs uppercase tracking-widest text-amber-700 dark:text-amber-600 mb-2 font-medium">
+                            Chapter {{ chapter.sort }}
+                        </div>
                         <h2 class="font-serif text-2xl md:text-3xl font-bold text-amber-950 dark:text-amber-900">
                             {{ chapter.title || `Chapter ${chapter.sort}` }}
                         </h2>
@@ -84,7 +87,7 @@ const rightPageNumber = computed(() => {
         
         <!-- Subsequent spreads: Content continuation on right page (full height) -->
         <template v-else>
-            <div class="h-full px-12 pt-24 pb-8">
+            <div class="h-full px-16 pt-24 pb-8">
                 <div v-if="spread.rightContent" class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
                     <template v-for="(item, idx) in spread.rightContent" :key="idx">
                         <p 

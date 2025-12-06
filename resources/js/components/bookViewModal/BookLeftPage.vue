@@ -3,9 +3,9 @@ import { computed } from 'vue';
 import BookPageTexture from './BookPageTexture.vue';
 import BookPageDecorative from './BookPageDecorative.vue';
 import CharacterGrid from './CharacterGrid.vue';
-import TableOfContents from './TableOfContents.vue';
+import CreateChapterForm from './CreateChapterForm.vue';
 import { BookOpen } from 'lucide-vue-next';
-import type { Chapter, PageSpread, ReadingView, Character, ChapterSummary } from './types';
+import type { Chapter, PageSpread, ReadingView, Character } from './types';
 
 interface Props {
     readingView: ReadingView;
@@ -14,17 +14,22 @@ interface Props {
     spreadIndex?: number;
     characters?: Character[];
     selectedCharacterId?: string | null;
-    chapters?: ChapterSummary[];
+    hasNextChapter?: boolean;
+    chapterEndsOnLeft?: boolean;
+    isOnLastSpread?: boolean;
     currentChapterNumber?: number;
-    bookTitle?: string;
+    nextChapterPrompt?: string;
+    isFinalChapter?: boolean;
+    isGeneratingChapter?: boolean;
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'selectCharacter', character: Character): void;
-    (e: 'tocSelectChapter', chapterNumber: number): void;
-    (e: 'tocGoToTitle'): void;
+    (e: 'update:nextChapterPrompt', value: string): void;
+    (e: 'update:isFinalChapter', value: boolean): void;
+    (e: 'generateChapter'): void;
 }>();
 
 // Calculate left page number
@@ -38,6 +43,13 @@ const leftPageNumber = computed(() => {
     // Title page is 0, first spread is pages 2-3, second spread is 4-5, etc.
     return 2 + (props.spreadIndex * 2);
 });
+
+// Show create form on left page when chapter ended on right and no next chapter
+const showCreateFormOnLeft = computed(() => {
+    return props.readingView === 'create-chapter' && 
+           !props.chapterEndsOnLeft && 
+           !props.hasNextChapter;
+});
 </script>
 
 <template>
@@ -46,8 +58,8 @@ const leftPageNumber = computed(() => {
         <BookPageTexture />
         
         <!-- Decorative page lines -->
-        <div class="absolute inset-y-8 left-4 w-px bg-amber-300/60 dark:bg-amber-400/50" />
-        <div class="absolute inset-y-8 left-8 w-px bg-amber-300/40 dark:bg-amber-400/30" />
+        <div class="absolute inset-y-0 left-4 w-px bg-amber-300/60 dark:bg-amber-400/50" />
+        <div class="absolute inset-y-0 left-8 w-px bg-amber-300/40 dark:bg-amber-400/30" />
         
         <!-- Left Page Content Based on View -->
         <template v-if="readingView === 'title'">
@@ -84,7 +96,7 @@ const leftPageNumber = computed(() => {
                 </template>
                 <!-- Subsequent spreads: show content continuation on left page (full height) -->
                 <template v-else-if="spread.leftContent">
-                    <div class="relative h-full px-12 pt-24 pb-8">
+                    <div class="relative h-full px-16 pt-24 pb-8">
                         <div class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
                             <template v-for="(item, idx) in spread.leftContent" :key="idx">
                                 <p 
@@ -113,17 +125,19 @@ const leftPageNumber = computed(() => {
         </template>
         
         <template v-else-if="readingView === 'create-chapter'">
-            <BookPageDecorative variant="wand" />
-        </template>
-
-        <template v-else-if="readingView === 'toc'">
-            <TableOfContents
-                :chapters="chapters || []"
-                :current-chapter-number="currentChapterNumber || 0"
-                :book-title="bookTitle || 'Untitled Story'"
-                @select-chapter="emit('tocSelectChapter', $event)"
-                @go-to-title="emit('tocGoToTitle')"
+            <!-- Show create form on left when chapter ended on right -->
+            <CreateChapterForm
+                v-if="showCreateFormOnLeft"
+                :chapter-number="currentChapterNumber ?? 1"
+                :prompt="nextChapterPrompt ?? ''"
+                :is-final-chapter="isFinalChapter ?? false"
+                :is-generating="isGeneratingChapter ?? false"
+                @update:prompt="emit('update:nextChapterPrompt', $event)"
+                @update:is-final-chapter="emit('update:isFinalChapter', $event)"
+                @generate="emit('generateChapter')"
             />
+            <!-- Otherwise show decorative -->
+            <BookPageDecorative v-else variant="wand" />
         </template>
 
         <!-- Page Number Footer -->

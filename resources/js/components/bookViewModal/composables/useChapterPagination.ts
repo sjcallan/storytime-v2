@@ -14,6 +14,7 @@ export function useChapterPagination() {
 
     const currentChapterNumber = ref(0);
     const currentChapter = ref<Chapter | null>(null);
+    const nextChapterData = ref<Chapter | null>(null);
     const totalChapters = ref(0);
     const isLoadingChapter = ref(false);
     const isGeneratingChapter = ref(false);
@@ -24,6 +25,7 @@ export function useChapterPagination() {
     const isPageFlipping = ref(false);
     const isTitlePageFading = ref(false);
     const currentSpreadIndex = ref(0);
+    const lastChapterEndedOnLeft = ref(false);
 
     const extractErrorMessage = (value: unknown): string | null => {
         if (value instanceof Error) {
@@ -39,19 +41,19 @@ export function useChapterPagination() {
         return null;
     };
 
-    const chapterPages = computed((): PageContentItem[][] => {
-        if (!currentChapter.value?.body) {
+    const calculateChapterPages = (chapter: Chapter | null): PageContentItem[][] => {
+        if (!chapter?.body) {
             return [];
         }
 
-        const body = currentChapter.value.body;
+        const body = chapter.body;
         const paragraphs = body.split('\n\n').filter(p => p.trim());
 
         if (paragraphs.length === 0) {
             return [];
         }
 
-        const inlineImages = currentChapter.value.inline_images || [];
+        const inlineImages = chapter.inline_images || [];
         const imagesByParagraph = new Map<number, InlineImage>();
         for (const img of inlineImages) {
             imagesByParagraph.set(img.paragraph_index, img);
@@ -101,6 +103,10 @@ export function useChapterPagination() {
         }
 
         return pages;
+    };
+
+    const chapterPages = computed((): PageContentItem[][] => {
+        return calculateChapterPages(currentChapter.value);
     });
 
     const chapterSpreads = computed((): PageSpread[] => {
@@ -146,6 +152,67 @@ export function useChapterPagination() {
         return chapterSpreads.value.length;
     });
 
+    const chapterEndsOnLeft = computed(() => {
+        // When in create-chapter view, use the preserved value
+        if (readingView.value === 'create-chapter') {
+            return lastChapterEndedOnLeft.value;
+        }
+        const spreads = chapterSpreads.value;
+        if (spreads.length === 0) {
+            return false;
+        }
+        const lastSpread = spreads[spreads.length - 1];
+        return lastSpread.rightContent === null || lastSpread.rightContent === undefined;
+    });
+
+    const hasNextChapter = computed(() => {
+        if (readingView.value === 'create-chapter') {
+            return false;
+        }
+        return totalChapters.value > 0 && currentChapterNumber.value < totalChapters.value;
+    });
+
+    const isOnLastSpread = computed(() => {
+        return currentSpreadIndex.value === chapterSpreads.value.length - 1;
+    });
+
+    const nextChapterFirstPage = computed((): PageContentItem[] | null => {
+        if (!nextChapterData.value) {
+            return null;
+        }
+        const pages = calculateChapterPages(nextChapterData.value);
+        return pages[0] || null;
+    });
+
+    const shouldShowNextChapterOnRight = computed(() => {
+        return isOnLastSpread.value && 
+               chapterEndsOnLeft.value && 
+               hasNextChapter.value && 
+               nextChapterData.value !== null;
+    });
+
+    const loadNextChapterData = async (bookId: string, nextChapterNumber: number): Promise<void> => {
+        try {
+            const { data, error } = await requestApiFetch(
+                `/api/books/${bookId}/chapters/${nextChapterNumber}`,
+                'GET'
+            );
+
+            if (!error && data) {
+                const response = data as ChapterResponse;
+                if (response.chapter) {
+                    nextChapterData.value = response.chapter;
+                } else {
+                    nextChapterData.value = null;
+                }
+            } else {
+                nextChapterData.value = null;
+            }
+        } catch {
+            nextChapterData.value = null;
+        }
+    };
+
     const loadChapter = async (bookId: string, chapterNumber: number): Promise<void> => {
         if (!bookId || isLoadingChapter.value) {
             return;
@@ -153,6 +220,7 @@ export function useChapterPagination() {
 
         isLoadingChapter.value = true;
         chapterError.value = null;
+        nextChapterData.value = null;
 
         try {
             const { data, error } = await requestApiFetch(
@@ -173,6 +241,11 @@ export function useChapterPagination() {
                 currentChapterNumber.value = chapterNumber;
                 currentSpreadIndex.value = 0;
                 readingView.value = 'chapter-image';
+                
+                // Pre-fetch next chapter if available
+                if (chapterNumber < response.total_chapters) {
+                    loadNextChapterData(bookId, chapterNumber + 1);
+                }
             } else {
                 currentChapter.value = null;
                 currentChapterNumber.value = chapterNumber;
@@ -248,12 +321,27 @@ export function useChapterPagination() {
 
         if (hasNextSpread.value) {
             currentSpreadIndex.value++;
+        } else if (shouldShowNextChapterOnRight.value && nextChapterData.value) {
+            // When showing next chapter preview on right, advance to that chapter
+            // but start from spread index 1 (skip the title spread since we already showed the first page)
+            currentChapter.value = nextChapterData.value;
+            currentChapterNumber.value = nextChapterData.value.sort;
+            nextChapterData.value = null;
+            currentSpreadIndex.value = 1;
+            readingView.value = 'chapter-content';
+            
+            // Pre-fetch the new next chapter
+            if (currentChapterNumber.value < totalChapters.value) {
+                loadNextChapterData(bookId, currentChapterNumber.value + 1);
+            }
         } else {
             const nextNumber = currentChapterNumber.value + 1;
 
             if (nextNumber <= totalChapters.value) {
                 loadChapter(bookId, nextNumber);
             } else {
+                // Preserve whether the chapter ended on left before clearing
+                lastChapterEndedOnLeft.value = chapterEndsOnLeft.value;
                 currentChapter.value = null;
                 currentChapterNumber.value = nextNumber;
                 currentSpreadIndex.value = 0;
@@ -299,6 +387,7 @@ export function useChapterPagination() {
     const resetChapterState = (): void => {
         currentChapterNumber.value = 0;
         currentChapter.value = null;
+        nextChapterData.value = null;
         totalChapters.value = 0;
         isLoadingChapter.value = false;
         isGeneratingChapter.value = false;
@@ -309,11 +398,13 @@ export function useChapterPagination() {
         readingView.value = 'title';
         isPageFlipping.value = false;
         isTitlePageFading.value = false;
+        lastChapterEndedOnLeft.value = false;
     };
 
     return {
         currentChapterNumber,
         currentChapter,
+        nextChapterData,
         totalChapters,
         isLoadingChapter,
         isGeneratingChapter,
@@ -330,6 +421,11 @@ export function useChapterPagination() {
         hasNextSpread,
         hasPrevSpread,
         totalSpreads,
+        chapterEndsOnLeft,
+        hasNextChapter,
+        isOnLastSpread,
+        nextChapterFirstPage,
+        shouldShowNextChapterOnRight,
         loadChapter,
         generateNextChapter,
         goToChapter1,

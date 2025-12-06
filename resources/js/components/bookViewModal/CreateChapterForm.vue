@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Textarea } from '@/components/ui/textarea';
-import { ChevronLeft, Wand2 } from 'lucide-vue-next';
+import { Wand2, Sparkles, BookOpen, Check } from 'lucide-vue-next';
 
 interface Props {
     chapterNumber: number;
@@ -15,74 +15,108 @@ const emit = defineEmits<{
     (e: 'update:prompt', value: string): void;
     (e: 'update:isFinalChapter', value: boolean): void;
     (e: 'generate'): void;
-    (e: 'back'): void;
 }>();
 </script>
 
 <template>
-    <div class="relative z-10 flex h-full flex-col p-8 pt-16 pb-6">
-        <div class="flex-1">
+    <div class="relative z-10 flex h-full flex-col items-center justify-center p-8">
+        <!-- Decorative top flourish -->
+        <div class="absolute top-8 left-1/2 -translate-x-1/2 flex items-center gap-3 opacity-40">
+            <div class="h-px w-16 bg-linear-to-r from-transparent to-amber-700 dark:to-amber-600" />
+            <Sparkles class="h-4 w-4 text-amber-700 dark:text-amber-600" />
+            <div class="h-px w-16 bg-linear-to-l from-transparent to-amber-700 dark:to-amber-600" />
+        </div>
+
+        <!-- Centered content container -->
+        <div class="w-full max-w-sm space-y-6">
             <!-- Header -->
-            <div class="mb-6 text-center">
-                <div class="mb-3">
-                    <span class="inline-block rounded-full bg-amber-200/60 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-amber-800 dark:bg-amber-300/60 dark:text-amber-900">
+            <div class="text-center">
+                <div class="mb-3 inline-flex items-center gap-2 rounded-full bg-amber-800 px-4 py-1.5">
+                    <BookOpen class="h-4 w-4 text-amber-100" />
+                    <span class="text-sm font-semibold uppercase tracking-wider text-amber-100">
                         Chapter {{ chapterNumber }}
                     </span>
                 </div>
-                <h2 class="font-serif text-2xl font-bold text-amber-950 dark:text-amber-900">
-                    What happens next?
+                <h2 class="font-serif text-3xl font-bold text-stone-800 dark:text-stone-900">
+                    Continue the Story...
                 </h2>
-                <p class="mt-2 text-sm text-amber-700 dark:text-amber-600">
-                    Describe what you'd like to happen in the next chapter (optional)
+                <p class="mt-2 text-base text-stone-600 dark:text-stone-700">
+                    What adventure awaits in the next chapter? Share your ideas below.
                 </p>
             </div>
             
-            <!-- Form -->
-            <div class="space-y-4">
+            <!-- Prompt textarea -->
+            <div class="space-y-2">
                 <Textarea
                     :model-value="prompt"
                     @update:model-value="emit('update:prompt', String($event))"
                     placeholder="The hero discovers a hidden door behind the waterfall..."
-                    rows="5"
+                    rows="4"
                     :disabled="isGenerating"
-                    class="w-full resize-none bg-white/70 dark:bg-white/10 font-serif text-amber-950 dark:text-amber-900 placeholder:text-amber-500"
+                    class="w-full resize-none border-stone-300 bg-white font-serif text-lg text-stone-800 placeholder:text-stone-400 focus:border-amber-600 focus:ring-amber-600/30 dark:border-stone-400 dark:bg-white/90 dark:text-stone-900 dark:placeholder:text-stone-500"
                 />
-                
-                <div class="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        id="final-chapter"
-                        :checked="isFinalChapter"
-                        @change="emit('update:isFinalChapter', ($event.target as HTMLInputElement).checked)"
+                <p class="text-center text-sm text-stone-500 dark:text-stone-600">
+                    Optional — leave empty for a surprise!
+                </p>
+            </div>
+            
+            <!-- Final chapter question -->
+            <div class="rounded-xl border border-stone-200 bg-stone-50 p-5 dark:border-stone-300 dark:bg-stone-100">
+                <p class="mb-4 text-center text-base font-medium text-stone-700 dark:text-stone-800">
+                    Will this be the final chapter?
+                </p>
+                <div class="flex items-center justify-center gap-4">
+                    <button 
+                        type="button"
+                        @click="emit('update:isFinalChapter', true)"
                         :disabled="isGenerating"
-                        class="h-4 w-4 rounded border-amber-300 text-amber-700 focus:ring-amber-500"
-                    />
-                    <label for="final-chapter" class="text-sm text-amber-800 dark:text-amber-700">
-                        This is the final chapter
-                    </label>
+                        :class="[
+                            'group relative flex items-center gap-2 rounded-full px-6 py-2.5 text-base font-medium transition-all duration-200',
+                            isFinalChapter 
+                                ? 'bg-amber-800 text-white shadow-md' 
+                                : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-300 dark:bg-white dark:text-stone-800 dark:border-stone-400 dark:hover:bg-stone-50',
+                            'disabled:opacity-50 disabled:cursor-not-allowed'
+                        ]"
+                    >
+                        <Check v-if="isFinalChapter" class="h-4 w-4" />
+                        <span>Yes</span>
+                    </button>
+                    <button 
+                        type="button"
+                        @click="emit('update:isFinalChapter', false)"
+                        :disabled="isGenerating"
+                        :class="[
+                            'group relative flex items-center gap-2 rounded-full px-6 py-2.5 text-base font-medium transition-all duration-200',
+                            !isFinalChapter 
+                                ? 'bg-amber-800 text-white shadow-md' 
+                                : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-300 dark:bg-white dark:text-stone-800 dark:border-stone-400 dark:hover:bg-stone-50',
+                            'disabled:opacity-50 disabled:cursor-not-allowed'
+                        ]"
+                    >
+                        <Check v-if="!isFinalChapter" class="h-4 w-4" />
+                        <span>No</span>
+                    </button>
                 </div>
             </div>
-        </div>
-        
-        <!-- Actions -->
-        <div class="flex items-center justify-between border-t border-amber-200 pt-6 dark:border-amber-300">
-            <button 
-                @click="emit('back')"
-                :disabled="isGenerating"
-                class="flex cursor-pointer items-center gap-1 text-sm text-amber-700 hover:text-amber-900 transition-colors dark:text-amber-600 dark:hover:text-amber-800 disabled:opacity-50"
-            >
-                <ChevronLeft class="h-4 w-4" />
-                <span>Back</span>
-            </button>
             
+            <!-- Generate button -->
             <button 
                 @click="emit('generate')"
                 :disabled="isGenerating"
-                class="group flex cursor-pointer items-center gap-2 rounded-full bg-gradient-to-r from-amber-700 to-orange-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="group w-full cursor-pointer rounded-full bg-amber-800 px-6 py-3.5 text-base font-semibold text-white shadow-lg transition-all duration-300 hover:bg-amber-900 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
-                <Wand2 class="h-4 w-4" />
-                <span>{{ isGenerating ? 'Creating...' : 'Create Chapter' }}</span>
+                <span class="flex items-center justify-center gap-2">
+                    <Wand2 :class="['h-5 w-5 transition-transform duration-300', isGenerating ? 'animate-pulse' : 'group-hover:rotate-12']" />
+                    <span>{{ isGenerating ? 'Crafting your story...' : 'Create Chapter' }}</span>
+                </span>
             </button>
+        </div>
+
+        <!-- Decorative bottom flourish -->
+        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 opacity-30">
+            <div class="h-px w-12 bg-linear-to-r from-transparent to-amber-700 dark:to-amber-600" />
+            <div class="h-1.5 w-1.5 rounded-full bg-amber-700 dark:bg-amber-600" />
+            <div class="h-px w-12 bg-linear-to-l from-transparent to-amber-700 dark:to-amber-600" />
         </div>
     </div>
 </template>

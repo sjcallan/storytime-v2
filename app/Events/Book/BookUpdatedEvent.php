@@ -51,10 +51,14 @@ class BookUpdatedEvent implements ShouldBroadcast
         return [
             'id' => $this->book->id,
             'title' => $this->book->title,
+            'genre' => $this->book->genre,
+            'author' => $this->book->author,
+            'age_level' => $this->book->age_level,
             'status' => $this->book->status,
+            'cover_image' => $this->book->cover_image,
+            'plot' => $this->book->plot,
             'is_published' => $this->book->is_published,
             'updated_at' => $this->book->updated_at,
         ];
     }
 }
-
