@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Sparkles } from 'lucide-vue-next';
-import type { Chapter, PageSpread } from './types';
+import type { Chapter, PageSpread, PageContentItem } from './types';
 
 interface Props {
     chapter: Chapter;
@@ -8,13 +8,26 @@ interface Props {
 }
 
 defineProps<Props>();
+
+const isFirstParagraph = (items: PageContentItem[] | null, idx: number): boolean => {
+    if (!items) {
+        return false;
+    }
+    let paragraphCount = 0;
+    for (let i = 0; i <= idx; i++) {
+        if (items[i]?.type === 'paragraph') {
+            paragraphCount++;
+        }
+    }
+    return paragraphCount === 1 && items[idx]?.type === 'paragraph';
+};
 </script>
 
 <template>
     <div class="relative z-10 h-full overflow-hidden">
         <!-- First spread: Title with 40% top margin + beginning of content -->
         <template v-if="spread.isFirstSpread">
-            <div class="flex h-full flex-col px-12 pt-8 pb-6">
+            <div class="flex h-full flex-col px-12 pt-16 pb-6">
                 <!-- 40% top margin space -->
                 <div class="h-[40%] flex items-end justify-center pb-4">
                     <div class="text-center">
@@ -34,16 +47,25 @@ defineProps<Props>();
                 <!-- Remaining ~60% for content -->
                 <div class="flex-1 overflow-hidden">
                     <div v-if="spread.rightContent" class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
-                        <p 
-                            v-for="(paragraph, idx) in spread.rightContent"
-                            :key="idx"
-                            :class="[
-                                'mb-5 font-serif text-lg leading-relaxed',
-                                idx === 0 ? 'drop-cap' : ''
-                            ]"
-                        >
-                            {{ paragraph }}
-                        </p>
+                        <template v-for="(item, idx) in spread.rightContent" :key="idx">
+                            <p 
+                                v-if="item.type === 'paragraph'"
+                                :class="[
+                                    'mb-5 font-serif text-lg leading-relaxed',
+                                    isFirstParagraph(spread.rightContent, idx) ? 'drop-cap' : ''
+                                ]"
+                            >
+                                {{ item.content }}
+                            </p>
+                            <figure v-else-if="item.type === 'image'" class="my-6">
+                                <img
+                                    :src="item.imageUrl"
+                                    :alt="item.content"
+                                    class="w-full h-auto rounded-lg shadow-md object-cover aspect-video"
+                                    loading="lazy"
+                                />
+                            </figure>
+                        </template>
                     </div>
                 </div>
             </div>
@@ -51,15 +73,24 @@ defineProps<Props>();
         
         <!-- Subsequent spreads: Content continuation on right page (full height) -->
         <template v-else>
-            <div class="h-full px-12 py-8">
+            <div class="h-full px-12 pt-16 pb-8">
                 <div v-if="spread.rightContent" class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
-                    <p 
-                        v-for="(paragraph, idx) in spread.rightContent"
-                        :key="idx"
-                        class="mb-5 font-serif text-lg leading-relaxed"
-                    >
-                        {{ paragraph }}
-                    </p>
+                    <template v-for="(item, idx) in spread.rightContent" :key="idx">
+                        <p 
+                            v-if="item.type === 'paragraph'"
+                            class="mb-5 font-serif text-lg leading-relaxed"
+                        >
+                            {{ item.content }}
+                        </p>
+                        <figure v-else-if="item.type === 'image'" class="my-6">
+                            <img
+                                :src="item.imageUrl"
+                                :alt="item.content"
+                                class="w-full h-auto rounded-lg shadow-md object-cover aspect-video"
+                                loading="lazy"
+                            />
+                        </figure>
+                    </template>
                 </div>
                 <!-- If no right content on this spread (odd number of continuation pages) -->
                 <div v-else class="flex h-full items-center justify-center">

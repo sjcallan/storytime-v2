@@ -15,6 +15,13 @@ export interface Character {
     portrait_image: string | null;
 }
 
+export interface ChapterSummary {
+    id: string;
+    title: string | null;
+    sort: number;
+    final_chapter: boolean;
+}
+
 export interface Book {
     id: string;
     title: string;
@@ -27,6 +34,13 @@ export interface Book {
     created_at: string;
     profile?: Profile | null;
     characters?: Character[];
+    chapters?: ChapterSummary[];
+}
+
+export interface InlineImage {
+    paragraph_index: number;
+    url: string;
+    prompt: string;
 }
 
 export interface Chapter {
@@ -34,6 +48,7 @@ export interface Chapter {
     title: string | null;
     body: string | null;
     image: string | null;
+    inline_images: InlineImage[] | null;
     sort: number;
     summary: string | null;
     final_chapter: boolean;
@@ -53,9 +68,15 @@ export interface CardPosition {
     height: number;
 }
 
+export interface PageContentItem {
+    type: 'paragraph' | 'image';
+    content: string;
+    imageUrl?: string;
+}
+
 export interface PageSpread {
-    leftContent: string[] | null;
-    rightContent: string[] | null;
+    leftContent: PageContentItem[] | null;
+    rightContent: PageContentItem[] | null;
     isFirstSpread: boolean;
     showImage: boolean;
 }
@@ -68,7 +89,7 @@ export interface BookEditFormData {
     plot: string;
 }
 
-export type ReadingView = 'title' | 'chapter-image' | 'chapter-content' | 'create-chapter';
+export type ReadingView = 'title' | 'toc' | 'chapter-image' | 'chapter-content' | 'create-chapter';
 
 export type AnimationPhase = 'initial' | 'flipping' | 'complete';
 

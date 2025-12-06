@@ -22,4 +22,5 @@ export { default as CreateChapterForm } from './CreateChapterForm.vue';
 export { default as DeleteConfirmDialog } from './DeleteConfirmDialog.vue';
 export { default as CharacterGrid } from './CharacterGrid.vue';
 export { default as CharacterDetail } from './CharacterDetail.vue';
+export { default as TableOfContents } from './TableOfContents.vue';
 

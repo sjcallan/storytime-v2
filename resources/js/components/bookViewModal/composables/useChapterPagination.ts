@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue';
-import type { Chapter, ChapterResponse, PageSpread, ReadingView, ApiFetchFn } from '../types';
+import type { Chapter, ChapterResponse, PageSpread, PageContentItem, ReadingView, ApiFetchFn, InlineImage } from '../types';
 import { apiFetch } from '@/composables/ApiFetch';
 
 const CHARS_PER_LINE = 55;
@@ -7,6 +7,7 @@ const LINES_PER_FULL_PAGE = 28;
 const FIRST_PAGE_LINES = 14;
 const CHARS_PER_FULL_PAGE = CHARS_PER_LINE * LINES_PER_FULL_PAGE;
 const CHARS_FIRST_PAGE = CHARS_PER_LINE * FIRST_PAGE_LINES;
+const IMAGE_CHAR_EQUIVALENT = 400;
 
 export function useChapterPagination() {
     const requestApiFetch = apiFetch as ApiFetchFn;
@@ -38,7 +39,7 @@ export function useChapterPagination() {
         return null;
     };
 
-    const chapterPages = computed(() => {
+    const chapterPages = computed((): PageContentItem[][] => {
         if (!currentChapter.value?.body) {
             return [];
         }
@@ -50,23 +51,48 @@ export function useChapterPagination() {
             return [];
         }
 
-        const pages: string[][] = [];
-        let currentPage: string[] = [];
+        const inlineImages = currentChapter.value.inline_images || [];
+        const imagesByParagraph = new Map<number, InlineImage>();
+        for (const img of inlineImages) {
+            imagesByParagraph.set(img.paragraph_index, img);
+        }
+
+        const contentItems: PageContentItem[] = [];
+        for (let i = 0; i < paragraphs.length; i++) {
+            contentItems.push({
+                type: 'paragraph',
+                content: paragraphs[i],
+            });
+            
+            const imageForParagraph = imagesByParagraph.get(i);
+            if (imageForParagraph) {
+                contentItems.push({
+                    type: 'image',
+                    content: imageForParagraph.prompt,
+                    imageUrl: imageForParagraph.url,
+                });
+            }
+        }
+
+        const pages: PageContentItem[][] = [];
+        let currentPage: PageContentItem[] = [];
         let currentPageChars = 0;
         let pageIndex = 0;
 
-        for (const paragraph of paragraphs) {
+        for (const item of contentItems) {
             const maxChars = pageIndex === 0 ? CHARS_FIRST_PAGE : CHARS_PER_FULL_PAGE;
-            const paragraphChars = paragraph.length + 20;
+            const itemChars = item.type === 'image' 
+                ? IMAGE_CHAR_EQUIVALENT 
+                : item.content.length + 20;
 
-            if (currentPageChars + paragraphChars > maxChars && currentPage.length > 0) {
+            if (currentPageChars + itemChars > maxChars && currentPage.length > 0) {
                 pages.push(currentPage);
-                currentPage = [paragraph];
-                currentPageChars = paragraphChars;
+                currentPage = [item];
+                currentPageChars = itemChars;
                 pageIndex++;
             } else {
-                currentPage.push(paragraph);
-                currentPageChars += paragraphChars;
+                currentPage.push(item);
+                currentPageChars += itemChars;
             }
         }
 
@@ -259,6 +285,17 @@ export function useChapterPagination() {
         readingView.value = 'title';
     };
 
+    const goToTableOfContents = (): void => {
+        readingView.value = 'toc';
+    };
+
+    const jumpToChapter = (bookId: string, chapterNumber: number): void => {
+        if (isLoadingChapter.value) {
+            return;
+        }
+        loadChapter(bookId, chapterNumber);
+    };
+
     const resetChapterState = (): void => {
         currentChapterNumber.value = 0;
         currentChapter.value = null;
@@ -299,6 +336,8 @@ export function useChapterPagination() {
         goToNextChapter,
         goToPreviousChapter,
         goBackToTitlePage,
+        goToTableOfContents,
+        jumpToChapter,
         resetChapterState,
     };
 }

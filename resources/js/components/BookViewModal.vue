@@ -11,12 +11,12 @@ import {
     BookSpine,
     BookLeftPage,
     BookRightPage,
-    BookFooterNav,
     BookHeaderControls,
     BookLoadingOverlay,
     DeleteConfirmDialog,
+    TableOfContents,
 } from '@/components/bookViewModal';
-import type { Book, CardPosition, BookEditFormData, ApiFetchFn, Character } from '@/components/bookViewModal';
+import type { Book, CardPosition, BookEditFormData, ApiFetchFn, Character, ChapterSummary } from '@/components/bookViewModal';
 
 interface Props {
     bookId: string | null;
@@ -313,6 +313,30 @@ const handleClearSelectedCharacter = () => {
     selectedCharacter.value = null;
 };
 
+// Table of Contents handlers
+const completedChapters = computed((): ChapterSummary[] => {
+    if (!book.value?.chapters) {
+        return [];
+    }
+    return book.value.chapters
+        .filter(ch => ch.title || ch.sort)
+        .sort((a, b) => a.sort - b.sort);
+});
+
+const handleOpenToc = () => {
+    chapters.goToTableOfContents();
+};
+
+const handleTocSelectChapter = (chapterNumber: number) => {
+    if (props.bookId) {
+        chapters.jumpToChapter(props.bookId, chapterNumber);
+    }
+};
+
+const handleTocGoToTitle = () => {
+    chapters.goBackToTitlePage();
+};
+
 // Reset all state
 const resetAllState = () => {
     animation.resetState();
@@ -447,6 +471,7 @@ onBeforeUnmount(() => {
                     <BookHeaderControls
                         v-if="animation.animationPhase.value === 'complete' && !animation.isClosing.value"
                         :has-book="!!book"
+                        :has-chapters="completedChapters.length > 0"
                         :is-editing="isEditing"
                         :is-saving="isSaving"
                         :is-deleting="isDeleting"
@@ -454,6 +479,7 @@ onBeforeUnmount(() => {
                         @edit="startEditing"
                         @delete="requestDelete"
                         @close="closeModal"
+                        @open-toc="handleOpenToc"
                     />
 
                     <!-- ==================== CLOSED BOOK VIEW (Cover Centered) ==================== -->
@@ -486,6 +512,20 @@ onBeforeUnmount(() => {
                             </template>
                         </BookLoadingOverlay>
 
+                        <!-- Left Edge Click Zone (Go Back) -->
+                        <button
+                            v-if="(chapters.hasPrevSpread.value || chapters.currentChapterNumber.value >= 1) && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
+                            class="edge-nav-zone edge-nav-left group absolute left-0 top-12 bottom-4 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none"
+                            @click="handleGoToPreviousChapter"
+                            aria-label="Previous page"
+                        >
+                            <div class="absolute inset-y-0 left-0 w-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <svg class="w-6 h-6 text-amber-700/60 dark:text-amber-500/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                                </svg>
+                            </div>
+                        </button>
+
                         <!-- Left Page -->
                         <BookLeftPage
                             :reading-view="chapters.readingView.value"
@@ -493,7 +533,12 @@ onBeforeUnmount(() => {
                             :spread="chapters.currentSpread.value"
                             :characters="book?.characters"
                             :selected-character-id="selectedCharacter?.id ?? null"
+                            :chapters="completedChapters"
+                            :current-chapter-number="chapters.currentChapterNumber.value"
+                            :book-title="displayTitle"
                             @select-character="handleSelectCharacter"
+                            @toc-select-chapter="handleTocSelectChapter"
+                            @toc-go-to-title="handleTocGoToTitle"
                         />
 
                         <!-- Book Spine -->
@@ -534,20 +579,19 @@ onBeforeUnmount(() => {
                             @clear-selected-character="handleClearSelectedCharacter"
                         />
 
-                        <!-- Footer Navigation -->
-                        <BookFooterNav
-                            v-if="(chapters.readingView.value === 'chapter-image' || chapters.readingView.value === 'chapter-content') && chapters.currentChapter.value && chapters.currentSpread.value"
-                            :current-spread-index="chapters.currentSpreadIndex.value"
-                            :total-spreads="chapters.totalSpreads.value"
-                            :has-prev-spread="chapters.hasPrevSpread.value"
-                            :has-next-spread="chapters.hasNextSpread.value"
-                            :current-chapter-number="chapters.currentChapterNumber.value"
-                            :total-chapters="chapters.totalChapters.value"
-                            :is-final-chapter="chapters.currentChapter.value?.final_chapter || false"
-                            :is-loading-chapter="chapters.isLoadingChapter.value"
-                            @previous="handleGoToPreviousChapter"
-                            @next="handleGoToNextChapter"
-                        />
+                        <!-- Right Edge Click Zone (Go Forward) -->
+                        <button
+                            v-if="(chapters.hasNextSpread.value || (chapters.readingView.value === 'chapter-image' || chapters.readingView.value === 'chapter-content')) && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
+                            class="edge-nav-zone edge-nav-right group absolute right-0 top-12 bottom-4 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none"
+                            @click="handleGoToNextChapter"
+                            aria-label="Next page"
+                        >
+                            <div class="absolute inset-y-0 right-0 w-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <svg class="w-6 h-6 text-amber-700/60 dark:text-amber-500/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                                </svg>
+                            </div>
+                        </button>
                     </div>
                 </div>
             </div>

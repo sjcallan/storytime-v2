@@ -29,6 +29,7 @@ class Chapter extends Model
         'cta_total_cost',
         'image_prompt',
         'image',
+        'inline_images',
         'book_summary',
         'status',
     ];
@@ -38,6 +39,7 @@ class Chapter extends Model
         return [
             'final_chapter' => 'boolean',
             'cta_total_cost' => 'decimal:8',
+            'inline_images' => 'array',
         ];
     }
 

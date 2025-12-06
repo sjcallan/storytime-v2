@@ -40,7 +40,7 @@ const getAvatarGradient = (characterId: string): string => {
 </script>
 
 <template>
-    <div class="relative z-10 flex h-full flex-col p-6 pt-8">
+    <div class="relative z-10 flex h-full flex-col p-6 pt-16">
         <!-- Header -->
         <div class="mb-6 text-center">
             <h2 class="font-serif text-xl md:text-2xl font-bold text-amber-950 dark:text-amber-900 tracking-tight">

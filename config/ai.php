@@ -41,7 +41,7 @@ return [
 
         'llama' => [
             'driver' => 'llama',
-            'base_url' => env('LLAMA_BASE_URL', 'http://127.0.0.1:5009'),
+            'base_url' => env('LLAMA_BASE_URL', 'http://host.docker.internal:5009'),
             'endpoint' => env('LLAMA_ENDPOINT', '/generate'),
             'model' => env('LLAMA_MODEL', 'llama-3.2'),
             'max_tokens' => env('LLAMA_MAX_TOKENS', 4000),

@@ -77,57 +77,65 @@ class ChapterBuilderService extends BuilderService
                 'chapter_sort' => $chapter->sort,
             ]);
 
-            Log::debug('[ChapterBuilderService::buildChapter] Calling getNextChapterResponse');
-            $bodyStartTime = microtime(true);
-            $body = $this->getNextChapterResponse($bookId, $data);
-            $bodyDuration = microtime(true) - $bodyStartTime;
+            Log::debug('[ChapterBuilderService::buildChapter] Calling getCombinedChapterData');
+            $combinedStartTime = microtime(true);
+            $chapterContent = $this->getCombinedChapterData($bookId, $data);
+            $combinedDuration = microtime(true) - $combinedStartTime;
 
-            Log::info('[ChapterBuilderService::buildChapter] Chapter body generated', [
+            Log::info('[ChapterBuilderService::buildChapter] Combined chapter data generated', [
                 'chapter_id' => $chapter->id,
-                'body_type' => gettype($body),
-                'body_is_array' => is_array($body),
-                'has_completion' => is_array($body) && isset($body['completion']),
-                'body_length' => is_string($body) ? strlen($body) : (is_array($body) && isset($body['completion']) ? strlen($body['completion']) : 0),
-                'duration_seconds' => round($bodyDuration, 2),
+                'has_body' => ! empty($chapterContent['body']),
+                'has_title' => ! empty($chapterContent['title']),
+                'has_summary' => ! empty($chapterContent['summary']),
+                'has_image_prompt' => ! empty($chapterContent['image_prompt']),
+                'body_length' => strlen($chapterContent['body'] ?? ''),
+                'duration_seconds' => round($combinedDuration, 2),
             ]);
 
-            $data['body'] = $body;
-
-            $completionText = is_array($body) && isset($body['completion']) ? $body['completion'] : $body;
-
-            if (empty($completionText)) {
-                Log::error('[ChapterBuilderService::buildChapter] Empty body/completion returned', [
+            if (empty($chapterContent['body'])) {
+                Log::error('[ChapterBuilderService::buildChapter] Empty body returned', [
                     'chapter_id' => $chapter->id,
-                    'body_value' => $body,
+                    'chapter_content' => $chapterContent,
                 ]);
                 throw new \RuntimeException('Empty chapter body returned from AI');
             }
 
-            Log::debug('[ChapterBuilderService::buildChapter] Generating chapter summary');
-            $summaryStartTime = microtime(true);
-            $summary = $this->getSummary($bookId, $completionText);
-            $summaryDuration = microtime(true) - $summaryStartTime;
-
-            Log::debug('[ChapterBuilderService::buildChapter] Summary generated', [
-                'chapter_id' => $chapter->id,
-                'summary_type' => gettype($summary),
-                'has_completion' => is_array($summary) && isset($summary['completion']),
-                'duration_seconds' => round($summaryDuration, 2),
-            ]);
-
-            $summaryText = $this->stripQuotes($summary['completion'] ?? '');
-
-            // Log::debug('[ChapterBuilderService::buildChapter] Tracking summary request log');
-            // $this->chatService->trackRequestLog($bookId, $chapter->id, $user->id, 'chapter_summary', $summary);
-            $data['summary'] = $summaryText;
-
+            $data['body'] = $chapterContent['body'];
+            $data['summary'] = $chapterContent['summary'] ?? '';
+            $data['title'] = $chapterContent['title'] ?? null;
+            $data['image_prompt'] = $chapterContent['image_prompt'] ?? null;
             $data['status'] = 'complete';
+
+            $inlineImages = [];
+            $sceneImages = $chapterContent['scene_images'] ?? [];
+
+            if (! empty($sceneImages) && is_array($sceneImages)) {
+                Log::info('[ChapterBuilderService::buildChapter] Generating inline images', [
+                    'chapter_id' => $chapter->id,
+                    'scene_count' => count($sceneImages),
+                ]);
+
+                $imageGenStartTime = microtime(true);
+                $inlineImages = $this->generateChapterImages($bookId, $chapter->id, $sceneImages);
+                $imageGenDuration = microtime(true) - $imageGenStartTime;
+
+                Log::info('[ChapterBuilderService::buildChapter] Inline images generated', [
+                    'chapter_id' => $chapter->id,
+                    'images_count' => count($inlineImages),
+                    'duration_seconds' => round($imageGenDuration, 2),
+                ]);
+            }
+
+            $data['inline_images'] = ! empty($inlineImages) ? $inlineImages : null;
 
             Log::info('[ChapterBuilderService::buildChapter] Updating chapter with final data', [
                 'chapter_id' => $chapter->id,
                 'status' => 'complete',
-                'summary_length' => strlen($summaryText),
-                'body_length' => is_string($data['body']) ? strlen($data['body']) : 'array',
+                'summary_length' => strlen($data['summary']),
+                'body_length' => strlen($data['body']),
+                'has_title' => ! empty($data['title']),
+                'has_image_prompt' => ! empty($data['image_prompt']),
+                'inline_images_count' => count($inlineImages),
             ]);
 
             $chapter = $this->chapterService->updateById($chapter->id, $data);
@@ -139,8 +147,7 @@ class ChapterBuilderService extends BuilderService
                 'book_id' => $bookId,
                 'chapter_id' => $chapter->id,
                 'total_duration_seconds' => round($totalDuration, 2),
-                'body_generation_seconds' => round($bodyDuration, 2),
-                'summary_generation_seconds' => round($summaryDuration, 2),
+                'combined_generation_seconds' => round($combinedDuration, 2),
             ]);
 
             return $chapter;
@@ -158,6 +165,276 @@ class ChapterBuilderService extends BuilderService
 
             throw $e;
         }
+    }
+
+    public function getCombinedChapterData(string $bookId, array $data): array
+    {
+        Log::debug('[ChapterBuilderService::getCombinedChapterData] Starting', [
+            'book_id' => $bookId,
+        ]);
+
+        try {
+            $book = $this->bookService->getById($bookId, null, ['with' => ['chapters']]);
+
+            if ($book->type == 'theatre') {
+                $chapterLabel = 'act';
+                $bookTypeLabel = 'theatre play script';
+            } elseif ($book->type == 'screenplay') {
+                $chapterLabel = 'scene';
+                $bookTypeLabel = 'screenplay';
+            } else {
+                $chapterLabel = 'chapter';
+                $bookTypeLabel = 'chapter book';
+            }
+
+            $chapters = $book->chapters->where('status', 'complete');
+            $completedChaptersCount = $chapters->count();
+            $finalChapter = $data['final_chapter'] ?? false;
+
+            $userAddedPrompt = '';
+            if ($userPromptText = $data['user_prompt'] ?? null) {
+                $userAddedPrompt = 'Ensure that it includes: '.$userPromptText;
+            }
+
+            $systemPrompt = [
+                'you_are' => 'An author writing the next '.$chapterLabel.' in a '.$book->genre.' '.$bookTypeLabel.' for '.$book->age_level.' year old readers.',
+                'story_details' => [
+                    'format' => $bookTypeLabel,
+                    'genre' => $book->genre,
+                    'plot' => $book->plot,
+                ],
+                'rules' => [
+                    'ensure narrative flow',
+                    'The response must be '.$this->getBodyWordCount($book->id).' words or less',
+                    'No '.$chapterLabel.' number or title in the body.',
+                    'The characters must not be in more than 1 physical location.',
+                ],
+            ];
+
+            if ($book->user_characters) {
+                $systemPrompt['story_details']['main_characters'] = $book->user_characters;
+            }
+
+            $userPrompt = '';
+            if ($completedChaptersCount == 0) {
+                $userPrompt = 'Write the first '.$chapterLabel.' of this story.';
+
+                if (array_key_exists('first_chapter_prompt', $data) && $data['first_chapter_prompt'] != '') {
+                    $userPrompt .= ' about: '.$data['first_chapter_prompt'];
+                }
+
+                $systemPrompt['rules'][] = 'End the '.$chapterLabel.' with a question that makes the reader want to find out what happens next.';
+            } else {
+                $previousChapter = $chapters->last();
+
+                if ($previousChapter->book_summary) {
+                    $systemPrompt['story_details']['summary_so_far'] = $previousChapter->book_summary;
+                }
+
+                if ($previousChapter->summary) {
+                    $systemPrompt['story_details']['previous_'.$chapterLabel.'_summary'] = $previousChapter->summary;
+                }
+
+                if ($finalChapter == 1) {
+                    $userPrompt = 'Write the final '.$chapterLabel.' to this '.$bookTypeLabel.'.';
+                } else {
+                    $userPrompt = 'Write the next '.$chapterLabel.' to this '.$bookTypeLabel.'.';
+                    $systemPrompt['rules'][] = 'End the '.$chapterLabel.' with a cliffhanger that makes the reader want to find out what happens next.';
+                }
+            }
+
+            $this->chatService->resetMessages();
+            $this->chatService->setResponseFormat('json_object');
+            $this->chatService->addSystemMessage(json_encode($systemPrompt));
+
+            $outputFormat = [
+                'body' => 'The full '.$chapterLabel.' text',
+                'title' => 'A compelling '.$chapterLabel.' title (plain text, no '.$chapterLabel.' number)',
+                'summary' => 'A detailed summary with key events, character names, descriptions, ages, genders, experiences, thoughts, goals, and nationalities. No commentary.',
+                'image_prompt' => 'A detailed one-sentence prompt for an image generation service describing a key scene from this '.$chapterLabel.'. Exclude character names. Describe the visual scene, setting, mood, and action.',
+                'scene_images' => [
+                    [
+                        'paragraph_index' => 'The 0-based paragraph index where this scene occurs (early in the '.$chapterLabel.', around 20-30% through)',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. Include character physical descriptions (age, gender, clothing, hair, features), setting details, lighting, mood, and action. NO character names. 16:9 landscape format.',
+                    ],
+                    [
+                        'paragraph_index' => 'The 0-based paragraph index where this scene occurs (later in the '.$chapterLabel.', around 60-80% through)',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. Include character physical descriptions (age, gender, clothing, hair, features), setting details, lighting, mood, and action. NO character names. 16:9 landscape format.',
+                    ],
+                ],
+            ];
+
+            $combinedPrompt = $userPrompt.' '.$userAddedPrompt;
+            $combinedPrompt .= ' Respond with a JSON object containing: '.json_encode($outputFormat);
+
+            $this->chatService->addUserMessage($combinedPrompt);
+
+            Log::info('[ChapterBuilderService::getCombinedChapterData] Calling chat service');
+            $chatStartTime = microtime(true);
+            $result = $this->chatService->chat();
+            $chatDuration = microtime(true) - $chatStartTime;
+
+            Log::info('[ChapterBuilderService::getCombinedChapterData] Chat service returned', [
+                'duration_seconds' => round($chatDuration, 2),
+                'result_type' => gettype($result),
+                'has_completion' => is_array($result) && isset($result['completion']),
+            ]);
+
+            if (empty($result['completion'])) {
+                Log::error('[ChapterBuilderService::getCombinedChapterData] Empty completion', [
+                    'result' => $result,
+                ]);
+                throw new \RuntimeException('Empty response from AI service');
+            }
+
+            $jsonData = $this->parseJsonResponse($result['completion']);
+
+            if ($jsonData === null) {
+                Log::error('[ChapterBuilderService::getCombinedChapterData] JSON decode error', [
+                    'error' => json_last_error_msg(),
+                    'completion' => $result['completion'],
+                ]);
+                throw new \RuntimeException('Failed to decode JSON response: '.json_last_error_msg());
+            }
+
+            Log::debug('[ChapterBuilderService::getCombinedChapterData] Successfully parsed JSON', [
+                'has_body' => isset($jsonData['body']),
+                'has_title' => isset($jsonData['title']),
+                'has_summary' => isset($jsonData['summary']),
+                'has_image_prompt' => isset($jsonData['image_prompt']),
+                'has_scene_images' => isset($jsonData['scene_images']),
+                'scene_images_count' => is_array($jsonData['scene_images'] ?? null) ? count($jsonData['scene_images']) : 0,
+            ]);
+
+            return [
+                'body' => $this->stripQuotes($jsonData['body'] ?? ''),
+                'title' => $this->stripQuotes($jsonData['title'] ?? ''),
+                'summary' => $this->stripQuotes($jsonData['summary'] ?? ''),
+                'image_prompt' => $this->stripQuotes($jsonData['image_prompt'] ?? ''),
+                'scene_images' => $jsonData['scene_images'] ?? [],
+            ];
+        } catch (Throwable $e) {
+            Log::error('[ChapterBuilderService::getCombinedChapterData] Exception', [
+                'book_id' => $bookId,
+                'exception_class' => get_class($e),
+                'exception_message' => $e->getMessage(),
+                'exception_file' => $e->getFile(),
+                'exception_line' => $e->getLine(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Generate inline images for a chapter based on scene prompts.
+     *
+     * @param  string  $bookId  The book ID for style reference
+     * @param  string  $chapterId  The chapter ID for image storage
+     * @param  array<array{paragraph_index: int|string, prompt: string}>  $scenePrompts  Scene image prompts from AI
+     * @return array<array{paragraph_index: int, url: string, prompt: string}> Generated images with positions
+     */
+    public function generateChapterImages(string $bookId, string $chapterId, array $scenePrompts): array
+    {
+        Log::info('[ChapterBuilderService::generateChapterImages] Starting image generation', [
+            'book_id' => $bookId,
+            'chapter_id' => $chapterId,
+            'scene_count' => count($scenePrompts),
+        ]);
+
+        $book = $this->bookService->getById($bookId, null, ['with' => ['characters']]);
+        $style = $this->getImageStyle($bookId);
+
+        $characterImages = [];
+        if ($book->characters) {
+            foreach ($book->characters as $character) {
+                if ($character->portrait_image) {
+                    $portraitUrl = $character->portrait_image;
+                    if (! str_starts_with($portraitUrl, 'http')) {
+                        $portraitUrl = $this->getCloudFrontImageUrl($portraitUrl);
+                    }
+                    if ($portraitUrl) {
+                        $characterImages[] = $portraitUrl;
+                    }
+                }
+            }
+        }
+
+        $inlineImages = [];
+
+        foreach ($scenePrompts as $index => $scene) {
+            if (empty($scene['prompt'])) {
+                Log::warning('[ChapterBuilderService::generateChapterImages] Empty prompt for scene', [
+                    'scene_index' => $index,
+                ]);
+
+                continue;
+            }
+
+            $paragraphIndex = is_numeric($scene['paragraph_index'])
+                ? (int) $scene['paragraph_index']
+                : $index * 2;
+
+            $fullPrompt = trim($style.' '.$this->stripQuotes($scene['prompt']));
+
+            Log::debug('[ChapterBuilderService::generateChapterImages] Generating image', [
+                'scene_index' => $index,
+                'paragraph_index' => $paragraphIndex,
+                'prompt_preview' => substr($fullPrompt, 0, 100),
+                'character_images_count' => count($characterImages),
+            ]);
+
+            try {
+                $imageResponse = $this->replicateApiService->generateImage(
+                    $fullPrompt,
+                    $characterImages,
+                    '16:9'
+                );
+
+                if (! $imageResponse || ! isset($imageResponse['url']) || ! $imageResponse['url']) {
+                    Log::warning('[ChapterBuilderService::generateChapterImages] No image URL returned', [
+                        'scene_index' => $index,
+                        'response' => $imageResponse,
+                    ]);
+
+                    continue;
+                }
+
+                $s3Url = $this->saveImageToS3(
+                    $imageResponse['url'],
+                    'chapters/inline',
+                    $chapterId.'_scene_'.$index
+                );
+
+                if ($s3Url) {
+                    $inlineImages[] = [
+                        'paragraph_index' => $paragraphIndex,
+                        'url' => $s3Url,
+                        'prompt' => $scene['prompt'],
+                    ];
+
+                    Log::info('[ChapterBuilderService::generateChapterImages] Image generated and saved', [
+                        'scene_index' => $index,
+                        'paragraph_index' => $paragraphIndex,
+                        'url' => $s3Url,
+                    ]);
+                }
+            } catch (Throwable $e) {
+                Log::error('[ChapterBuilderService::generateChapterImages] Image generation failed', [
+                    'scene_index' => $index,
+                    'exception_class' => get_class($e),
+                    'exception_message' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Log::info('[ChapterBuilderService::generateChapterImages] Image generation complete', [
+            'book_id' => $bookId,
+            'chapter_id' => $chapterId,
+            'images_generated' => count($inlineImages),
+        ]);
+
+        return $inlineImages;
     }
 
     public function getNextChapterResponse(string $bookId, array $data)
@@ -297,7 +574,7 @@ class ChapterBuilderService extends BuilderService
                     $userPrompt .= ' about: '.$data['first_chapter_prompt'];
                 }
 
-                $systemPrompt['rules'][] = 'End the '.$chapterLabel.' with a cliffhanger that makes the reader want to find out what happens next.';
+                $systemPrompt['rules'][] = 'End the '.$chapterLabel.' with a question that makes the reader want to find out what happens next.';
 
                 Log::debug('[ChapterBuilderService::getChapterChat] First chapter prompt built', [
                     'user_prompt' => $userPrompt,

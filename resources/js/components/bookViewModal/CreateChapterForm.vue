@@ -20,7 +20,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-    <div class="relative z-10 flex h-full flex-col p-8 pt-12 pb-6">
+    <div class="relative z-10 flex h-full flex-col p-8 pt-16 pb-6">
         <div class="flex-1">
             <!-- Header -->
             <div class="mb-6 text-center">

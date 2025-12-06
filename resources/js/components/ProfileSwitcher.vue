@@ -91,7 +91,7 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
                     <div class="flex-1 min-w-0">
                         <p class="text-sm font-semibold truncate">{{ currentProfile?.name || 'No Profile' }}</p>
                         <p class="text-xs text-muted-foreground">
-                            {{ getAgeGroupEmoji(currentProfile?.age_group || '18') }} {{ currentProfile?.age_group_label || 'Adult' }}
+                            {{ currentProfile?.age_group_label || 'Adult' }}
                         </p>
                     </div>
                 </div>
@@ -128,7 +128,7 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
                     <div class="flex-1 min-w-0">
                         <p class="text-sm font-medium truncate">{{ profile.name }}</p>
                         <p class="text-xs text-muted-foreground">
-                            {{ getAgeGroupEmoji(profile.age_group) }} {{ profile.age_group_label }}
+                            {{ profile.age_group_label }}
                         </p>
                     </div>
                     <Check

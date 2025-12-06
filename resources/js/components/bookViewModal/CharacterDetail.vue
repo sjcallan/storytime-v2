@@ -48,7 +48,7 @@ const formatGender = (gender: string | null): string => {
         <!-- Back Button -->
         <button
             @click="emit('back')"
-            class="absolute top-4 left-4 z-20 flex items-center gap-1.5 rounded-full bg-amber-100/80 dark:bg-amber-200/80 px-3 py-1.5 text-sm font-medium text-amber-800 shadow-sm backdrop-blur-sm transition-all hover:bg-amber-200 hover:scale-105 active:scale-95"
+            class="absolute top-6 left-6 z-20 flex items-center gap-1.5 rounded-full bg-amber-100/80 dark:bg-amber-200/80 px-3 py-1.5 text-sm font-medium text-amber-800 shadow-sm backdrop-blur-sm transition-all hover:bg-amber-200 hover:scale-105 active:scale-95"
         >
             <ArrowLeft class="h-4 w-4" />
             <span>Back</span>
@@ -148,5 +148,9 @@ const formatGender = (gender: string | null): string => {
         </div>
     </div>
 </template>
+
+
+
+
 
 

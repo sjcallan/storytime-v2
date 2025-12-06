@@ -5,16 +5,15 @@ namespace App\Listeners\Character;
 use App\Events\Character\CharacterPortraitCreatedEvent;
 use App\Models\Character;
 use App\Services\Replicate\ReplicateApiService;
+use App\Traits\Service\SavesImagesToS3;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class GenerateCharacterPortraitListener implements ShouldQueue
 {
     use InteractsWithQueue;
+    use SavesImagesToS3;
 
     public function __construct(protected ReplicateApiService $replicateService) {}
 
@@ -59,50 +58,23 @@ class GenerateCharacterPortraitListener implements ShouldQueue
         }
 
         if ($result['url']) {
-            $localPath = $this->saveImageLocally($result['url'], $character->id);
+            $s3Path = $this->saveImageToS3($result['url'], 'portraits', $character->id);
 
-            if ($localPath) {
-                $character->update(['portrait_image' => $localPath]);
+            if ($s3Path) {
+                $character->update(['portrait_image' => $s3Path]);
 
                 event(new CharacterPortraitCreatedEvent($character));
 
-                Log::info("Portrait generated and saved locally for character: {$character->name}", [
+                Log::info("Portrait generated and saved to S3 for character: {$character->name}", [
                     'character_id' => $character->id,
-                    'local_path' => $localPath,
+                    's3_path' => $s3Path,
                 ]);
             } else {
-                Log::error("Failed to save portrait locally for character: {$character->name}", [
+                Log::error("Failed to save portrait to S3 for character: {$character->name}", [
                     'character_id' => $character->id,
                     'remote_url' => $result['url'],
                 ]);
             }
-        }
-    }
-
-    /**
-     * Download and save the image to local storage.
-     */
-    protected function saveImageLocally(string $imageUrl, string $characterId): ?string
-    {
-        try {
-            $response = Http::timeout(30)->get($imageUrl);
-
-            if ($response->failed()) {
-                Log::error('Failed to download portrait image', ['url' => $imageUrl]);
-
-                return null;
-            }
-
-            $extension = 'webp';
-            $filename = "portraits/{$characterId}_".Str::random(8).".{$extension}";
-
-            Storage::disk('public')->put($filename, $response->body());
-
-            return "/storage/{$filename}";
-        } catch (\Exception $e) {
-            Log::error('Error saving portrait image locally', ['error' => $e->getMessage()]);
-
-            return null;
         }
     }
 
@@ -145,8 +117,6 @@ class GenerateCharacterPortraitListener implements ShouldQueue
             $promptParts[] = $character->description;
         }
 
-        $promptParts[] = 'Centered composition, professional lighting, detailed face, expressive eyes, high quality';
-
         return implode(' ', $promptParts);
     }
 
@@ -174,7 +144,7 @@ class GenerateCharacterPortraitListener implements ShouldQueue
             return 'in a semi-realistic illustration style';
         }
 
-        return 'in a realistic photographic style';
+        return 'in a realistic photographic style. shot on Kodak Portra 400, natural grain, organic colors.”';
     }
 
     /**
@@ -194,6 +164,7 @@ class GenerateCharacterPortraitListener implements ShouldQueue
             'fantasy' => 'in the style of Neil Gaiman, mystical',
             'adventure' => 'dynamic, adventurous mood',
             'mystery' => 'noir style, intriguing',
+            'erotica' => 'sexy, real',
             default => '',
         };
     }

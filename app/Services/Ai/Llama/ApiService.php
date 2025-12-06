@@ -13,7 +13,7 @@ class ApiService implements AiApiServiceInterface
 
     protected string $endpoint;
 
-    protected int $maxTokens = 4000;
+    protected int $maxTokens = 2000;
 
     protected string $model = 'llama-3.2';
 
@@ -103,7 +103,13 @@ class ApiService implements AiApiServiceInterface
         $this->error = null;
 
         $settings = [
-            'prompt' => $prompt,
+            'token' => config('ai.providers.llama.token'),
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $prompt,
+                ],
+            ],
             'max_tokens' => $this->maxTokens,
             'temperature' => $this->temperature,
             'model' => $this->model,
@@ -157,9 +163,16 @@ class ApiService implements AiApiServiceInterface
             return null;
         }
 
-        $rawResponse = $httpResponse->json();
+        $body = trim($httpResponse->body());
 
-        if (isset($rawResponse['error'])) {
+        Log::debug('Llama Raw Response', [
+            'body_length' => strlen($body),
+            'body_preview' => Str::limit($body, 200),
+        ]);
+
+        $rawResponse = $this->parseResponseBody($body);
+
+        if ($rawResponse !== null && isset($rawResponse['error'])) {
             Log::error('Llama Error Response', [
                 'error' => $rawResponse['error'],
                 'model' => $this->model,
@@ -172,7 +185,7 @@ class ApiService implements AiApiServiceInterface
         }
 
         $this->responseStatusCode = $httpResponse->status();
-        $this->response = $this->normalizeResponse($rawResponse, $type, $prompt);
+        $this->response = $this->normalizeResponse($rawResponse, $body, $type, $prompt);
 
         Log::info('Llama Success', [
             'model' => $this->response['model'] ?? $this->model,
@@ -187,14 +200,49 @@ class ApiService implements AiApiServiceInterface
     }
 
     /**
+     * Parse the response body, handling both plain text and JSON responses.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function parseResponseBody(string $body): ?array
+    {
+        if ($body === '') {
+            return null;
+        }
+
+        $trimmedBody = ltrim($body);
+
+        if (str_starts_with($trimmedBody, '{') || str_starts_with($trimmedBody, '[')) {
+            $decoded = json_decode($trimmedBody, true);
+
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $decoded;
+            }
+
+            Log::warning('Llama response looked like JSON but failed to parse', [
+                'json_error' => json_last_error_msg(),
+                'body_preview' => Str::limit($body, 200),
+            ]);
+        }
+
+        return [
+            'generated_text' => $body,
+        ];
+    }
+
+    /**
      * Normalize Llama response to match OpenAI format.
      *
-     * @param  array<string, mixed>  $rawResponse
+     * @param  array<string, mixed>|null  $rawResponse
      * @return array<string, mixed>
      */
-    protected function normalizeResponse(array $rawResponse, string $type, string $prompt): array
+    protected function normalizeResponse(?array $rawResponse, string $body, string $type, string $prompt): array
     {
-        $content = $rawResponse['response'] ?? $rawResponse['generated_text'] ?? $rawResponse['text'] ?? '';
+        $content = $this->extractContentFromResponse($rawResponse, $body);
+
+        if ($content === null) {
+            $content = $body;
+        }
 
         $promptTokens = $rawResponse['prompt_tokens'] ?? $this->estimateTokens($prompt);
         $completionTokens = $rawResponse['completion_tokens'] ?? $this->estimateTokens($content);
@@ -242,6 +290,44 @@ class ApiService implements AiApiServiceInterface
                 'total_tokens' => $totalTokens,
             ],
         ];
+    }
+
+    /**
+     * Extract content from the parsed response, checking various possible keys.
+     *
+     * @param  array<string, mixed>|null  $rawResponse
+     */
+    protected function extractContentFromResponse(?array $rawResponse, string $body): ?string
+    {
+        if ($rawResponse === null) {
+            return $body !== '' ? $body : null;
+        }
+
+        if (isset($rawResponse['response']) && is_string($rawResponse['response'])) {
+            return $rawResponse['response'];
+        }
+
+        if (isset($rawResponse['generated_text']) && is_string($rawResponse['generated_text'])) {
+            return $rawResponse['generated_text'];
+        }
+
+        if (isset($rawResponse['text']) && is_string($rawResponse['text'])) {
+            return $rawResponse['text'];
+        }
+
+        if (isset($rawResponse['content']) && is_string($rawResponse['content'])) {
+            return $rawResponse['content'];
+        }
+
+        if (isset($rawResponse['choices'][0]['message']['content'])) {
+            return $rawResponse['choices'][0]['message']['content'];
+        }
+
+        if (isset($rawResponse['choices'][0]['text'])) {
+            return $rawResponse['choices'][0]['text'];
+        }
+
+        return $body !== '' ? $body : null;
     }
 
     /**

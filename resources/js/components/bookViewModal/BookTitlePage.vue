@@ -20,7 +20,7 @@ const emit = defineEmits<{
 <template>
     <div 
         :class="[
-            'relative z-10 flex h-full flex-col items-center p-6 pt-8 text-center transition-opacity duration-500',
+            'relative z-10 flex h-full flex-col items-center px-6 pb-6 pt-16 text-center transition-opacity duration-500',
             isFading ? 'opacity-0' : 'opacity-100'
         ]"
     >

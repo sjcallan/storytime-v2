@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import BookPageTexture from './BookPageTexture.vue';
+import BookPageDecorative from './BookPageDecorative.vue';
 import BookTitlePage from './BookTitlePage.vue';
 import BookChapterContent from './BookChapterContent.vue';
 import BookEditForm from './BookEditForm.vue';
@@ -62,7 +63,7 @@ const emit = defineEmits<{
         <!-- Action/Chapter Error -->
         <div
             v-if="actionError || chapterError"
-            class="mx-8 mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left text-sm font-medium text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200"
+            class="mx-8 mt-16 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left text-sm font-medium text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200"
         >
             {{ actionError || chapterError }}
         </div>
@@ -116,6 +117,12 @@ const emit = defineEmits<{
             @update:is-final-chapter="emit('update:isFinalChapter', $event)"
             @generate="emit('generateChapter')"
             @back="emit('goBack')"
+        />
+
+        <!-- Table of Contents View - show decorative right page -->
+        <BookPageDecorative
+            v-else-if="readingView === 'toc'"
+            variant="sparkles"
         />
     </div>
 </template>

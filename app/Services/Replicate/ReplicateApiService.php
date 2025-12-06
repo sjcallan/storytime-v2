@@ -35,6 +35,7 @@ class ReplicateApiService
         $input = [
             'prompt' => $prompt,
             'aspect_ratio' => $aspectRatio,
+            'safety_tolerance' => 5,
         ];
 
         if ($inputImages !== null && count($inputImages) > 0) {

@@ -4,19 +4,26 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Book;
+use App\Services\Ai\AiManager;
+use App\Services\Ai\Contracts\AiChatServiceInterface;
 use App\Services\Replicate\ReplicateApiService;
+use App\Traits\Service\SavesImagesToS3;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class BookCoverController extends Controller
 {
+    use SavesImagesToS3;
+
+    protected AiChatServiceInterface $chatService;
+
     public function __construct(
-        protected ReplicateApiService $replicateService
-    ) {}
+        protected ReplicateApiService $replicateService,
+        AiManager $aiManager
+    ) {
+        $this->chatService = $aiManager->chat();
+    }
 
     /**
      * Generate book metadata (title, summary, cover image) using AI.
@@ -70,7 +77,7 @@ class BookCoverController extends Controller
     }
 
     /**
-     * Generate book metadata using OpenAI.
+     * Generate book metadata using AI service.
      *
      * @return array{title: string, summary: string, cover_image_prompt: string}|null
      */
@@ -86,7 +93,7 @@ class BookCoverController extends Controller
         $responseTemplate = [
             'title' => 'A compelling book title (6 words or less, no colons or punctuation)',
             'summary' => 'A 2-3 sentence summary of the story',
-            'cover_image_prompt' => 'A detailed visual description of a scene from the story',
+            'cover_image_prompt' => 'A detailed visual description of a scene from the story. describe the scene, the charcters, their appearance, clothing.',
         ];
 
         $systemPrompt = "You are a creative writing assistant helping to create metadata for a {$ageGroup} {$book->genre} {$book->type} story. ";
@@ -97,8 +104,8 @@ class BookCoverController extends Controller
         $systemPrompt .= "- Focus on: characters, setting, mood, lighting, colors, action, and atmosphere\n";
         $systemPrompt .= "- Describe what you SEE in the scene, as if describing a painting or photograph\n";
         $systemPrompt .= "- Include specific visual details about character appearances and environment\n";
-        $systemPrompt .= "- If the age level is teen or adule ensure the image is realistic, gritty and not cartoonish or manufactured.\n";
-        $systemPrompt .= "- If the age level is pree-teen make sure the image is a gritty graphic novel style.\n";
+        $systemPrompt .= "- If the age level is teen or adult ensure the image is realistic, gritty and not cartoonish or manufactured.\n";
+        $systemPrompt .= "- If the age level is pre-teen make sure the image is a gritty graphic novel style.\n";
         $systemPrompt .= "- If the age level is kids make sure the image is a bright, friendly cartoon style.\n";
         $systemPrompt .= 'Respond ONLY with valid JSON in this exact format: '.json_encode($responseTemplate);
 
@@ -112,7 +119,6 @@ class BookCoverController extends Controller
             $userMessage .= "Scene: {$book->scene}\n";
         }
 
-        // Get characters
         $characters = $book->characters()->get();
         if ($characters->count() > 0) {
             $userMessage .= "Characters:\n";
@@ -130,40 +136,29 @@ class BookCoverController extends Controller
 
         $userMessage .= "\nGenerate the title, summary, and cover image prompt for this story.";
 
-        $messages = [
-            ['role' => 'system', 'content' => $systemPrompt],
-            ['role' => 'user', 'content' => $userMessage],
-        ];
+        Log::info('BookCover: Making AI request for metadata');
 
-        Log::info('BookCover: Making OpenAI request for metadata');
+        $this->chatService->resetMessages();
+        $this->chatService->setResponseFormat('json_object');
+        $this->chatService->addSystemMessage($systemPrompt);
+        $this->chatService->addUserMessage($userMessage);
 
-        $response = Http::withToken(config('services.openai.api_key'))
-            ->timeout(60)
-            ->post(config('services.openai.base_url', 'https://api.openai.com/v1').'/chat/completions', [
-                'model' => 'gpt-4o-mini',
-                'messages' => $messages,
-                'temperature' => 0.7,
-                'response_format' => ['type' => 'json_object'],
-            ]);
+        $result = $this->chatService->chat();
 
-        if ($response->failed()) {
-            Log::error('BookCover: OpenAI request failed', [
-                'status' => $response->status(),
-                'body' => $response->body(),
+        if (empty($result['completion'])) {
+            Log::error('BookCover: AI request failed', [
+                'error' => $result['error'] ?? 'Empty completion',
             ]);
 
             return null;
         }
 
-        $data = $response->json();
-        $completion = $data['choices'][0]['message']['content'] ?? '';
+        Log::info('BookCover: Parsing AI response');
 
-        Log::info('BookCover: Parsing OpenAI response');
-
-        $parsed = json_decode($completion, true);
+        $parsed = $this->parseJsonResponse($result['completion']);
 
         if (! $parsed) {
-            Log::error('BookCover: Failed to parse OpenAI response', ['completion' => $completion]);
+            Log::error('BookCover: Failed to parse AI response', ['completion' => $result['completion']]);
 
             return null;
         }
@@ -173,6 +168,93 @@ class BookCoverController extends Controller
             'summary' => $parsed['summary'] ?? '',
             'cover_image_prompt' => $parsed['cover_image_prompt'] ?? '',
         ];
+    }
+
+    /**
+     * Parse JSON response, handling control characters that may be present in AI responses.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function parseJsonResponse(string $content): ?array
+    {
+        $result = json_decode($content, true);
+
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $result;
+        }
+
+        $sanitized = $this->sanitizeJsonString($content);
+        $result = json_decode($sanitized, true);
+
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $result;
+        }
+
+        Log::warning('BookCover: JSON parse failed after sanitization', [
+            'error' => json_last_error_msg(),
+        ]);
+
+        return null;
+    }
+
+    /**
+     * Sanitize a JSON string by escaping control characters inside string values.
+     */
+    protected function sanitizeJsonString(string $json): string
+    {
+        $result = '';
+        $inString = false;
+        $escape = false;
+        $length = strlen($json);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $json[$i];
+            $ord = ord($char);
+
+            if ($escape) {
+                $result .= $char;
+                $escape = false;
+
+                continue;
+            }
+
+            if ($char === '\\') {
+                $result .= $char;
+                $escape = true;
+
+                continue;
+            }
+
+            if ($char === '"') {
+                $inString = ! $inString;
+                $result .= $char;
+
+                continue;
+            }
+
+            if ($inString && $ord < 32) {
+                switch ($ord) {
+                    case 10:
+                        $result .= '\\n';
+                        break;
+                    case 13:
+                        $result .= '\\r';
+                        break;
+                    case 9:
+                        $result .= '\\t';
+                        break;
+                    default:
+                        $result .= sprintf('\\u%04x', $ord);
+                        break;
+                }
+
+                continue;
+            }
+
+            $result .= $char;
+        }
+
+        return $result;
     }
 
     /**
@@ -194,7 +276,7 @@ class BookCoverController extends Controller
             'prompt_length' => strlen($fullPrompt),
         ]);
 
-        $result = $this->replicateService->generateImage($fullPrompt, null, '3:4');
+        $result = $this->replicateService->generateImage($fullPrompt.' shot on Sony A7IV, clean sharp, high dynamic range', null, '3:4');
 
         if ($result['error'] || empty($result['url'])) {
             Log::error('BookCover: Replicate image generation failed', [
@@ -204,17 +286,17 @@ class BookCoverController extends Controller
             return null;
         }
 
-        // Download and save the image locally
+        // Download and save the image to S3
         $imageUrl = $result['url'];
-        $imagePath = $this->saveImageLocally($imageUrl, $book->id);
+        $imagePath = $this->saveImageToS3($imageUrl, 'covers', $book->id);
 
         if (! $imagePath) {
-            Log::error('BookCover: Failed to save image locally');
+            Log::error('BookCover: Failed to save image to S3');
 
             return $imageUrl;
         }
 
-        Log::info('BookCover: Image saved', ['path' => $imagePath]);
+        Log::info('BookCover: Image saved to S3', ['path' => $imagePath]);
 
         return $imagePath;
     }
@@ -251,30 +333,5 @@ class BookCoverController extends Controller
         };
 
         return $style;
-    }
-
-    /**
-     * Download image from URL and save to local storage.
-     */
-    protected function saveImageLocally(string $imageUrl, string $bookId): ?string
-    {
-        try {
-            $response = Http::timeout(30)->get($imageUrl);
-
-            if ($response->failed()) {
-                return null;
-            }
-
-            $extension = 'webp';
-            $filename = "covers/{$bookId}_".Str::random(8).".{$extension}";
-
-            Storage::disk('public')->put($filename, $response->body());
-
-            return "/storage/{$filename}";
-        } catch (\Exception $e) {
-            Log::error('BookCover: Error saving image', ['error' => $e->getMessage()]);
-
-            return null;
-        }
     }
 }

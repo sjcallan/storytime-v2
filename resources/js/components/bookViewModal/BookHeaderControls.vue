@@ -8,7 +8,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreVertical, X } from 'lucide-vue-next';
+import { MoreVertical, X, List } from 'lucide-vue-next';
 
 interface Props {
     hasBook: boolean;
@@ -16,6 +16,7 @@ interface Props {
     isSaving: boolean;
     isDeleting: boolean;
     isPageTurning: boolean;
+    hasChapters?: boolean;
 }
 
 defineProps<Props>();
@@ -24,11 +25,29 @@ const emit = defineEmits<{
     (e: 'edit'): void;
     (e: 'delete'): void;
     (e: 'close'): void;
+    (e: 'openToc'): void;
 }>();
 </script>
 
 <template>
-    <div class="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-end px-4 pt-4">
+    <div class="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-between px-6 pt-6">
+        <!-- Left side: Table of Contents -->
+        <div class="pointer-events-auto">
+            <Button
+                v-if="hasBook"
+                variant="ghost"
+                size="icon"
+                class="cursor-pointer rounded-full bg-white/70 p-2 text-amber-900 shadow-md backdrop-blur-sm transition-colors hover:bg-white/90 dark:bg-white/70 dark:text-amber-900 dark:hover:bg-white/90"
+                @click="emit('openToc')"
+                :disabled="isEditing || isSaving || isDeleting || isPageTurning"
+                title="Table of Contents"
+            >
+                <List class="h-5 w-5" />
+                <span class="sr-only">Table of Contents</span>
+            </Button>
+        </div>
+
+        <!-- Right side: Actions and Close -->
         <div class="pointer-events-auto flex items-center gap-2">
             <DropdownMenu v-if="hasBook">
                 <DropdownMenuTrigger :as-child="true">

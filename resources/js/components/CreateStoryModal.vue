@@ -45,6 +45,50 @@ const isOpen = defineModel<boolean>('isOpen');
 const page = usePage();
 const currentProfile = computed(() => page.props.auth?.currentProfile as Profile | null);
 
+// localStorage key for story preferences
+const STORAGE_KEY = 'create-story-preferences';
+
+interface StoredPreferences {
+    profileId: string | number;
+    type: string;
+    genre: string;
+    age_level: string;
+}
+
+const savePreferences = () => {
+    if (!currentProfile.value?.id) return;
+    
+    const preferences: StoredPreferences = {
+        profileId: currentProfile.value.id,
+        type: formData.value.type,
+        genre: formData.value.genre,
+        age_level: formData.value.age_level,
+    };
+    
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+};
+
+const loadPreferences = (): Partial<StoredPreferences> | null => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return null;
+    
+    try {
+        const preferences = JSON.parse(stored) as StoredPreferences;
+        if (preferences.profileId === currentProfile.value?.id) {
+            return preferences;
+        }
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+    } catch {
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+    }
+};
+
+const clearPreferences = () => {
+    localStorage.removeItem(STORAGE_KEY);
+};
+
 type ApiFetchFn = (
     request: string,
     method?: string,
@@ -374,14 +418,17 @@ const canProceed = computed(() => {
     }
 });
 
-const resetForm = (genre: string | null = null) => {
+const resetForm = (genre: string | null = null, loadFromStorage: boolean = false) => {
     // Clean up Echo listeners before resetting characters
     cleanupAllListeners();
     
+    // Try to load saved preferences if requested
+    const savedPrefs = loadFromStorage ? loadPreferences() : null;
+    
     formData.value = {
-        type: '',
-        genre: genre ?? '',
-        age_level: currentProfile.value?.age_group ?? '',
+        type: savedPrefs?.type ?? '',
+        genre: genre ?? savedPrefs?.genre ?? '',
+        age_level: savedPrefs?.age_level ?? currentProfile.value?.age_group ?? '',
         plot: '',
         first_chapter_prompt: '',
         scene: '',
@@ -965,7 +1012,7 @@ const handleSubmit = async () => {
 
 const handleOpenChange = (open: boolean) => {
     if (open && !processing.value) {
-        resetForm(props.defaultGenre ?? null);
+        resetForm(props.defaultGenre ?? null, true);
     }
 
     if (!open && !processing.value) {
@@ -979,6 +1026,26 @@ watch(() => props.defaultGenre, (newGenre) => {
         formData.value.genre = newGenre;
     }
 });
+
+// Save preferences when type, genre, or age_level changes
+watch(
+    () => [formData.value.type, formData.value.genre, formData.value.age_level],
+    () => {
+        if (formData.value.type || formData.value.genre || formData.value.age_level) {
+            savePreferences();
+        }
+    }
+);
+
+// Clear preferences when profile changes
+watch(
+    () => currentProfile.value?.id,
+    (newId, oldId) => {
+        if (oldId && newId !== oldId) {
+            clearPreferences();
+        }
+    }
+);
 </script>
 
 <template>
@@ -1060,39 +1127,36 @@ watch(() => props.defaultGenre, (newGenre) => {
                 <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
                 <div class="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
                 <div class="absolute right-1/4 top-1/2 h-16 w-16 rounded-full bg-white/5 blur-xl" />
-                
-                <!-- Step indicator dots -->
-                <div class="absolute bottom-4 right-6 flex gap-2">
-                    <button
-                        v-for="step in totalSteps"
-                        :key="step"
-                        type="button"
-                        @click="goToStep(step)"
-                        class="h-3 w-3 rounded-full transition-all duration-300"
-                        :class="[
-                            step === currentStep 
-                                ? 'bg-white scale-125 shadow-lg' 
-                                : step < currentStep 
-                                    ? 'bg-white/80 hover:bg-white hover:scale-110 cursor-pointer' 
-                                    : 'bg-white/30 cursor-not-allowed'
-                        ]"
-                        :disabled="step > currentStep"
-                    />
-                </div>
 
                 <DialogHeader class="relative z-10">
-                    <div class="mb-4 flex items-center gap-3">
-                        <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
+                    <!-- Icon, Title, and Dots on same row -->
+                    <div class="mb-3 flex items-center gap-4">
+                        <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
                             <component :is="stepInfo.icon" class="h-8 w-8" />
                         </div>
-                        <div class="text-sm font-medium opacity-90">
-                            Step {{ currentStep }} of {{ totalSteps }}
+                        <DialogTitle class="flex-1 text-2xl font-bold tracking-tight sm:text-3xl">
+                            {{ stepInfo.title }}
+                        </DialogTitle>
+                        <!-- Step indicator dots -->
+                        <div class="flex shrink-0 gap-2">
+                            <button
+                                v-for="step in totalSteps"
+                                :key="step"
+                                type="button"
+                                @click="goToStep(step)"
+                                class="h-3 w-3 rounded-full transition-all duration-300"
+                                :class="[
+                                    step === currentStep 
+                                        ? 'bg-white scale-125 shadow-lg' 
+                                        : step < currentStep 
+                                            ? 'bg-white/80 hover:bg-white hover:scale-110 cursor-pointer' 
+                                            : 'bg-white/30 cursor-not-allowed'
+                                ]"
+                                :disabled="step > currentStep"
+                            />
                         </div>
                     </div>
-                    <DialogTitle class="text-2xl font-bold tracking-tight sm:text-3xl">
-                        {{ stepInfo.title }}
-                    </DialogTitle>
-                    <DialogDescription class="mt-2 text-base text-white/90">
+                    <DialogDescription class="text-base text-white/90">
                         {{ stepInfo.description }}
                 </DialogDescription>
             </DialogHeader>
