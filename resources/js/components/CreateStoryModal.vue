@@ -382,17 +382,17 @@ const stepInfo = computed(() => {
             };
         case 3:
             return {
-                icon: Users,
-                title: 'Create Your Characters!',
-                description: "Who will be in your story? Add as many characters as you'd like!",
-                color: 'from-emerald-500 to-teal-600',
-            };
-        case 4:
-            return {
                 icon: Wand2,
                 title: 'Set the Scene!',
                 description: "How does your adventure begin? Set up the opening scene.",
                 color: 'from-amber-500 to-orange-600',
+            };
+        case 4:
+            return {
+                icon: Users,
+                title: 'Create Your Characters!',
+                description: "Who will be in your story? Add as many characters as you'd like!",
+                color: 'from-emerald-500 to-teal-600',
             };
         default:
             return {
@@ -411,9 +411,9 @@ const canProceed = computed(() => {
         case 2:
             return formData.value.plot.trim().length > 0;
         case 3:
-            return true; // Characters are optional
+            return true; // First chapter prompt and scene are optional
         case 4:
-            return true; // First chapter prompt is optional
+            return true; // Characters are optional
         default:
             return false;
     }
@@ -444,7 +444,7 @@ const resetForm = (genre: string | null = null, loadFromStorage: boolean = false
     isSaving.value = false;
 };
 
-// Create book with initial data (after step 1)
+// Create book with all gathered data (after step 3)
 const createBook = async (): Promise<boolean> => {
     console.log('[CreateBook] Starting book creation...');
     isSaving.value = true;
@@ -455,6 +455,9 @@ const createBook = async (): Promise<boolean> => {
             type: formData.value.type,
             genre: formData.value.genre,
             age_level: formData.value.age_level ? parseInt(formData.value.age_level) : null,
+            plot: formData.value.plot,
+            first_chapter_prompt: formData.value.first_chapter_prompt,
+            scene: formData.value.scene,
             status: 'draft',
         });
 
@@ -718,30 +721,23 @@ const plotCharacterCountClass = computed(() => {
 
 const nextStep = async () => {
     if (currentStep.value < totalSteps && canProceed.value) {
-        // Step 1 -> 2: Create the book with basic details
-        if (currentStep.value === 1) {
+        // Step 1 -> 2: Just proceed, no API calls yet
+        // Step 2 -> 3: Just proceed, no API calls yet
+        
+        // Step 3 -> 4: Create the book with all gathered data, then extract characters
+        if (currentStep.value === 3) {
             const created = await createBook();
             if (!created) {
                 return; // Don't proceed if book creation failed
             }
-        }
-        
-        // Step 2 -> 3: Save the plot and extract characters
-        if (currentStep.value === 2) {
-            // Save plot to the book
-            if (bookId.value && formData.value.plot.trim()) {
-                await updateBook({ plot: formData.value.plot });
-            }
-            // Extract characters from plot
-            if (formData.value.plot.trim()) {
+            
+            // Extract characters from plot AND first chapter prompt/scene
+            if (formData.value.plot.trim() || formData.value.first_chapter_prompt.trim()) {
                 await extractCharactersFromPlot();
             }
         }
         
-        // Step 3 -> 4: Save any unsaved characters
-        if (currentStep.value === 3) {
-            // Characters are saved as they're added, so nothing special needed here
-        }
+        // Step 4: Characters are saved as they're added, so nothing special needed here
         
         currentStep.value++;
     }
@@ -765,6 +761,8 @@ const extractCharactersFromPlot = async () => {
         console.log('[ExtractCharacters] Calling API to extract characters...');
         const { data, error } = await requestApiFetch('/api/extract-characters', 'POST', {
             plot: formData.value.plot,
+            first_chapter_prompt: formData.value.first_chapter_prompt,
+            scene: formData.value.scene,
             genre: formData.value.genre,
             age_level: formData.value.age_level ? parseInt(formData.value.age_level) : 10,
         });
@@ -963,19 +961,17 @@ const handleSubmit = async () => {
     errors.value = {};
 
     try {
-        // Book should already exist from step 1
+        // Book should already exist from step 3
         if (!bookId.value) {
             errors.value = { general: 'Book not found. Please start over.' };
             processing.value = false;
             return;
         }
 
-        // Update book with final details (first_chapter_prompt, scene, and mark as in_progress)
+        // Update book status to in_progress to start story generation
         // When status changes to 'in_progress', the cover generation will automatically be triggered
         // by the GenerateBookCoverListener listening to BookUpdatedEvent
         const updateSuccess = await updateBook({
-            first_chapter_prompt: formData.value.first_chapter_prompt,
-            scene: formData.value.scene,
             status: 'in_progress',
         });
 
@@ -1318,8 +1314,47 @@ watch(
                         </div>
                     </div>
 
-                    <!-- Step 3: Characters -->
+                    <!-- Step 3: First Chapter Setup -->
                     <div v-show="currentStep === 3" class="space-y-6">
+                        <div class="space-y-3">
+                            <Label for="first_chapter_prompt" class="text-lg font-semibold">
+                                How does your story begin? 🌟
+                            </Label>
+                            <p class="text-sm text-muted-foreground">
+                                Set the scene for your opening chapter. Where does it take place? What's happening?
+                            </p>
+                    <Textarea
+                        id="first_chapter_prompt"
+                        v-model="formData.first_chapter_prompt"
+                                placeholder="Example: The story begins on a stormy night when our hero finds a mysterious letter on their doorstep..."
+                                rows="5"
+                        :disabled="processing"
+                                class="resize-none rounded-2xl border-2 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
+                    />
+                    <InputError :message="errors.first_chapter_prompt" />
+                </div>
+
+                        <div class="space-y-3">
+                            <Label for="scene" class="text-lg font-semibold">
+                                Where does it happen? 🏔️
+                            </Label>
+                            <p class="text-sm text-muted-foreground">
+                                Describe the setting - is it a magical forest, a busy city, or somewhere else entirely?
+                            </p>
+                    <Textarea
+                                id="scene"
+                                v-model="formData.scene"
+                                placeholder="Example: A cozy cottage at the edge of an enchanted forest, where fireflies dance at night..."
+                                rows="4"
+                        :disabled="processing"
+                                class="resize-none rounded-2xl border-2 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
+                            />
+                            <InputError :message="errors.scene" />
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Characters -->
+                    <div v-show="currentStep === 4" class="space-y-6">
                         <!-- AI-generated characters notice -->
                         <div 
                             v-if="characters.length > 0 && characters.some(c => c.id.startsWith('extracted-'))" 
@@ -1630,45 +1665,6 @@ watch(
                         <p v-if="characters.length === 0 && !isAddingNewCharacter" class="text-center text-sm text-muted-foreground">
                             Characters are optional - you can always add them later!
                         </p>
-</div>
-
-                    <!-- Step 4: First Chapter Setup -->
-                    <div v-show="currentStep === 4" class="space-y-6">
-                        <div class="space-y-3">
-                            <Label for="first_chapter_prompt" class="text-lg font-semibold">
-                                How does your story begin? 🌟
-                            </Label>
-                            <p class="text-sm text-muted-foreground">
-                                Set the scene for your opening chapter. Where does it take place? What's happening?
-                            </p>
-                    <Textarea
-                        id="first_chapter_prompt"
-                        v-model="formData.first_chapter_prompt"
-                                placeholder="Example: The story begins on a stormy night when our hero finds a mysterious letter on their doorstep..."
-                                rows="5"
-                        :disabled="processing"
-                                class="resize-none rounded-2xl border-2 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
-                    />
-                    <InputError :message="errors.first_chapter_prompt" />
-                </div>
-
-                        <div class="space-y-3">
-                            <Label for="scene" class="text-lg font-semibold">
-                                Where does it happen? 🏔️
-                            </Label>
-                            <p class="text-sm text-muted-foreground">
-                                Describe the setting - is it a magical forest, a busy city, or somewhere else entirely?
-                            </p>
-                    <Textarea
-                                id="scene"
-                                v-model="formData.scene"
-                                placeholder="Example: A cozy cottage at the edge of an enchanted forest, where fireflies dance at night..."
-                                rows="4"
-                        :disabled="processing"
-                                class="resize-none rounded-2xl border-2 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
-                            />
-                            <InputError :message="errors.scene" />
-                        </div>
                     </div>
 
                     <InputError v-if="errors.general" :message="errors.general" class="mt-4" />
@@ -1709,11 +1705,8 @@ watch(
                         class="h-14 cursor-pointer gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-10 text-lg font-semibold text-white shadow-lg transition-all duration-200 hover:translate-x-0.5 hover:from-orange-600 hover:to-amber-600 hover:shadow-orange-500/25 hover:shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:shadow-none"
                     >
                         <Spinner v-if="isExtractingCharacters || isSaving" class="h-5 w-5" />
-                        <template v-if="isSaving && currentStep === 1">
-                            Creating Book...
-                        </template>
-                        <template v-else-if="isSaving && currentStep === 2">
-                            Saving Plot...
+                        <template v-if="isSaving && currentStep === 3">
+                            Creating Story...
                         </template>
                         <template v-else-if="isExtractingCharacters">
                             Finding Characters...

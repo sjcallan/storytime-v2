@@ -41,6 +41,6 @@ class GenerateBookCoverListener
             return;
         }
 
-        dispatch(new GenerateBookCoverJob($book->id));
+        dispatch(new GenerateBookCoverJob($book->id))->onQueue('images');
     }
 }

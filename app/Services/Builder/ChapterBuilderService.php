@@ -2,6 +2,7 @@
 
 namespace App\Services\Builder;
 
+use App\Jobs\Chapter\CreateChapterInlineImagesJob;
 use App\Models\Book;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -106,27 +107,7 @@ class ChapterBuilderService extends BuilderService
             $data['image_prompt'] = $chapterContent['image_prompt'] ?? null;
             $data['status'] = 'complete';
 
-            $inlineImages = [];
             $sceneImages = $chapterContent['scene_images'] ?? [];
-
-            if (! empty($sceneImages) && is_array($sceneImages)) {
-                Log::info('[ChapterBuilderService::buildChapter] Generating inline images', [
-                    'chapter_id' => $chapter->id,
-                    'scene_count' => count($sceneImages),
-                ]);
-
-                $imageGenStartTime = microtime(true);
-                $inlineImages = $this->generateChapterImages($bookId, $chapter->id, $sceneImages);
-                $imageGenDuration = microtime(true) - $imageGenStartTime;
-
-                Log::info('[ChapterBuilderService::buildChapter] Inline images generated', [
-                    'chapter_id' => $chapter->id,
-                    'images_count' => count($inlineImages),
-                    'duration_seconds' => round($imageGenDuration, 2),
-                ]);
-            }
-
-            $data['inline_images'] = ! empty($inlineImages) ? $inlineImages : null;
 
             Log::info('[ChapterBuilderService::buildChapter] Updating chapter with final data', [
                 'chapter_id' => $chapter->id,
@@ -135,10 +116,20 @@ class ChapterBuilderService extends BuilderService
                 'body_length' => strlen($data['body']),
                 'has_title' => ! empty($data['title']),
                 'has_image_prompt' => ! empty($data['image_prompt']),
-                'inline_images_count' => count($inlineImages),
+                'scene_images_count' => count($sceneImages),
             ]);
 
             $chapter = $this->chapterService->updateById($chapter->id, $data);
+
+            // Dispatch inline images generation as a background job after chapter is saved
+            if (! empty($sceneImages) && is_array($sceneImages)) {
+                Log::info('[ChapterBuilderService::buildChapter] Dispatching inline images job', [
+                    'chapter_id' => $chapter->id,
+                    'scene_count' => count($sceneImages),
+                ]);
+
+                CreateChapterInlineImagesJob::dispatch($chapter, $sceneImages)->onQueue('images');
+            }
 
             $endTime = microtime(true);
             $totalDuration = $endTime - $startTime;

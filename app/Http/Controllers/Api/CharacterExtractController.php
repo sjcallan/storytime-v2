@@ -27,16 +27,33 @@ class CharacterExtractController extends Controller
 
         try {
             $validated = $request->validate([
-                'plot' => ['required', 'string', 'max:5000'],
+                'plot' => ['nullable', 'string', 'max:5000'],
+                'first_chapter_prompt' => ['nullable', 'string', 'max:2000'],
+                'scene' => ['nullable', 'string', 'max:2000'],
                 'genre' => ['nullable', 'string', 'max:255'],
                 'age_level' => ['nullable', 'integer', 'min:4', 'max:18'],
             ]);
 
             Log::info('CharacterExtract: Validation passed', $validated);
 
-            $plot = $validated['plot'];
+            $plot = $validated['plot'] ?? '';
+            $firstChapterPrompt = $validated['first_chapter_prompt'] ?? '';
+            $scene = $validated['scene'] ?? '';
             $genre = $validated['genre'] ?? '';
             $ageLevel = $validated['age_level'] ?? 10;
+
+            // Combine all story context for better character extraction
+            $storyContext = $plot;
+            if ($firstChapterPrompt) {
+                $storyContext .= "\n\nOpening scene: {$firstChapterPrompt}";
+            }
+            if ($scene) {
+                $storyContext .= "\n\nSetting: {$scene}";
+            }
+
+            if (empty(trim($storyContext))) {
+                return response()->json(['characters' => []]);
+            }
 
             $ageGroup = match (true) {
                 $ageLevel <= 4 => 'toddler',
@@ -62,7 +79,7 @@ class CharacterExtractController extends Controller
             $systemPrompt .= 'Identify the characters named in the plot or create 2-4 interesting characters that fit the story. ';
             $systemPrompt .= 'Respond ONLY with valid JSON in this exact format: '.json_encode($characterTemplate);
 
-            $userMessage = "Here is the story plot:\n\n{$plot}\n\Indentify the characters from this story.";
+            $userMessage = "Here is the story context:\n\n{$storyContext}\n\nIdentify the characters from this story.";
 
             Log::info('CharacterExtract: Making AI request');
 

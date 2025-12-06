@@ -17,6 +17,6 @@ class GenerateCharacterPortraitListener
             return;
         }
 
-        CreateCharacterPortraitJob::dispatch($character);
+        CreateCharacterPortraitJob::dispatch($character)->onQueue('images');
     }
 }
