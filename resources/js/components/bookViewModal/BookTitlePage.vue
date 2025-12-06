@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Sparkles, ChevronRight } from 'lucide-vue-next';
+import { Sparkles, ChevronRight, Loader2 } from 'lucide-vue-next';
 
 interface Props {
     coverImage: string | null;
+    coverImageStatus: string | null;
     title: string;
     author: string | null;
     createdAt: string | null;
@@ -24,9 +25,25 @@ const emit = defineEmits<{
             isFading ? 'opacity-0' : 'opacity-100'
         ]"
     >
+        <!-- Cover Image Placeholder (when generating) -->
+        <div 
+            v-if="coverImageStatus === 'pending' && !coverImage"
+            class="mb-6 w-full overflow-hidden rounded-lg shadow-lg bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-900/20 dark:to-purple-900/20 aspect-[3/4] flex flex-col items-center justify-center gap-4 p-8"
+        >
+            <Loader2 class="h-12 w-12 text-violet-500 animate-spin" />
+            <div class="text-center">
+                <p class="text-lg font-semibold text-violet-700 dark:text-violet-400 mb-1">
+                    Creating your cover...
+                </p>
+                <p class="text-sm text-violet-600 dark:text-violet-500">
+                    This will just take a moment ✨
+                </p>
+            </div>
+        </div>
+
         <!-- Cover Image (full width, natural height) -->
         <div 
-            v-if="coverImage"
+            v-else-if="coverImage"
             class="mb-6 w-full overflow-hidden rounded-lg shadow-lg"
         >
             <img

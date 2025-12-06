@@ -13,6 +13,7 @@ interface Props {
     readingView: ReadingView;
     chapter: Chapter | null;
     spread: PageSpread | null;
+    spreadIndex?: number;
     coverImage: string | null;
     title: string;
     author: string | null;
@@ -91,6 +92,7 @@ const emit = defineEmits<{
         <BookTitlePage
             v-else-if="readingView === 'title'"
             :cover-image="coverImage"
+            :cover-image-status="book?.cover_image_status ?? null"
             :title="title"
             :author="author"
             :created-at="createdAt"
@@ -104,6 +106,7 @@ const emit = defineEmits<{
             v-else-if="(readingView === 'chapter-image' || readingView === 'chapter-content') && chapter && spread"
             :chapter="chapter"
             :spread="spread"
+            :spread-index="spreadIndex"
         />
 
         <!-- Create Chapter View -->

@@ -1,18 +1,15 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Services\Book;
 
-use App\Http\Controllers\Controller;
 use App\Models\Book;
 use App\Services\Ai\AiManager;
 use App\Services\Ai\Contracts\AiChatServiceInterface;
 use App\Services\Replicate\ReplicateApiService;
 use App\Traits\Service\SavesImagesToS3;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
-class BookCoverController extends Controller
+class BookCoverService
 {
     use SavesImagesToS3;
 
@@ -20,34 +17,48 @@ class BookCoverController extends Controller
 
     public function __construct(
         protected ReplicateApiService $replicateService,
+        protected BookService $bookService,
         AiManager $aiManager
     ) {
         $this->chatService = $aiManager->chat();
     }
 
     /**
-     * Generate book metadata (title, summary, cover image) using AI.
+     * Generate book cover metadata and image for a book.
      */
-    public function generate(Request $request, Book $book): JsonResponse
+    public function generateCoverForBook(string $bookId): bool
     {
-        Log::info('BookCover: Generating metadata for book', ['book_id' => $book->id]);
+        Log::info('BookCoverService: Starting cover generation', ['book_id' => $bookId]);
+
+        $book = $this->bookService->getById($bookId, ['*'], ['characters']);
+
+        if (! $book) {
+            Log::error('BookCoverService: Book not found', ['book_id' => $bookId]);
+
+            return false;
+        }
 
         try {
-            // Generate title, summary, and cover image prompt using OpenAI
+            // Set status to pending
+            $this->bookService->updateById($bookId, ['cover_image_status' => 'pending']);
+
+            // Generate title, summary, and cover image prompt using AI
             $metadata = $this->generateMetadata($book);
 
             if (! $metadata) {
-                return response()->json(['error' => 'Failed to generate metadata'], 500);
+                $this->bookService->updateById($bookId, ['cover_image_status' => 'error']);
+
+                return false;
             }
 
-            Log::info('BookCover: Metadata generated', [
+            Log::info('BookCoverService: Metadata generated', [
                 'title' => $metadata['title'],
                 'has_summary' => ! empty($metadata['summary']),
                 'has_prompt' => ! empty($metadata['cover_image_prompt']),
             ]);
 
             // Update book with title, summary, and cover image prompt
-            $book->update([
+            $this->bookService->updateById($bookId, [
                 'title' => $metadata['title'],
                 'summary' => $metadata['summary'],
                 'cover_image_prompt' => $metadata['cover_image_prompt'],
@@ -57,22 +68,29 @@ class BookCoverController extends Controller
             $coverImagePath = $this->generateCoverImage($book, $metadata['cover_image_prompt']);
 
             if ($coverImagePath) {
-                $book->update(['cover_image' => $coverImagePath]);
+                $this->bookService->updateById($bookId, [
+                    'cover_image' => $coverImagePath,
+                    'cover_image_status' => 'complete',
+                ]);
+            } else {
+                $this->bookService->updateById($bookId, ['cover_image_status' => 'error']);
+
+                return false;
             }
 
-            $book->refresh();
+            Log::info('BookCoverService: Cover generation complete', ['book_id' => $bookId]);
 
-            return response()->json([
-                'success' => true,
-                'book' => $book,
-            ]);
+            return true;
         } catch (\Exception $e) {
-            Log::error('BookCover: Exception', [
+            Log::error('BookCoverService: Exception', [
+                'book_id' => $bookId,
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return response()->json(['error' => $e->getMessage()], 500);
+            $this->bookService->updateById($bookId, ['cover_image_status' => 'error']);
+
+            return false;
         }
     }
 
@@ -136,7 +154,7 @@ class BookCoverController extends Controller
 
         $userMessage .= "\nGenerate the title, summary, and cover image prompt for this story.";
 
-        Log::info('BookCover: Making AI request for metadata');
+        Log::info('BookCoverService: Making AI request for metadata');
 
         $this->chatService->resetMessages();
         $this->chatService->setResponseFormat('json_object');
@@ -146,19 +164,19 @@ class BookCoverController extends Controller
         $result = $this->chatService->chat();
 
         if (empty($result['completion'])) {
-            Log::error('BookCover: AI request failed', [
+            Log::error('BookCoverService: AI request failed', [
                 'error' => $result['error'] ?? 'Empty completion',
             ]);
 
             return null;
         }
 
-        Log::info('BookCover: Parsing AI response');
+        Log::info('BookCoverService: Parsing AI response');
 
         $parsed = $this->parseJsonResponse($result['completion']);
 
         if (! $parsed) {
-            Log::error('BookCover: Failed to parse AI response', ['completion' => $result['completion']]);
+            Log::error('BookCoverService: Failed to parse AI response', ['completion' => $result['completion']]);
 
             return null;
         }
@@ -190,7 +208,7 @@ class BookCoverController extends Controller
             return $result;
         }
 
-        Log::warning('BookCover: JSON parse failed after sanitization', [
+        Log::warning('BookCoverService: JSON parse failed after sanitization', [
             'error' => json_last_error_msg(),
         ]);
 
@@ -258,12 +276,12 @@ class BookCoverController extends Controller
     }
 
     /**
-     * Generate cover image using Replicate Flux 2 and save locally.
+     * Generate cover image using Replicate Flux 2 and save to S3.
      */
     protected function generateCoverImage(Book $book, string $prompt): ?string
     {
         if (empty($prompt)) {
-            Log::warning('BookCover: Empty cover image prompt');
+            Log::warning('BookCoverService: Empty cover image prompt');
 
             return null;
         }
@@ -272,14 +290,14 @@ class BookCoverController extends Controller
         $stylePrefix = $this->getStylePrefix($book);
         $fullPrompt = $stylePrefix.$prompt;
 
-        Log::info('BookCover: Generating image with Replicate', [
+        Log::info('BookCoverService: Generating image with Replicate', [
             'prompt_length' => strlen($fullPrompt),
         ]);
 
         $result = $this->replicateService->generateImage($fullPrompt.' shot on Sony A7IV, clean sharp, high dynamic range', null, '3:4');
 
         if ($result['error'] || empty($result['url'])) {
-            Log::error('BookCover: Replicate image generation failed', [
+            Log::error('BookCoverService: Replicate image generation failed', [
                 'error' => $result['error'],
             ]);
 
@@ -291,12 +309,12 @@ class BookCoverController extends Controller
         $imagePath = $this->saveImageToS3($imageUrl, 'covers', $book->id);
 
         if (! $imagePath) {
-            Log::error('BookCover: Failed to save image to S3');
+            Log::error('BookCoverService: Failed to save image to S3');
 
             return $imageUrl;
         }
 
-        Log::info('BookCover: Image saved to S3', ['path' => $imagePath]);
+        Log::info('BookCoverService: Image saved to S3', ['path' => $imagePath]);
 
         return $imagePath;
     }

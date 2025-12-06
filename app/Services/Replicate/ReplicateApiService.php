@@ -40,7 +40,19 @@ class ReplicateApiService
 
         if ($inputImages !== null && count($inputImages) > 0) {
             $input['input_images'] = array_slice($inputImages, 0, 8);
+            Log::info('Replicate API: Adding character images to request', [
+                'input_images_count' => count($input['input_images']),
+                'input_images' => $input['input_images'],
+            ]);
         }
+
+        Log::debug('Replicate API: Making request', [
+            'prompt_length' => strlen($prompt),
+            'prompt_preview' => substr($prompt, 0, 150),
+            'aspect_ratio' => $aspectRatio,
+            'has_input_images' => isset($input['input_images']),
+            'input_images_count' => isset($input['input_images']) ? count($input['input_images']) : 0,
+        ]);
 
         $response = $this->makeRequest($input);
 

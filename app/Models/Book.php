@@ -17,6 +17,7 @@ class Book extends Model
         'title',
         'cover_image',
         'cover_image_prompt',
+        'cover_image_status',
         'status',
         'age_level',
         'genre',

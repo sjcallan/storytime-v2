@@ -1,13 +1,15 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Sparkles } from 'lucide-vue-next';
 import type { Chapter, PageSpread, PageContentItem } from './types';
 
 interface Props {
     chapter: Chapter;
     spread: PageSpread;
+    spreadIndex?: number;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const isFirstParagraph = (items: PageContentItem[] | null, idx: number): boolean => {
     if (!items) {
@@ -21,13 +23,22 @@ const isFirstParagraph = (items: PageContentItem[] | null, idx: number): boolean
     }
     return paragraphCount === 1 && items[idx]?.type === 'paragraph';
 };
+
+// Calculate right page number
+const rightPageNumber = computed(() => {
+    if (props.spreadIndex === undefined) {
+        return null;
+    }
+    // Title page is 0, first spread is pages 2-3, second spread is 4-5, etc.
+    return 3 + (props.spreadIndex * 2);
+});
 </script>
 
 <template>
     <div class="relative z-10 h-full overflow-hidden">
         <!-- First spread: Title with 40% top margin + beginning of content -->
         <template v-if="spread.isFirstSpread">
-            <div class="flex h-full flex-col px-12 pt-16 pb-6">
+            <div class="flex h-full flex-col px-12 pt-24 pb-6">
                 <!-- 40% top margin space -->
                 <div class="h-[40%] flex items-end justify-center pb-4">
                     <div class="text-center">
@@ -73,7 +84,7 @@ const isFirstParagraph = (items: PageContentItem[] | null, idx: number): boolean
         
         <!-- Subsequent spreads: Content continuation on right page (full height) -->
         <template v-else>
-            <div class="h-full px-12 pt-16 pb-8">
+            <div class="h-full px-12 pt-24 pb-8">
                 <div v-if="spread.rightContent" class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
                     <template v-for="(item, idx) in spread.rightContent" :key="idx">
                         <p 
@@ -100,6 +111,18 @@ const isFirstParagraph = (items: PageContentItem[] | null, idx: number): boolean
                 </div>
             </div>
         </template>
+
+        <!-- Page Number Footer -->
+        <div 
+            v-if="rightPageNumber !== null"
+            class="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-3 px-12 z-20"
+        >
+            <div class="h-px flex-1 bg-linear-to-r from-transparent via-amber-600 to-amber-600 dark:via-amber-400 dark:to-amber-400" />
+            <span class="text-sm font-medium text-amber-700 dark:text-amber-600 tabular-nums">
+                {{ rightPageNumber }}
+            </span>
+            <div class="h-px flex-1 bg-linear-to-l from-transparent via-amber-600 to-amber-600 dark:via-amber-400 dark:to-amber-400" />
+        </div>
     </div>
 </template>
 

@@ -30,6 +30,7 @@ export interface Book {
     age_level: number | null;
     plot: string | null;
     cover_image: string | null;
+    cover_image_status: string | null;
     status: string;
     created_at: string;
     profile?: Profile | null;

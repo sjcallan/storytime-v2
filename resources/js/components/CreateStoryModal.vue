@@ -957,9 +957,6 @@ const cancelCharacterEdit = () => {
     errors.value = {};
 };
 
-const isGeneratingCover = ref(false);
-const coverGenerationStatus = ref('');
-
 const handleSubmit = async () => {
     processing.value = true;
     errors.value = {};
@@ -973,6 +970,8 @@ const handleSubmit = async () => {
         }
 
         // Update book with final details (first_chapter_prompt, scene, and mark as in_progress)
+        // When status changes to 'in_progress', the cover generation will automatically be triggered
+        // by the GenerateBookCoverListener listening to BookUpdatedEvent
         const updateSuccess = await updateBook({
             first_chapter_prompt: formData.value.first_chapter_prompt,
             scene: formData.value.scene,
@@ -984,20 +983,6 @@ const handleSubmit = async () => {
             processing.value = false;
             return;
         }
-
-        // Generate cover image in the background
-        isGeneratingCover.value = true;
-        coverGenerationStatus.value = 'Creating your book title and cover...';
-        
-        try {
-            await requestApiFetch(`/api/books/${bookId.value}/generate-cover`, 'POST');
-        } catch (coverError) {
-            // Cover generation is optional, don't block the flow
-            console.error('Cover generation failed:', coverError);
-        }
-        
-        isGeneratingCover.value = false;
-        coverGenerationStatus.value = '';
         
         resetForm();
         isOpen.value = false;
@@ -1006,7 +991,6 @@ const handleSubmit = async () => {
         errors.value = { general: 'An unexpected error occurred. Please try again.' };
     } finally {
         processing.value = false;
-        isGeneratingCover.value = false;
     }
 };
 
@@ -1743,15 +1727,12 @@ watch(
                         v-else
                         type="button"
                         @click="handleSubmit"
-                        :disabled="processing || isGeneratingCover"
+                        :disabled="processing"
                         class="h-14 cursor-pointer gap-3 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 px-10 text-lg font-semibold shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-violet-700 hover:to-purple-700 hover:shadow-violet-500/25 hover:shadow-xl active:scale-[0.98]"
                     >
-                        <Spinner v-if="processing || isGeneratingCover" class="h-5 w-5" />
+                        <Spinner v-if="processing" class="h-5 w-5" />
                         <Sparkles v-else class="h-5 w-5" />
-                        <template v-if="isGeneratingCover">
-                            {{ coverGenerationStatus || 'Creating cover...' }}
-                        </template>
-                        <template v-else-if="processing">
+                        <template v-if="processing">
                             Creating...
                         </template>
                         <template v-else>

@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Api\BookController;
-use App\Http\Controllers\Api\BookCoverController;
 use App\Http\Controllers\Api\ChapterController;
 use App\Http\Controllers\Api\CharacterController;
 use App\Http\Controllers\Api\CharacterExtractController;
@@ -33,7 +32,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Custom endpoints
     Route::post('transcribe', [TranscribeController::class, 'transcribe'])->name('api.transcribe');
     Route::post('extract-characters', [CharacterExtractController::class, 'extract'])->name('api.extract-characters');
-    Route::post('books/{book}/generate-cover', [BookCoverController::class, 'generate'])->name('api.books.generate-cover');
 
     // Chapter endpoints
     Route::get('books/{book}/chapters/{chapterNumber}', [ChapterController::class, 'getByBookAndSort'])

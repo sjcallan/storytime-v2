@@ -469,7 +469,7 @@ onBeforeUnmount(() => {
 
                     <!-- Header Controls -->
                     <BookHeaderControls
-                        v-if="animation.animationPhase.value === 'complete' && !animation.isClosing.value"
+                        v-if="animation.animationPhase.value === 'complete' && !animation.isClosing.value && animation.isBookOpened.value"
                         :has-book="!!book"
                         :has-chapters="completedChapters.length > 0"
                         :is-editing="isEditing"
@@ -531,6 +531,7 @@ onBeforeUnmount(() => {
                             :reading-view="chapters.readingView.value"
                             :chapter="chapters.currentChapter.value"
                             :spread="chapters.currentSpread.value"
+                            :spread-index="chapters.currentSpreadIndex.value"
                             :characters="book?.characters"
                             :selected-character-id="selectedCharacter?.id ?? null"
                             :chapters="completedChapters"
@@ -550,6 +551,7 @@ onBeforeUnmount(() => {
                             :reading-view="chapters.readingView.value"
                             :chapter="chapters.currentChapter.value"
                             :spread="chapters.currentSpread.value"
+                            :spread-index="chapters.currentSpreadIndex.value"
                             :cover-image="displayCoverImage"
                             :title="displayTitle"
                             :author="displayAuthor"

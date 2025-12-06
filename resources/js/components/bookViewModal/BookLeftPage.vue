@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import BookPageTexture from './BookPageTexture.vue';
 import BookPageDecorative from './BookPageDecorative.vue';
 import CharacterGrid from './CharacterGrid.vue';
@@ -10,6 +11,7 @@ interface Props {
     readingView: ReadingView;
     chapter: Chapter | null;
     spread: PageSpread | null;
+    spreadIndex?: number;
     characters?: Character[];
     selectedCharacterId?: string | null;
     chapters?: ChapterSummary[];
@@ -17,13 +19,25 @@ interface Props {
     bookTitle?: string;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'selectCharacter', character: Character): void;
     (e: 'tocSelectChapter', chapterNumber: number): void;
     (e: 'tocGoToTitle'): void;
 }>();
+
+// Calculate left page number
+const leftPageNumber = computed(() => {
+    if (props.readingView !== 'chapter-image' && props.readingView !== 'chapter-content') {
+        return null;
+    }
+    if (props.spreadIndex === undefined) {
+        return null;
+    }
+    // Title page is 0, first spread is pages 2-3, second spread is 4-5, etc.
+    return 2 + (props.spreadIndex * 2);
+});
 </script>
 
 <template>
@@ -52,7 +66,7 @@ const emit = defineEmits<{
                 <template v-if="spread.showImage">
                     <div 
                         v-if="chapter.image"
-                        class="flex-1 px-6 pt-16 pb-6"
+                        class="flex-1 px-6 pt-24 pb-6"
                     >
                         <img
                             :src="chapter.image"
@@ -62,15 +76,15 @@ const emit = defineEmits<{
                     </div>
                     <div v-else class="flex h-full items-center justify-center p-12">
                         <div class="text-center opacity-40">
-                            <div class="mx-auto mb-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
+                            <div class="mx-auto mb-4 h-px w-24 bg-linear-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
                             <BookOpen class="mx-auto h-12 w-12 text-amber-500 dark:text-amber-400" />
-                            <div class="mx-auto mt-4 h-px w-24 bg-gradient-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
+                            <div class="mx-auto mt-4 h-px w-24 bg-linear-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
                         </div>
                     </div>
                 </template>
                 <!-- Subsequent spreads: show content continuation on left page (full height) -->
                 <template v-else-if="spread.leftContent">
-                    <div class="relative h-full px-12 pt-16 pb-8">
+                    <div class="relative h-full px-12 pt-24 pb-8">
                         <div class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
                             <template v-for="(item, idx) in spread.leftContent" :key="idx">
                                 <p 
@@ -111,6 +125,18 @@ const emit = defineEmits<{
                 @go-to-title="emit('tocGoToTitle')"
             />
         </template>
+
+        <!-- Page Number Footer -->
+        <div 
+            v-if="leftPageNumber !== null"
+            class="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-3 px-12"
+        >
+            <div class="h-px flex-1 bg-linear-to-r from-transparent via-amber-600 to-amber-600 dark:via-amber-400 dark:to-amber-400" />
+            <span class="text-sm font-medium text-amber-700 dark:text-amber-600 tabular-nums">
+                {{ leftPageNumber }}
+            </span>
+            <div class="h-px flex-1 bg-linear-to-l from-transparent via-amber-600 to-amber-600 dark:via-amber-400 dark:to-amber-400" />
+        </div>
     </div>
 </template>
 

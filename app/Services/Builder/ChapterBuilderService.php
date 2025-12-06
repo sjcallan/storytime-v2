@@ -174,7 +174,7 @@ class ChapterBuilderService extends BuilderService
         ]);
 
         try {
-            $book = $this->bookService->getById($bookId, null, ['with' => ['chapters']]);
+            $book = $this->bookService->getById($bookId, null, ['with' => ['chapters', 'characters']]);
 
             if ($book->type == 'theatre') {
                 $chapterLabel = 'act';
@@ -215,6 +215,26 @@ class ChapterBuilderService extends BuilderService
                 $systemPrompt['story_details']['main_characters'] = $book->user_characters;
             }
 
+            // Add character descriptions for scene image generation
+            $characters = $book->characters()->get();
+            if ($characters->count() > 0) {
+                $characterDescriptions = [];
+                foreach ($characters as $character) {
+                    $desc = $character->name;
+                    if ($character->age) {
+                        $desc .= " ({$character->age} years old)";
+                    }
+                    if ($character->gender) {
+                        $desc .= ", {$character->gender}";
+                    }
+                    if ($character->description) {
+                        $desc .= ": {$character->description}";
+                    }
+                    $characterDescriptions[] = $desc;
+                }
+                $systemPrompt['story_details']['characters'] = $characterDescriptions;
+            }
+
             $userPrompt = '';
             if ($completedChaptersCount == 0) {
                 $userPrompt = 'Write the first '.$chapterLabel.' of this story.';
@@ -247,6 +267,11 @@ class ChapterBuilderService extends BuilderService
             $this->chatService->setResponseFormat('json_object');
             $this->chatService->addSystemMessage(json_encode($systemPrompt));
 
+            $characterInstructions = '';
+            if ($characters->count() > 0) {
+                $characterInstructions = ' When describing characters in scene prompts, use the physical descriptions from the characters list provided in story_details. Match characters by their roles and descriptions, not names.';
+            }
+
             $outputFormat = [
                 'body' => 'The full '.$chapterLabel.' text',
                 'title' => 'A compelling '.$chapterLabel.' title (plain text, no '.$chapterLabel.' number)',
@@ -255,11 +280,11 @@ class ChapterBuilderService extends BuilderService
                 'scene_images' => [
                     [
                         'paragraph_index' => 'The 0-based paragraph index where this scene occurs (early in the '.$chapterLabel.', around 20-30% through)',
-                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. Include character physical descriptions (age, gender, clothing, hair, features), setting details, lighting, mood, and action. NO character names. 16:9 landscape format.',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. Include character physical descriptions (age, gender, clothing, hair, features) matching the characters from story_details, setting details, lighting, mood, and action. NO character names.'.$characterInstructions.' 16:9 landscape format.',
                     ],
                     [
                         'paragraph_index' => 'The 0-based paragraph index where this scene occurs (later in the '.$chapterLabel.', around 60-80% through)',
-                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. Include character physical descriptions (age, gender, clothing, hair, features), setting details, lighting, mood, and action. NO character names. 16:9 landscape format.',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. Include character physical descriptions (age, gender, clothing, hair, features) matching the characters from story_details, setting details, lighting, mood, and action. NO character names.'.$characterInstructions.' 16:9 landscape format.',
                     ],
                 ],
             ];
@@ -343,7 +368,7 @@ class ChapterBuilderService extends BuilderService
         ]);
 
         $book = $this->bookService->getById($bookId, null, ['with' => ['characters']]);
-        $style = $this->getImageStyle($bookId);
+        $style = $this->getSceneImageStylePrefix($book);
 
         $characterImages = [];
         if ($book->characters) {
@@ -355,10 +380,20 @@ class ChapterBuilderService extends BuilderService
                     }
                     if ($portraitUrl) {
                         $characterImages[] = $portraitUrl;
+                        Log::debug('[ChapterBuilderService::generateChapterImages] Added character portrait', [
+                            'character_id' => $character->id,
+                            'character_name' => $character->name,
+                            'portrait_url' => $portraitUrl,
+                        ]);
                     }
                 }
             }
         }
+
+        Log::info('[ChapterBuilderService::generateChapterImages] Character portraits collected', [
+            'character_images_count' => count($characterImages),
+            'character_image_urls' => $characterImages,
+        ]);
 
         $inlineImages = [];
 
@@ -382,6 +417,7 @@ class ChapterBuilderService extends BuilderService
                 'paragraph_index' => $paragraphIndex,
                 'prompt_preview' => substr($fullPrompt, 0, 100),
                 'character_images_count' => count($characterImages),
+                'character_image_urls' => $characterImages,
             ]);
 
             try {
@@ -435,6 +471,41 @@ class ChapterBuilderService extends BuilderService
         ]);
 
         return $inlineImages;
+    }
+
+    /**
+     * Get style prefix for scene images based on book genre and age level.
+     * Similar to BookCoverService::getStylePrefix() but optimized for scene images.
+     */
+    protected function getSceneImageStylePrefix(Book $book): string
+    {
+        // CRITICAL: No text, letters, words, or writing on the image
+        $style = 'NO TEXT, NO LETTERS, NO WORDS, NO WRITING, NO TITLES on the image. ';
+
+        // Age-based style: cartoon for kids/pre-teens, realistic for teens/adults
+        if ($book->age_level <= 13) {
+            $style .= 'Graphic cartoon illustration in the style of Neil Gaiman and Dave McKean, ';
+            $style .= 'whimsical yet slightly dark, hand-drawn aesthetic, rich textures, ';
+            $style .= 'imaginative and dreamlike, vibrant colors with moody undertones, ';
+        } else {
+            $style .= 'Photorealistic digital art, cinematic lighting, ';
+            $style .= 'highly detailed, professional quality, dramatic composition, ';
+        }
+
+        // Genre-specific mood additions
+        $style .= match ($book->genre) {
+            'fantasy' => 'magical atmosphere, ethereal lighting, mystical elements, ',
+            'adventure' => 'dynamic action scene, exciting composition, sense of movement, ',
+            'mystery' => 'mysterious atmosphere, dramatic shadows, intriguing mood, ',
+            'science_fiction' => 'futuristic setting, sci-fi aesthetic, advanced technology, ',
+            'fairy_tale' => 'enchanting and magical, storybook quality, wonder and imagination, ',
+            'historical' => 'period-accurate details, historical setting, authentic atmosphere, ',
+            'comedy' => 'fun and lighthearted mood, expressive characters, playful energy, ',
+            'animal_stories' => 'expressive animal characters, heartwarming scene, natural setting, ',
+            default => '',
+        };
+
+        return $style;
     }
 
     public function getNextChapterResponse(string $bookId, array $data)
