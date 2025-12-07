@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue';
 import { Sparkles, ChevronRight, Loader2 } from 'lucide-vue-next';
 
 interface Props {
@@ -11,11 +12,25 @@ interface Props {
     isLoading: boolean;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'continue'): void;
 }>();
+
+const handleKeyPress = (event: KeyboardEvent): void => {
+    if (event.key === 'ArrowRight' && !props.isFading && !props.isLoading) {
+        emit('continue');
+    }
+};
+
+onMounted(() => {
+    window.addEventListener('keydown', handleKeyPress);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('keydown', handleKeyPress);
+});
 </script>
 
 <template>

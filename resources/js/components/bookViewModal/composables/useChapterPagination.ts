@@ -20,6 +20,8 @@ export function useChapterPagination() {
     const isGeneratingChapter = ref(false);
     const chapterError = ref<string | null>(null);
     const nextChapterPrompt = ref('');
+    const suggestedPlaceholder = ref<string | null>(null);
+    const isLoadingPlaceholder = ref(false);
     const isFinalChapter = ref(false);
     const readingView = ref<ReadingView>('title');
     const isPageFlipping = ref(false);
@@ -213,6 +215,32 @@ export function useChapterPagination() {
         }
     };
 
+    const fetchSuggestedPlaceholder = async (bookId: string): Promise<void> => {
+        if (isLoadingPlaceholder.value) {
+            return;
+        }
+
+        isLoadingPlaceholder.value = true;
+        suggestedPlaceholder.value = null;
+
+        try {
+            const { data, error } = await requestApiFetch(
+                `/api/books/${bookId}/chapters/suggest-prompt`,
+                'GET'
+            );
+
+            if (!error && data) {
+                const response = data as { placeholder: string | null };
+                suggestedPlaceholder.value = response.placeholder;
+            }
+        } catch {
+            // Silently fail - we'll just use the default placeholder
+            suggestedPlaceholder.value = null;
+        } finally {
+            isLoadingPlaceholder.value = false;
+        }
+    };
+
     const loadChapter = async (bookId: string, chapterNumber: number): Promise<void> => {
         if (!bookId || isLoadingChapter.value) {
             return;
@@ -250,6 +278,9 @@ export function useChapterPagination() {
                 currentChapter.value = null;
                 currentChapterNumber.value = chapterNumber;
                 readingView.value = 'create-chapter';
+                
+                // Fetch AI-generated placeholder for the prompt
+                fetchSuggestedPlaceholder(bookId);
             }
         } catch (err) {
             chapterError.value = extractErrorMessage(err) ?? 'An error occurred loading the chapter.';
@@ -346,6 +377,9 @@ export function useChapterPagination() {
                 currentChapterNumber.value = nextNumber;
                 currentSpreadIndex.value = 0;
                 readingView.value = 'create-chapter';
+                
+                // Fetch AI-generated placeholder for the prompt
+                fetchSuggestedPlaceholder(bookId);
             }
         }
     };
@@ -455,6 +489,8 @@ export function useChapterPagination() {
         isGeneratingChapter.value = false;
         chapterError.value = null;
         nextChapterPrompt.value = '';
+        suggestedPlaceholder.value = null;
+        isLoadingPlaceholder.value = false;
         isFinalChapter.value = false;
         currentSpreadIndex.value = 0;
         readingView.value = 'title';
@@ -472,6 +508,8 @@ export function useChapterPagination() {
         isGeneratingChapter,
         chapterError,
         nextChapterPrompt,
+        suggestedPlaceholder,
+        isLoadingPlaceholder,
         isFinalChapter,
         readingView,
         isPageFlipping,

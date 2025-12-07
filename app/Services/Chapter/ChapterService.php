@@ -66,4 +66,12 @@ class ChapterService
     {
         return $this->repository->getCompleteChapterCount($bookId);
     }
+
+    /**
+     * Get the last complete chapter for a book.
+     */
+    public function getLastChapter(string $bookId): ?\App\Models\Chapter
+    {
+        return $this->repository->getLastChapter($bookId);
+    }
 }

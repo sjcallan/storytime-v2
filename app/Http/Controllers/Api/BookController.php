@@ -7,6 +7,7 @@ use App\Http\Requests\StoreBookRequest;
 use App\Http\Requests\UpdateBookRequest;
 use App\Models\Book;
 use App\Models\Character;
+use App\Services\Book\BookService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\DB;
 class BookController extends Controller
 {
     use AuthorizesRequests;
+
+    public function __construct(protected BookService $bookService) {}
 
     /**
      * Display a listing of the resource.
@@ -84,6 +87,38 @@ class BookController extends Controller
         $book->load(['user', 'chapters', 'characters', 'profile']);
 
         return response()->json($book);
+    }
+
+    /**
+     * Generate metadata (title, characters) for the book.
+     */
+    public function generateMetadata(Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $existingCharacters = $book->characters()
+            ->where('type', 'user')
+            ->get()
+            ->map(fn ($c) => [
+                'name' => $c->name,
+                'description' => $c->description,
+                'gender' => $c->gender,
+                'age' => $c->age,
+            ])
+            ->toJson();
+
+        $metaData = $this->bookService->createBookMetaDataByBookId(
+            $book->id,
+            $existingCharacters
+        );
+
+        $book->refresh();
+        $book->load(['characters']);
+
+        return response()->json([
+            'title' => $metaData['title'] ?? $book->title,
+            'characters' => $book->characters,
+        ]);
     }
 
     /**

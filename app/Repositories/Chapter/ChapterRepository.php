@@ -67,4 +67,16 @@ class ChapterRepository
             ->where('status', 'complete')
             ->count();
     }
+
+    /**
+     * Get the last complete chapter for a book.
+     */
+    public function getLastChapter(string $bookId): ?Chapter
+    {
+        return $this->model
+            ->where('book_id', $bookId)
+            ->where('status', 'complete')
+            ->orderBy('sort', 'desc')
+            ->first();
+    }
 }

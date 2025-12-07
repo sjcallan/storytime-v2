@@ -265,24 +265,21 @@ class ChapterBuilderService extends BuilderService
             $this->chatService->setResponseFormat('json_object');
             $this->chatService->addSystemMessage(json_encode($systemPrompt));
 
-            $characterInstructions = '';
-            if ($characters->count() > 0) {
-                $characterInstructions = ' When describing characters in scene prompts, use the physical descriptions from the characters list provided in story_details. Match characters by their roles and descriptions, not names.';
-            }
+            $characterInstructions = $this->getCharacterIdentificationInstructions($characters);
 
             $outputFormat = [
                 'body' => 'The full '.$chapterLabel.' text',
                 'title' => 'A compelling '.$chapterLabel.' title (plain text, no '.$chapterLabel.' number)',
                 'summary' => 'A detailed summary with key events, character names, descriptions, ages, genders, experiences, thoughts, goals, and nationalities. No commentary.',
-                'image_prompt' => 'A detailed one-sentence prompt for an image generation service describing a key scene from this '.$chapterLabel.'. Exclude character names. Describe the visual scene, setting, mood, and action.',
+                'image_prompt' => 'A detailed one-sentence prompt for an image generation service describing a key scene from this '.$chapterLabel.'. '.$characterInstructions.' Describe the visual scene, setting, mood, and action.',
                 'scene_images' => [
                     [
                         'paragraph_index' => 'The 0-based paragraph index where this scene occurs (early in the '.$chapterLabel.', around 20-30% through)',
-                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. Include character physical descriptions (age, gender, clothing, hair, features) matching the characters from story_details, setting details, lighting, mood, and action. NO character names.'.$characterInstructions.' 16:9 landscape format.',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
                     ],
                     [
                         'paragraph_index' => 'The 0-based paragraph index where this scene occurs (later in the '.$chapterLabel.', around 60-80% through)',
-                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. Include character physical descriptions (age, gender, clothing, hair, features) matching the characters from story_details, setting details, lighting, mood, and action. NO character names.'.$characterInstructions.' 16:9 landscape format.',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
                     ],
                 ],
             ];
@@ -504,6 +501,62 @@ class ChapterBuilderService extends BuilderService
         };
 
         return $style;
+    }
+
+    /**
+     * Generate character identification instructions for image prompts.
+     * Characters are identified by gender + number (e.g., "Male 1", "Female 2")
+     * and described sequentially from left to right in the image.
+     *
+     * @param  \Illuminate\Support\Collection  $characters
+     */
+    protected function getCharacterIdentificationInstructions($characters): string
+    {
+        $instructions = 'NO character names in the prompt. ';
+        $instructions .= 'Identify each character as "[Gender] [Number]" (e.g., "Male 1", "Female 2"). ';
+        $instructions .= 'Number characters of the same gender sequentially (Male 1, Male 2, Female 1, etc.). ';
+        $instructions .= 'Describe characters sequentially from LEFT to RIGHT across the image composition. ';
+        $instructions .= 'Include each character\'s physical description immediately after their identifier. ';
+
+        if ($characters->count() > 0) {
+            $instructions .= 'Use the physical descriptions from story_details characters. ';
+
+            $maleCount = 0;
+            $femaleCount = 0;
+            $characterMappings = [];
+
+            foreach ($characters as $character) {
+                $gender = strtolower($character->gender ?? 'unknown');
+
+                if ($gender === 'male') {
+                    $maleCount++;
+                    $identifier = "Male {$maleCount}";
+                } elseif ($gender === 'female') {
+                    $femaleCount++;
+                    $identifier = "Female {$femaleCount}";
+                } else {
+                    continue;
+                }
+
+                $desc = [];
+                if ($character->age) {
+                    $desc[] = "{$character->age} years old";
+                }
+                if ($character->description) {
+                    $desc[] = $character->description;
+                }
+
+                if (! empty($desc)) {
+                    $characterMappings[] = "{$identifier}: ".implode(', ', $desc);
+                }
+            }
+
+            if (! empty($characterMappings)) {
+                $instructions .= 'Character reference: '.implode('; ', $characterMappings).'. ';
+            }
+        }
+
+        return $instructions;
     }
 
     public function getNextChapterResponse(string $bookId, array $data)
@@ -957,5 +1010,79 @@ class ChapterBuilderService extends BuilderService
         }
 
         return $rules;
+    }
+
+    /**
+     * Generate an enticing prompt suggestion based on the last chapter's cliffhanger.
+     */
+    public function generatePromptSuggestion(Book $book, \App\Models\Chapter $lastChapter): ?string
+    {
+        try {
+            $chatService = app(\App\Services\Ai\AiManager::class)->chat();
+            $chatService->resetMessages();
+            $chatService->setMaxTokens(100);
+            $chatService->setTemperature(0.8);
+
+            $chapterLabel = $this->getChapterLabel($book->type);
+            $isScript = $this->isScriptBasedType($book->type);
+
+            // Get the last ~500 characters of the chapter body for context
+            $body = $lastChapter->body ?? '';
+            $contextLength = min(strlen($body), 800);
+            $lastPortion = substr($body, -$contextLength);
+
+            $systemPrompt = <<<PROMPT
+You are a creative writing assistant helping a reader continue their story. 
+Based on the ending of the last {$chapterLabel}, generate ONE short, enticing sentence fragment (15-30 words max) that:
+- References a specific moment, character, or situation from the text
+- Trails off with "..." to invite the reader to complete the thought
+- Creates curiosity about what happens next
+- Feels like a natural continuation of the story's voice
+
+Do NOT include any preamble, quotation marks, or explanation. Just output the fragment directly.
+PROMPT;
+
+            $contentType = $isScript ? 'scene' : 'chapter';
+            $userPrompt = <<<PROMPT
+Here's how the last {$contentType} ended:
+
+"{$lastPortion}"
+
+Generate an enticing prompt fragment that teases what could happen next:
+PROMPT;
+
+            $chatService->setContext($systemPrompt);
+            $chatService->addUserMessage($userPrompt);
+
+            $result = $chatService->chat();
+
+            if (! empty($result['error'])) {
+                Log::warning('[ChapterBuilderService::generatePromptSuggestion] AI error', [
+                    'book_id' => $book->id,
+                    'error' => $result['error'],
+                ]);
+
+                return null;
+            }
+
+            $suggestion = trim($result['completion'] ?? '');
+
+            // Clean up the suggestion - remove quotes if present
+            $suggestion = trim($suggestion, "\"'\u{201C}\u{201D}\u{2018}\u{2019}");
+
+            // Make sure it ends with "..." for that trailing effect
+            if (! str_ends_with($suggestion, '...')) {
+                $suggestion = rtrim($suggestion, '.!?,;:').'...';
+            }
+
+            return $suggestion ?: null;
+        } catch (Throwable $e) {
+            Log::error('[ChapterBuilderService::generatePromptSuggestion] Exception', [
+                'book_id' => $book->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 }

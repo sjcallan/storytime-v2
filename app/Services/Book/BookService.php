@@ -2,6 +2,7 @@
 
 namespace App\Services\Book;
 
+use App\Models\Character;
 use App\Repositories\Book\BookRepository;
 use App\Services\Builder\BookBuilderService;
 use App\Services\Builder\CharacterBuilderService;
@@ -76,11 +77,34 @@ class BookService
         }
 
         if (! empty($metaData['characters'])) {
-            $characterResponse = json_encode(['characters' => $metaData['characters']]);
-            $this->getCharacterBuilderService()->saveCharacterResponse($characterResponse, $bookId);
+            $this->saveBookCharacters($book, $metaData['characters']);
             Log::info('Book characters saved: '.count($metaData['characters']).' characters');
         }
 
         return $metaData;
+    }
+
+    /**
+     * Save characters directly to the characters table for initial book creation.
+     * This is different from chapter-level character tracking which uses chapter_character pivot.
+     *
+     * @param  \App\Models\Book  $book
+     * @param  array<array{name: string, description?: string, gender?: string, age?: string, nationality?: string}>  $characters
+     */
+    protected function saveBookCharacters($book, array $characters): void
+    {
+        foreach ($characters as $characterData) {
+            Character::create([
+                'book_id' => $book->id,
+                'user_id' => $book->user_id,
+                'type' => 'book',
+                'name' => $characterData['name'] ?? '',
+                'description' => $characterData['description'] ?? '',
+                'gender' => $characterData['gender'] ?? '',
+                'age' => $characterData['age'] ?? '',
+                'backstory' => '',
+                'nationality' => $characterData['nationality'] ?? '',
+            ]);
+        }
     }
 }

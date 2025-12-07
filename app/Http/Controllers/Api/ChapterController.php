@@ -112,6 +112,26 @@ class ChapterController extends Controller
     }
 
     /**
+     * Generate a suggested prompt placeholder based on the last chapter's cliffhanger.
+     */
+    public function suggestPrompt(Book $book): JsonResponse
+    {
+        $lastChapter = $this->chapterService->getLastChapter($book->id);
+
+        if (! $lastChapter || ! $lastChapter->body) {
+            return response()->json([
+                'placeholder' => null,
+            ]);
+        }
+
+        $placeholder = $this->chapterBuilderService->generatePromptSuggestion($book, $lastChapter);
+
+        return response()->json([
+            'placeholder' => $placeholder,
+        ]);
+    }
+
+    /**
      * Generate the next chapter for a book.
      */
     public function generateNext(Request $request, Book $book): JsonResponse

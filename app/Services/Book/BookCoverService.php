@@ -125,6 +125,13 @@ class BookCoverService
         $systemPrompt .= "- If the age level is teen or adult ensure the image is realistic, gritty and not cartoonish or manufactured.\n";
         $systemPrompt .= "- If the age level is pre-teen make sure the image is a gritty graphic novel style.\n";
         $systemPrompt .= "- If the age level is kids make sure the image is a bright, friendly cartoon style.\n";
+        $systemPrompt .= "\nCHARACTER IDENTIFICATION RULES (CRITICAL):\n";
+        $systemPrompt .= "- DO NOT use character names in the prompt\n";
+        $systemPrompt .= "- Identify each character as '[Gender] [Number]' (e.g., 'Male 1', 'Female 2', 'Male 2')\n";
+        $systemPrompt .= "- Number characters of the same gender sequentially (Male 1, Male 2, Female 1, etc.)\n";
+        $systemPrompt .= "- Describe characters sequentially from LEFT to RIGHT across the image composition\n";
+        $systemPrompt .= "- Include each character's physical description immediately after their identifier\n";
+        $systemPrompt .= "- Example: 'On the left, Male 1, a tall elderly man with gray beard and weathered face, stands beside Female 1, a young girl with red braids and freckles, who is positioned center-frame...'\n";
         $systemPrompt .= 'Respond ONLY with valid JSON in this exact format: '.json_encode($responseTemplate);
 
         $userMessage = "Story Details:\n";

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { BookOpen, ChevronRight } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 
 interface Props {
     bookId: string | null;
@@ -17,6 +17,20 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
     (e: 'open'): void;
 }>();
+
+const handleKeyPress = (event: KeyboardEvent): void => {
+    if (event.key === 'ArrowRight' && !props.isPageTurning && !props.loading) {
+        emit('open');
+    }
+};
+
+onMounted(() => {
+    window.addEventListener('keydown', handleKeyPress);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('keydown', handleKeyPress);
+});
 
 const gradientColors = computed(() => {
     if (!props.bookId) {

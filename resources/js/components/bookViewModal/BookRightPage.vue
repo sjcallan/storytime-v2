@@ -31,6 +31,8 @@ interface Props {
     chapterError: string | null;
     currentChapterNumber: number;
     nextChapterPrompt: string;
+    suggestedPlaceholder?: string | null;
+    isLoadingPlaceholder?: boolean;
     isFinalChapter: boolean;
     isGeneratingChapter: boolean;
     selectedCharacter?: Character | null;
@@ -151,6 +153,8 @@ const showInlineCreateForm = computed(() => {
                 v-else-if="showInlineCreateForm"
                 :chapter-number="currentChapterNumber + 1"
                 :prompt="nextChapterPrompt"
+                :suggested-placeholder="suggestedPlaceholder"
+                :is-loading-placeholder="isLoadingPlaceholder"
                 :is-final-chapter="isFinalChapter"
                 :is-generating="isGeneratingChapter"
                 :book-type="bookType"
@@ -175,6 +179,8 @@ const showInlineCreateForm = computed(() => {
                 v-if="showCreateFormOnRight"
                 :chapter-number="currentChapterNumber"
                 :prompt="nextChapterPrompt"
+                :suggested-placeholder="suggestedPlaceholder"
+                :is-loading-placeholder="isLoadingPlaceholder"
                 :is-final-chapter="isFinalChapter"
                 :is-generating="isGeneratingChapter"
                 :book-type="bookType"
@@ -189,6 +195,8 @@ const showInlineCreateForm = computed(() => {
                 v-else
                 :chapter-number="currentChapterNumber"
                 :prompt="nextChapterPrompt"
+                :suggested-placeholder="suggestedPlaceholder"
+                :is-loading-placeholder="isLoadingPlaceholder"
                 :is-final-chapter="isFinalChapter"
                 :is-generating="isGeneratingChapter"
                 :book-type="bookType"

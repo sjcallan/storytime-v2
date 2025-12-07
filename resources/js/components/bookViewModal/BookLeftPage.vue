@@ -20,6 +20,8 @@ interface Props {
     isOnLastSpread?: boolean;
     currentChapterNumber?: number;
     nextChapterPrompt?: string;
+    suggestedPlaceholder?: string | null;
+    isLoadingPlaceholder?: boolean;
     isFinalChapter?: boolean;
     isGeneratingChapter?: boolean;
     bookType?: BookType;
@@ -139,6 +141,8 @@ const formatContent = (content: string): string => {
                 v-if="showCreateFormOnLeft"
                 :chapter-number="currentChapterNumber ?? 1"
                 :prompt="nextChapterPrompt ?? ''"
+                :suggested-placeholder="suggestedPlaceholder"
+                :is-loading-placeholder="isLoadingPlaceholder"
                 :is-final-chapter="isFinalChapter ?? false"
                 :is-generating="isGeneratingChapter ?? false"
                 :book-type="bookType"

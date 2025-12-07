@@ -33,9 +33,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('transcribe', [TranscribeController::class, 'transcribe'])->name('api.transcribe');
     Route::post('extract-characters', [CharacterExtractController::class, 'extract'])->name('api.extract-characters');
 
+    // Book metadata generation
+    Route::post('books/{book}/generate-metadata', [BookController::class, 'generateMetadata'])->name('api.books.generate-metadata');
+
     // Chapter endpoints
     Route::get('books/{book}/chapters/{chapterNumber}', [ChapterController::class, 'getByBookAndSort'])
         ->whereNumber('chapterNumber')
         ->name('api.books.chapters.show');
     Route::post('books/{book}/chapters/generate', [ChapterController::class, 'generateNext'])->name('api.books.chapters.generate');
+    Route::get('books/{book}/chapters/suggest-prompt', [ChapterController::class, 'suggestPrompt'])->name('api.books.chapters.suggest-prompt');
 });

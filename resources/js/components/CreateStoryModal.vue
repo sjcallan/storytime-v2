@@ -143,8 +143,8 @@ const echoChannel = ref<any>(null);
 const activeListeners = ref<Set<string>>(new Set());
 
 const setupPortraitListener = (characterId: string) => {
-    // Don't set up listeners for temp IDs
-    if (characterId.startsWith('temp-') || characterId.startsWith('extracted-')) {
+    // Don't set up listeners for temp IDs (characters not yet saved to backend)
+    if (characterId.startsWith('temp-')) {
         console.log('[Echo] Skipping listener for temp ID:', characterId);
         return;
     }
@@ -232,9 +232,9 @@ const cleanupAllListeners = () => {
 
 // Watch for character changes to setup/cleanup listeners
 watch(characters, (newChars, oldChars) => {
-    // Setup listeners for new characters
+    // Setup listeners for new characters (only those with real IDs from backend)
     newChars.forEach(char => {
-        if (!char.id.startsWith('temp-') && !char.id.startsWith('extracted-')) {
+        if (!char.id.startsWith('temp-')) {
             setupPortraitListener(char.id);
         }
     });
@@ -306,11 +306,19 @@ const audioChunks = ref<Blob[]>([]);
 const recordingDuration = ref(0);
 const recordingInterval = ref<ReturnType<typeof setInterval> | null>(null);
 
+// Audio visualization state
+const audioContext = ref<AudioContext | null>(null);
+const analyser = ref<AnalyserNode | null>(null);
+const animationFrameId = ref<number | null>(null);
+const audioLevels = ref<number[]>(Array(12).fill(0));
+
 const PLOT_MAX_LENGTH = 2000;
 
-// Character extraction state
-const isExtractingCharacters = ref(false);
-const extractionStatus = ref('');
+// Metadata & character generation state
+const isGeneratingMetadata = ref(false);
+const metadataStatus = ref('');
+const isFindingCharacters = ref(false);
+const hasAIGeneratedCharacters = ref(false);
 
 const bookTypes = [
     { value: 'chapter', label: '📚 Chapter Book', description: 'A longer story with multiple chapters' },
@@ -442,6 +450,10 @@ const resetForm = (genre: string | null = null, loadFromStorage: boolean = false
     currentStep.value = 1;
     bookId.value = null;
     isSaving.value = false;
+    isFindingCharacters.value = false;
+    isGeneratingMetadata.value = false;
+    metadataStatus.value = '';
+    hasAIGeneratedCharacters.value = false;
 };
 
 // Create book with all gathered data (after step 3)
@@ -566,8 +578,8 @@ const updateCharacterInBook = async (characterId: string, character: Omit<Charac
 
 // Delete a character from the book
 const deleteCharacterFromBook = async (characterId: string): Promise<boolean> => {
-    // Only delete if it's a real ID (not temp-)
-    if (characterId.startsWith('temp-') || characterId.startsWith('extracted-')) {
+    // Only delete if it's a real ID (not temp- prefix for unsaved characters)
+    if (characterId.startsWith('temp-')) {
         return true;
     }
 
@@ -614,9 +626,43 @@ const formatRecordingTime = (seconds: number): string => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
+const updateAudioLevels = () => {
+    if (!analyser.value) return;
+    
+    const dataArray = new Uint8Array(analyser.value.frequencyBinCount);
+    analyser.value.getByteFrequencyData(dataArray);
+    
+    // Sample different frequency ranges for visualization
+    const binSize = Math.floor(dataArray.length / 12);
+    const newLevels = Array(12).fill(0).map((_, i) => {
+        const start = i * binSize;
+        const end = start + binSize;
+        let sum = 0;
+        for (let j = start; j < end; j++) {
+            sum += dataArray[j];
+        }
+        // Normalize to 0-100 range with some boosting for visibility
+        return Math.min(100, (sum / binSize) * 0.6);
+    });
+    
+    audioLevels.value = newLevels;
+    
+    if (isRecording.value) {
+        animationFrameId.value = requestAnimationFrame(updateAudioLevels);
+    }
+};
+
 const startRecording = async () => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Set up audio context for visualization
+        audioContext.value = new AudioContext();
+        analyser.value = audioContext.value.createAnalyser();
+        analyser.value.fftSize = 256;
+        
+        const source = audioContext.value.createMediaStreamSource(stream);
+        source.connect(analyser.value);
         
         mediaRecorder.value = new MediaRecorder(stream, {
             mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
@@ -639,6 +685,18 @@ const startRecording = async () => {
                 recordingInterval.value = null;
             }
             
+            if (animationFrameId.value) {
+                cancelAnimationFrame(animationFrameId.value);
+                animationFrameId.value = null;
+            }
+            
+            if (audioContext.value) {
+                audioContext.value.close();
+                audioContext.value = null;
+            }
+            
+            audioLevels.value = Array(12).fill(0);
+            
             if (audioChunks.value.length > 0) {
                 await transcribeAudio();
             }
@@ -646,6 +704,9 @@ const startRecording = async () => {
         
         mediaRecorder.value.start(1000);
         isRecording.value = true;
+        
+        // Start visualization
+        updateAudioLevels();
         
         recordingInterval.value = setInterval(() => {
             recordingDuration.value++;
@@ -724,17 +785,21 @@ const nextStep = async () => {
         // Step 1 -> 2: Just proceed, no API calls yet
         // Step 2 -> 3: Just proceed, no API calls yet
         
-        // Step 3 -> 4: Create the book with all gathered data, then extract characters
+        // Step 3 -> 4: Create the book, then generate metadata (title + characters)
+        // We stay on step 3 showing "Finding your characters" until complete
         if (currentStep.value === 3) {
             const created = await createBook();
             if (!created) {
                 return; // Don't proceed if book creation failed
             }
             
-            // Extract characters from plot AND first chapter prompt/scene
-            if (formData.value.plot.trim() || formData.value.first_chapter_prompt.trim()) {
-                await extractCharactersFromPlot();
-            }
+            // Generate book metadata (title, summary, characters) - this blocks until complete
+            // The UI will show "Finding your characters..." while this runs
+            await generateBookMetadata();
+            
+            // Only proceed to step 4 after characters are found
+            currentStep.value++;
+            return;
         }
         
         // Step 4: Characters are saved as they're added, so nothing special needed here
@@ -743,84 +808,82 @@ const nextStep = async () => {
     }
 };
 
-const extractCharactersFromPlot = async () => {
-    console.log('[ExtractCharacters] Starting extraction, bookId:', bookId.value, 'existing characters:', characters.value.length);
+const generateBookMetadata = async () => {
+    console.log('[GenerateMetadata] Starting metadata generation, bookId:', bookId.value);
     
-    // Only extract if we don't already have characters
-    if (characters.value.length > 0) {
-        console.log('[ExtractCharacters] Skipping - already have characters');
+    if (!bookId.value) {
+        console.error('[GenerateMetadata] No bookId - cannot generate metadata');
         return;
     }
 
-    isExtractingCharacters.value = true;
-    extractionStatus.value = 'Reading your story idea...';
+    isFindingCharacters.value = true;
+    isGeneratingMetadata.value = true;
+    metadataStatus.value = 'Creating your story title...';
 
     try {
-        extractionStatus.value = 'Creating characters for your story...';
-        
-        console.log('[ExtractCharacters] Calling API to extract characters...');
-        const { data, error } = await requestApiFetch('/api/extract-characters', 'POST', {
-            plot: formData.value.plot,
-            first_chapter_prompt: formData.value.first_chapter_prompt,
-            scene: formData.value.scene,
-            genre: formData.value.genre,
-            age_level: formData.value.age_level ? parseInt(formData.value.age_level) : 10,
-        });
+        console.log('[GenerateMetadata] Calling API to generate metadata...');
+        const { data, error } = await requestApiFetch(`/api/books/${bookId.value}/generate-metadata`, 'POST');
 
         if (error) {
-            console.error('[ExtractCharacters] API error:', error);
-            extractionStatus.value = '';
+            console.error('[GenerateMetadata] API error:', error);
+            metadataStatus.value = '';
+            isFindingCharacters.value = false;
+            isGeneratingMetadata.value = false;
             return;
         }
 
-        console.log('[ExtractCharacters] Got response:', data);
+        console.log('[GenerateMetadata] Got response:', data);
         
-        if (data && typeof data === 'object' && 'characters' in data) {
-            const extractedCharacters = (data as { characters: Array<{
-                name: string;
-                age: string;
-                gender: string;
-                description: string;
-                backstory: string;
-            }> }).characters;
+        if (data && typeof data === 'object') {
+            const response = data as { 
+                title?: string;
+                characters?: Array<{
+                    id: string;
+                    name: string;
+                    age: string;
+                    gender: string;
+                    description: string;
+                    backstory: string;
+                    portrait_image?: string | null;
+                }>;
+            };
 
-            console.log('[ExtractCharacters] Extracted characters:', extractedCharacters?.length);
+            if (response.title) {
+                metadataStatus.value = `Title: "${response.title}" ✨`;
+                console.log('[GenerateMetadata] Book title set:', response.title);
+            }
 
-            if (extractedCharacters && extractedCharacters.length > 0) {
-                extractionStatus.value = `Saving ${extractedCharacters.length} characters...`;
-                console.log('[ExtractCharacters] About to save characters, bookId:', bookId.value);
+            if (response.characters && response.characters.length > 0) {
+                metadataStatus.value = `Found ${response.characters.length} characters!`;
+                console.log('[GenerateMetadata] Characters received:', response.characters.length);
                 
-                // Save each character to the book and get real IDs
-                const savedCharacters: Character[] = [];
-                for (const char of extractedCharacters) {
-                    const savedChar = await saveCharacterToBook({
-                        name: char.name || '',
-                        age: String(char.age ?? ''),
-                        gender: char.gender || '',
-                        description: char.description || '',
-                        backstory: char.backstory || '',
-                    });
-                    
-                    if (savedChar) {
-                        savedCharacters.push(savedChar);
-                        console.log('[ExtractCharacters] Character saved:', savedChar.name);
-                    } else {
-                        console.error('[ExtractCharacters] Failed to save character:', char.name);
-                    }
-                }
+                // Characters are already saved by the backend, just update our local state
+                characters.value = response.characters.map(char => ({
+                    id: char.id,
+                    name: char.name || '',
+                    age: String(char.age ?? ''),
+                    gender: char.gender || '',
+                    description: char.description || '',
+                    backstory: char.backstory || '',
+                    portrait_image: char.portrait_image || null,
+                }));
                 
-                characters.value = savedCharacters;
-                console.log('[ExtractCharacters] Total saved:', savedCharacters.length, 'out of', extractedCharacters.length);
-                extractionStatus.value = `Found ${characters.value.length} characters!`;
+                // Mark that AI found characters for displaying the notice
+                hasAIGeneratedCharacters.value = true;
+                
+                console.log('[GenerateMetadata] Characters loaded:', characters.value.length);
             }
         }
+        
+        // Mark character finding complete
+        isFindingCharacters.value = false;
+        isGeneratingMetadata.value = false;
+        metadataStatus.value = '';
     } catch (err) {
-        console.error('[ExtractCharacters] Exception:', err);
-    } finally {
-        setTimeout(() => {
-            isExtractingCharacters.value = false;
-            extractionStatus.value = '';
-        }, 1500);
+        console.error('[GenerateMetadata] Exception:', err);
+        isFindingCharacters.value = false;
+        isGeneratingMetadata.value = false;
+        metadataStatus.value = '';
     }
 };
 
@@ -1275,34 +1338,51 @@ watch(
     <InputError :message="errors.plot" />
                             
                             <!-- Microphone Button -->
-                            <div class="flex items-center gap-2 mt-5">
+                            <div class="flex flex-col items-start gap-3 mt-5">
                                     <button
                                         v-if="!isRecording && !isTranscribing"
                                         type="button"
                                         @click="startRecording"
                                         :disabled="processing"
-                                        class="group flex cursor-pointer items-center gap-2 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-orange-500/25 hover:shadow-xl active:scale-95"
+                                        class="group flex cursor-pointer items-center gap-2 rounded-full bg-linear-to-r from-orange-500 to-amber-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-orange-500/25 hover:shadow-xl active:scale-95"
                                     >
                                         <Mic class="h-5 w-5" />
                                         <span class="hidden sm:inline">Speak Your Story</span>
                                     </button>
                                     
-                                    <!-- Recording State -->
-                                    <div v-if="isRecording" class="flex items-center gap-3">
-                                        <div class="flex items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-sm font-medium text-white shadow-lg">
-                                            <span class="relative flex h-3 w-3">
-                                                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
-                                                <span class="relative inline-flex h-3 w-3 rounded-full bg-white"></span>
-                                            </span>
-                                            <span>{{ formatRecordingTime(recordingDuration) }}</span>
+                                    <!-- Recording State with Waveform -->
+                                    <div v-if="isRecording" class="flex w-full flex-col gap-3">
+                                        <!-- Audio Waveform Visualization -->
+                                        <div class="flex h-14 w-full items-center justify-center gap-1 rounded-2xl bg-red-50 px-4 dark:bg-red-100">
+                                            <div 
+                                                v-for="(level, index) in audioLevels" 
+                                                :key="index"
+                                                class="w-2.5 rounded-full bg-linear-to-t from-red-500 to-red-400 transition-all duration-75"
+                                                :style="{ 
+                                                    height: `${Math.max(6, level * 0.5)}px`,
+                                                    opacity: level > 5 ? 1 : 0.4
+                                                }"
+                                            />
                                         </div>
-                                        <button
-                                            type="button"
-                                            @click="stopRecording"
-                                            class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-red-600 text-white shadow-lg transition-all hover:scale-110 hover:bg-red-700 hover:shadow-red-500/30 hover:shadow-xl active:scale-95"
-                                        >
-                                            <Square class="h-4 w-4 fill-current" />
-                                        </button>
+                                        
+                                        <!-- Recording Controls -->
+                                        <div class="flex items-center gap-3">
+                                            <div class="flex items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-sm font-medium text-white shadow-lg">
+                                                <span class="relative flex h-3 w-3">
+                                                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
+                                                    <span class="relative inline-flex h-3 w-3 rounded-full bg-white"></span>
+                                                </span>
+                                                <span>{{ formatRecordingTime(recordingDuration) }}</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                @click="stopRecording"
+                                                class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-red-600 text-white shadow-lg transition-all hover:scale-110 hover:bg-red-700 hover:shadow-red-500/30 hover:shadow-xl active:scale-95"
+                                            >
+                                                <Square class="h-4 w-4 fill-current" />
+                                            </button>
+                                            <span class="text-xs text-muted-foreground">Tap the square to stop</span>
+                                        </div>
                                     </div>
                                     
                                     <!-- Transcribing State -->
@@ -1357,7 +1437,7 @@ watch(
                     <div v-show="currentStep === 4" class="space-y-6">
                         <!-- AI-generated characters notice -->
                         <div 
-                            v-if="characters.length > 0 && characters.some(c => c.id.startsWith('extracted-'))" 
+                            v-if="characters.length > 0 && hasAIGeneratedCharacters" 
                             class="flex items-start gap-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30"
                         >
                             <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-xl">
@@ -1406,7 +1486,7 @@ watch(
                                             >
                                                 <!-- Show spinner if character has real ID (portrait is being generated) -->
                                                 <Spinner 
-                                                    v-if="!character.id.startsWith('temp-') && !character.id.startsWith('extracted-')" 
+                                                    v-if="!character.id.startsWith('temp-')" 
                                                     class="h-6 w-6 text-white/80"
                                                 />
                                                 <!-- Show initial for temp characters -->
@@ -1673,14 +1753,14 @@ watch(
 
             <!-- Footer Navigation -->
             <div class="flex items-center justify-between border-t bg-muted/30 px-6 py-5">
-                <Button
-                    v-if="currentStep > 1"
-                    type="button"
-                    variant="ghost"
-                    @click="prevStep"
-                    :disabled="processing || isSaving || isExtractingCharacters"
-                    class="h-14 cursor-pointer gap-3 rounded-2xl px-6 text-lg font-semibold transition-all duration-200 hover:-translate-x-0.5 hover:bg-muted"
-                >
+                    <Button
+                        v-if="currentStep > 1"
+                        type="button"
+                        variant="ghost"
+                        @click="prevStep"
+                        :disabled="processing || isSaving || isGeneratingMetadata || isFindingCharacters"
+                        class="h-14 cursor-pointer gap-3 rounded-2xl px-6 text-lg font-semibold transition-all duration-200 hover:-translate-x-0.5 hover:bg-muted"
+                    >
                     <ChevronLeft class="h-6 w-6" />
                     Back
                 </Button>
@@ -1701,15 +1781,18 @@ watch(
                         v-if="currentStep < totalSteps"
                         type="button"
                         @click="nextStep"
-                        :disabled="!canProceed || processing || isExtractingCharacters || isSaving"
+                        :disabled="!canProceed || processing || isGeneratingMetadata || isSaving || isFindingCharacters"
                         class="h-14 cursor-pointer gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-10 text-lg font-semibold text-white shadow-lg transition-all duration-200 hover:translate-x-0.5 hover:from-orange-600 hover:to-amber-600 hover:shadow-orange-500/25 hover:shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:shadow-none"
                     >
-                        <Spinner v-if="isExtractingCharacters || isSaving" class="h-5 w-5" />
+                        <Spinner v-if="isGeneratingMetadata || isSaving || isFindingCharacters" class="h-5 w-5" />
                         <template v-if="isSaving && currentStep === 3">
                             Creating Story...
                         </template>
-                        <template v-else-if="isExtractingCharacters">
-                            Finding Characters...
+                        <template v-else-if="isFindingCharacters">
+                            Finding your characters...
+                        </template>
+                        <template v-else-if="isGeneratingMetadata">
+                            Generating Story Details...
                         </template>
                         <template v-else>
                             Next
