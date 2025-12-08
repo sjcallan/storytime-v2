@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreBookRequest;
 use App\Http\Requests\UpdateBookRequest;
 use App\Models\Book;
-use App\Models\Character;
 use App\Services\Book\BookService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
@@ -39,8 +38,6 @@ class BookController extends Controller
     {
         return DB::transaction(function () use ($request) {
             $validated = $request->validated();
-            $charactersData = $validated['characters'] ?? [];
-            unset($validated['characters']);
 
             $book = Book::create([
                 ...$validated,
@@ -48,15 +45,9 @@ class BookController extends Controller
                 'profile_id' => session('current_profile_id'),
             ]);
 
-            foreach ($charactersData as $characterData) {
-                Character::create([
-                    ...$characterData,
-                    'book_id' => $book->id,
-                    'user_id' => auth()->id(),
-                    'type' => 'user',
-                ]);
-            }
+            $this->bookService->createBookMetaDataByBookId($book->id);
 
+            $book->refresh();
             $book->load(['user', 'chapters', 'characters', 'profile']);
 
             return response()->json($book, 201);

@@ -65,6 +65,9 @@ const editForm = ref<BookEditFormData>({
 // Character selection state
 const selectedCharacter = ref<Character | null>(null);
 
+// Textarea focus state (for disabling keyboard navigation)
+const isTextareaFocused = ref(false);
+
 // Echo channel for real-time book updates
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const bookChannel = ref<any>(null);
@@ -80,6 +83,26 @@ type BookUpdatedPayload = {
     plot: string | null;
     is_published: boolean;
     updated_at: string;
+};
+
+type ChapterInlineImagesPayload = {
+    chapter_id: string;
+    chapter_sort: number;
+    inline_images: Array<{
+        paragraph_index: number;
+        url: string;
+        prompt: string;
+    }>;
+};
+
+// Handle real-time chapter inline images created events
+const handleChapterInlineImagesEvent = (payload: ChapterInlineImagesPayload) => {
+    if (!payload.chapter_id || !payload.inline_images) {
+        return;
+    }
+    
+    // Update the chapter's inline images via the composable
+    chapters.updateChapterInlineImages(payload.chapter_id, payload.inline_images);
 };
 
 // Handle real-time book update events
@@ -113,6 +136,7 @@ const subscribeToBookChannel = (bookId: string) => {
     try {
         const channel = echo().private(`book.${bookId}`);
         channel.listen('.book.updated', handleBookUpdatedEvent);
+        channel.listen('.chapter.inline-images.created', handleChapterInlineImagesEvent);
         bookChannel.value = channel;
     } catch (err) {
         console.error(`[Echo] Failed to subscribe to book.${bookId}:`, err);
@@ -127,6 +151,7 @@ const unsubscribeFromBookChannel = () => {
     
     try {
         bookChannel.value.stopListening('.book.updated');
+        bookChannel.value.stopListening('.chapter.inline-images.created');
         echo().leave(`book.${props.bookId}`);
     } catch (err) {
         // Ignore cleanup errors
@@ -350,6 +375,11 @@ const handleKeydown = (event: KeyboardEvent) => {
     
     // Don't handle navigation keys if loading or generating
     if (chapters.isLoadingChapter.value || chapters.isGeneratingChapter.value) {
+        return;
+    }
+    
+    // Don't handle left/right navigation if textarea is focused
+    if (isTextareaFocused.value && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
         return;
     }
     
@@ -660,6 +690,7 @@ onBeforeUnmount(() => {
                             @update:next-chapter-prompt="chapters.nextChapterPrompt.value = $event"
                             @update:is-final-chapter="chapters.isFinalChapter.value = $event"
                             @generate-chapter="handleGenerateChapter"
+                            @textarea-focused="isTextareaFocused = $event"
                         />
 
                         <!-- Book Spine -->
@@ -707,6 +738,7 @@ onBeforeUnmount(() => {
                             @generate-chapter="handleGenerateChapter"
                             @go-back="handleGoToPreviousChapter"
                             @clear-selected-character="handleClearSelectedCharacter"
+                            @textarea-focused="isTextareaFocused = $event"
                         />
 
                         <!-- Right Edge Click Zone (Go Forward / Start Reading) -->

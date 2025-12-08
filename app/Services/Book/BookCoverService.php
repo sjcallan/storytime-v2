@@ -24,7 +24,7 @@ class BookCoverService
     }
 
     /**
-     * Generate book cover metadata and image for a book.
+     * Generate book cover image for a book.
      */
     public function generateCoverForBook(string $bookId): bool
     {
@@ -42,30 +42,27 @@ class BookCoverService
             // Set status to pending
             $this->bookService->updateById($bookId, ['cover_image_status' => 'pending']);
 
-            // Generate title, summary, and cover image prompt using AI
-            $metadata = $this->generateMetadata($book);
+            // Generate cover image prompt using AI
+            $coverImagePrompt = $this->getCoverImagePrompt($book);
 
-            if (! $metadata) {
+            if (! $coverImagePrompt) {
                 $this->bookService->updateById($bookId, ['cover_image_status' => 'error']);
 
                 return false;
             }
 
-            Log::info('BookCoverService: Metadata generated', [
-                'title' => $metadata['title'],
-                'has_summary' => ! empty($metadata['summary']),
-                'has_prompt' => ! empty($metadata['cover_image_prompt']),
+            Log::info('BookCoverService: Cover image prompt generated', [
+                'has_prompt' => ! empty($coverImagePrompt),
+                'prompt_length' => strlen($coverImagePrompt),
             ]);
 
-            // Update book with title, summary, and cover image prompt
+            // Update book with cover image prompt
             $this->bookService->updateById($bookId, [
-                'title' => $metadata['title'],
-                'summary' => $metadata['summary'],
-                'cover_image_prompt' => $metadata['cover_image_prompt'],
+                'cover_image_prompt' => $coverImagePrompt,
             ]);
 
             // Generate cover image using Replicate Flux 2
-            $coverImagePath = $this->generateCoverImage($book, $metadata['cover_image_prompt']);
+            $coverImagePath = $this->generateCoverImage($book, $coverImagePrompt);
 
             if ($coverImagePath) {
                 $this->bookService->updateById($bookId, [
@@ -95,11 +92,9 @@ class BookCoverService
     }
 
     /**
-     * Generate book metadata using AI service.
-     *
-     * @return array{title: string, summary: string, cover_image_prompt: string}|null
+     * Generate cover image prompt using AI service.
      */
-    protected function generateMetadata(Book $book): ?array
+    protected function getCoverImagePrompt(Book $book): ?string
     {
         $ageGroup = match (true) {
             $book->age_level <= 4 => 'toddler',
@@ -108,15 +103,9 @@ class BookCoverService
             default => 'adult',
         };
 
-        $responseTemplate = [
-            'title' => 'A compelling book title (6 words or less, no colons or punctuation)',
-            'summary' => 'A 2-3 sentence summary of the story',
-            'cover_image_prompt' => 'A detailed visual description of a scene from the story. describe the scene, the charcters, their appearance, clothing.',
-        ];
-
-        $systemPrompt = "You are a creative writing assistant helping to create metadata for a {$ageGroup} {$book->genre} {$book->type} story. ";
-        $systemPrompt .= 'Based on the story details provided, generate a compelling title, a brief summary, and a detailed visual description of a key scene. ';
-        $systemPrompt .= "\n\nIMPORTANT RULES FOR cover_image_prompt:\n";
+        $systemPrompt = "You are a creative assistant helping to create a detailed visual description for generating a {$ageGroup} {$book->genre} {$book->type} story cover image. ";
+        $systemPrompt .= 'Based on the story details provided, generate a highly detailed visual description that includes: scene composition, camera specifications, lighting setup, and technical camera settings. ';
+        $systemPrompt .= "\n\nIMPORTANT RULES:\n";
         $systemPrompt .= "- Describe a visually striking SCENE from the story, NOT a book cover\n";
         $systemPrompt .= "- DO NOT mention 'book cover', 'title', 'text', 'letters', or any written words\n";
         $systemPrompt .= "- Focus on: characters, setting, mood, lighting, colors, action, and atmosphere\n";
@@ -132,13 +121,20 @@ class BookCoverService
         $systemPrompt .= "- Describe characters sequentially from LEFT to RIGHT across the image composition\n";
         $systemPrompt .= "- Include each character's physical description immediately after their identifier\n";
         $systemPrompt .= "- Example: 'On the left, Male 1, a tall elderly man with gray beard and weathered face, stands beside Female 1, a young girl with red braids and freckles, who is positioned center-frame...'\n";
-        $systemPrompt .= 'Respond ONLY with valid JSON in this exact format: '.json_encode($responseTemplate);
+        $systemPrompt .= "\nCAMERA AND TECHNICAL SPECIFICATIONS:\n";
+        $systemPrompt .= "- Specify camera type and lens choice (e.g., 'Sony A7IV with 50mm f/1.4 lens', 'Canon EOS R5 with 85mm f/1.2')\n";
+        $systemPrompt .= "- Include camera settings: aperture, ISO, shutter speed if relevant to the scene\n";
+        $systemPrompt .= "- Describe lighting setup: natural light, golden hour, studio lighting, dramatic shadows, soft diffused light, etc.\n";
+        $systemPrompt .= "- Specify dynamic range and color grading preferences\n";
+        $systemPrompt .= "- Mention depth of field and focus points\n";
+        $systemPrompt .= "\nRespond with ONLY the detailed visual prompt text. Do NOT use JSON format.";
 
         $userMessage = "Story Details:\n";
         $userMessage .= "Genre: {$book->genre}\n";
         $userMessage .= "Type: {$book->type}\n";
         $userMessage .= "Age Level: {$book->age_level} years old\n";
         $userMessage .= "Plot: {$book->plot}\n";
+        $userMessage .= "Scene: {$book->scene}\n";
 
         if ($book->scene) {
             $userMessage .= "Scene: {$book->scene}\n";
@@ -147,8 +143,18 @@ class BookCoverService
         $characters = $book->characters()->get();
         if ($characters->count() > 0) {
             $userMessage .= "Characters:\n";
+            $genderCounts = ['male' => 0, 'female' => 0];
+
             foreach ($characters as $character) {
-                $userMessage .= "- {$character->name}";
+                $gender = strtolower($character->gender ?? 'unknown');
+                if (isset($genderCounts[$gender])) {
+                    $genderCounts[$gender]++;
+                    $genderLabel = ucfirst($gender).' '.$genderCounts[$gender];
+                } else {
+                    $genderLabel = 'Character';
+                }
+
+                $userMessage .= "- {$genderLabel}";
                 if ($character->age) {
                     $userMessage .= " ({$character->age} years old)";
                 }
@@ -159,12 +165,13 @@ class BookCoverService
             }
         }
 
-        $userMessage .= "\nGenerate the title, summary, and cover image prompt for this story.";
+        $userMessage .= "\nGenerate a highly detailed visual prompt for this scene, including camera specifications, lighting details, and technical camera settings.";
 
-        Log::info('BookCoverService: Making AI request for metadata');
+        Log::info('BookCoverService: Making AI request for cover image prompt');
 
         $this->chatService->resetMessages();
-        $this->chatService->setResponseFormat('json_object');
+        $this->chatService->setModel('gpt-4.1');
+        $this->chatService->setTemperature(0.5);
         $this->chatService->addSystemMessage($systemPrompt);
         $this->chatService->addUserMessage($userMessage);
 
@@ -178,108 +185,9 @@ class BookCoverService
             return null;
         }
 
-        Log::info('BookCoverService: Parsing AI response');
+        Log::info('BookCoverService: Cover image prompt generated');
 
-        $parsed = $this->parseJsonResponse($result['completion']);
-
-        if (! $parsed) {
-            Log::error('BookCoverService: Failed to parse AI response', ['completion' => $result['completion']]);
-
-            return null;
-        }
-
-        return [
-            'title' => $parsed['title'] ?? 'Untitled Story',
-            'summary' => $parsed['summary'] ?? '',
-            'cover_image_prompt' => $parsed['cover_image_prompt'] ?? '',
-        ];
-    }
-
-    /**
-     * Parse JSON response, handling control characters that may be present in AI responses.
-     *
-     * @return array<string, mixed>|null
-     */
-    protected function parseJsonResponse(string $content): ?array
-    {
-        $result = json_decode($content, true);
-
-        if (json_last_error() === JSON_ERROR_NONE) {
-            return $result;
-        }
-
-        $sanitized = $this->sanitizeJsonString($content);
-        $result = json_decode($sanitized, true);
-
-        if (json_last_error() === JSON_ERROR_NONE) {
-            return $result;
-        }
-
-        Log::warning('BookCoverService: JSON parse failed after sanitization', [
-            'error' => json_last_error_msg(),
-        ]);
-
-        return null;
-    }
-
-    /**
-     * Sanitize a JSON string by escaping control characters inside string values.
-     */
-    protected function sanitizeJsonString(string $json): string
-    {
-        $result = '';
-        $inString = false;
-        $escape = false;
-        $length = strlen($json);
-
-        for ($i = 0; $i < $length; $i++) {
-            $char = $json[$i];
-            $ord = ord($char);
-
-            if ($escape) {
-                $result .= $char;
-                $escape = false;
-
-                continue;
-            }
-
-            if ($char === '\\') {
-                $result .= $char;
-                $escape = true;
-
-                continue;
-            }
-
-            if ($char === '"') {
-                $inString = ! $inString;
-                $result .= $char;
-
-                continue;
-            }
-
-            if ($inString && $ord < 32) {
-                switch ($ord) {
-                    case 10:
-                        $result .= '\\n';
-                        break;
-                    case 13:
-                        $result .= '\\r';
-                        break;
-                    case 9:
-                        $result .= '\\t';
-                        break;
-                    default:
-                        $result .= sprintf('\\u%04x', $ord);
-                        break;
-                }
-
-                continue;
-            }
-
-            $result .= $char;
-        }
-
-        return $result;
+        return trim($result['completion']);
     }
 
     /**

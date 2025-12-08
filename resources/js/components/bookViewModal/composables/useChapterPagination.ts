@@ -70,10 +70,12 @@ export function useChapterPagination() {
             
             const imageForParagraph = imagesByParagraph.get(i);
             if (imageForParagraph) {
+                const isPending = imageForParagraph.status === 'pending' || !imageForParagraph.url;
                 contentItems.push({
                     type: 'image',
                     content: imageForParagraph.prompt,
                     imageUrl: imageForParagraph.url,
+                    imageStatus: isPending ? 'pending' : 'complete',
                 });
             }
         }
@@ -499,6 +501,24 @@ export function useChapterPagination() {
         lastChapterEndedOnLeft.value = false;
     };
 
+    const updateChapterInlineImages = (chapterId: string, inlineImages: InlineImage[]): void => {
+        // Update current chapter if it matches
+        if (currentChapter.value && currentChapter.value.id === chapterId) {
+            currentChapter.value = {
+                ...currentChapter.value,
+                inline_images: inlineImages,
+            };
+        }
+        
+        // Update next chapter data if it matches
+        if (nextChapterData.value && nextChapterData.value.id === chapterId) {
+            nextChapterData.value = {
+                ...nextChapterData.value,
+                inline_images: inlineImages,
+            };
+        }
+    };
+
     return {
         currentChapterNumber,
         currentChapter,
@@ -535,6 +555,7 @@ export function useChapterPagination() {
         goToTableOfContents,
         jumpToChapter,
         resetChapterState,
+        updateChapterInlineImages,
     };
 }
 

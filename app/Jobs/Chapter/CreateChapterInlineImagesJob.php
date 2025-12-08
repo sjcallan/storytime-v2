@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Chapter;
 
+use App\Events\Chapter\ChapterInlineImagesCreatedEvent;
 use App\Models\Chapter;
 use App\Services\Builder\ChapterBuilderService;
 use App\Services\Chapter\ChapterService;
@@ -71,6 +72,16 @@ class CreateChapterInlineImagesJob implements ShouldQueue
             'chapter_id' => $this->chapter->id,
             'images_generated' => count($inlineImages),
         ]);
+
+        if (! empty($inlineImages)) {
+            $this->chapter->refresh();
+            ChapterInlineImagesCreatedEvent::dispatch($this->chapter);
+
+            Log::info('[CreateChapterInlineImagesJob] Dispatched inline images created event', [
+                'chapter_id' => $this->chapter->id,
+                'book_id' => $this->chapter->book_id,
+            ]);
+        }
     }
 
     /**

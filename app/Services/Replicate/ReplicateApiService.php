@@ -12,7 +12,9 @@ class ReplicateApiService
 
     protected string $baseUrl = 'https://api.replicate.com/v1';
 
-    protected string $model = 'black-forest-labs/flux-2-pro';
+    protected string $defaultModel = 'black-forest-labs/flux-2-pro';
+
+    protected string $kreaModel = 'black-forest-labs/flux-krea-dev';
 
     public function __construct()
     {
@@ -47,6 +49,7 @@ class ReplicateApiService
         }
 
         Log::debug('Replicate API: Making request', [
+            'model' => $this->defaultModel,
             'prompt_length' => strlen($prompt),
             'prompt_preview' => substr($prompt, 0, 150),
             'aspect_ratio' => $aspectRatio,
@@ -54,10 +57,11 @@ class ReplicateApiService
             'input_images_count' => isset($input['input_images']) ? count($input['input_images']) : 0,
         ]);
 
-        $response = $this->makeRequestWithRetry($input);
+        $response = $this->makeRequestWithRetry($this->defaultModel, $input);
 
         if ($response->failed()) {
             Log::error('Replicate API error', [
+                'model' => $this->defaultModel,
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
@@ -77,22 +81,96 @@ class ReplicateApiService
     }
 
     /**
+     * Generate an image using the Flux Krea Dev model with enhanced parameters.
+     * Best for realistic, high-quality photographic images.
+     *
+     * @param  string  $prompt  The text prompt for image generation
+     * @param  string  $aspectRatio  The aspect ratio for the generated image (default: 1:1)
+     * @return array{url: string|null, error: string|null}
+     */
+    public function generateImageWithKrea(
+        string $prompt,
+        string $aspectRatio = '1:1'
+    ): array {
+        $input = [
+            'prompt' => $prompt,
+            'go_fast' => true,
+            'guidance' => 2.5,
+            'megapixels' => '1',
+            'num_outputs' => 1,
+            'aspect_ratio' => $aspectRatio,
+            'disable_safety_checker' => true,
+            'output_format' => 'webp',
+            'output_quality' => 95,
+            'prompt_strength' => 0.8,
+            'num_inference_steps' => 28,
+        ];
+
+        Log::debug('Replicate API: Making request with Krea model', [
+            'model' => $this->kreaModel,
+            'prompt_length' => strlen($prompt),
+            'prompt_preview' => substr($prompt, 0, 150),
+            'aspect_ratio' => $aspectRatio,
+            'guidance' => $input['guidance'],
+        ]);
+
+        $response = $this->makeRequestWithRetry($this->kreaModel, $input);
+
+        if ($response->failed()) {
+            Log::error('Replicate API error with Krea model', [
+                'model' => $this->kreaModel,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return [
+                'url' => null,
+                'error' => $response->json('detail') ?? 'Failed to generate image',
+            ];
+        }
+
+        $data = $response->json();
+        $output = $data['output'] ?? null;
+
+        // Krea model returns an array of URLs, extract the first one
+        if (is_array($output) && count($output) > 0) {
+            $url = $output[0];
+        } else {
+            $url = $output;
+        }
+
+        Log::debug('Replicate API: Krea model response processed', [
+            'output_is_array' => is_array($output),
+            'output_count' => is_array($output) ? count($output) : 0,
+            'extracted_url' => $url,
+        ]);
+
+        return [
+            'url' => $url,
+            'error' => null,
+        ];
+    }
+
+    /**
      * Make a request to the Replicate API with retry logic for rate limiting.
      *
+     * @param  string  $model  The model identifier to use
      * @param  array<string, mixed>  $input
      */
-    protected function makeRequestWithRetry(array $input, int $maxRetries = 3): Response
+    protected function makeRequestWithRetry(string $model, array $input, int $maxRetries = 3): Response
     {
         $attempt = 0;
 
         while ($attempt <= $maxRetries) {
-            $response = $this->makeRequest($input);
+            $response = $this->makeRequest($model, $input);
 
             if ($response->status() === 429) {
                 $attempt++;
 
                 if ($attempt > $maxRetries) {
-                    Log::warning('Replicate API: Max retries reached for rate limit');
+                    Log::warning('Replicate API: Max retries reached for rate limit', [
+                        'model' => $model,
+                    ]);
 
                     return $response;
                 }
@@ -101,6 +179,7 @@ class ReplicateApiService
                 $waitSeconds = max($waitTime + 1, 5);
 
                 Log::info('Replicate API: Rate limited, waiting before retry', [
+                    'model' => $model,
                     'attempt' => $attempt,
                     'max_retries' => $maxRetries,
                     'wait_seconds' => $waitSeconds,
@@ -114,7 +193,7 @@ class ReplicateApiService
             return $response;
         }
 
-        return $this->makeRequest($input);
+        return $this->makeRequest($model, $input);
     }
 
     /**
@@ -136,15 +215,16 @@ class ReplicateApiService
     /**
      * Make a request to the Replicate API.
      *
+     * @param  string  $model  The model identifier to use
      * @param  array<string, mixed>  $input
      */
-    protected function makeRequest(array $input): Response
+    protected function makeRequest(string $model, array $input): Response
     {
         return Http::withHeaders([
             'Authorization' => 'Bearer '.$this->apiKey,
             'Content-Type' => 'application/json',
             'Prefer' => 'wait',
-        ])->timeout(120)->post("{$this->baseUrl}/models/{$this->model}/predictions", [
+        ])->timeout(120)->post("{$this->baseUrl}/models/{$model}/predictions", [
             'input' => $input,
         ]);
     }

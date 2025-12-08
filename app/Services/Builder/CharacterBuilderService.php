@@ -139,8 +139,8 @@ class CharacterBuilderService extends BuilderService
             ],
         ];
 
-        $this->chatService->setContext($this->getPersonaPrompt($bookId).' Imagine the characters, respond using json format: "'.json_encode($characterTemplate).'"');
-        $this->chatService->setTemperature(.25);
+        $this->chatService->setContext($this->getPersonaPrompt($bookId).' Imagine no more than 4 primary characters based on the plot of this book, respond using json format: "'.json_encode($characterTemplate).'"');
+        $this->chatService->setModel('gpt-4.1');
         $this->chatService->setResponseFormat('json_object');
         $this->chatService->addUserMessage('Who are the characters?');
         $this->chatService->addAssistantMessage($userCharacters);
@@ -156,7 +156,7 @@ class CharacterBuilderService extends BuilderService
 
     protected function getCharacterPrompt(): string
     {
-        $message = 'Who are all the characters? Create a valid json array, one object per character in this chapter each formatted like: {name:"",description:"",gender:"",age:"",nationality:"",thoughts:"",motivations:"",goals:"",experience:""}'
+        $message = 'Who are the characters? Create a valid json array, one object per character in this chapter each formatted like: {name:"",description:"",gender:"",age:"",nationality:"",thoughts:"",motivations:"",goals:"",experience:""}'
             .' replace name with the character\'s name.'
             .' for description: a physical description of this character'
             .' for gender: the sex of this character, choose: male or female'

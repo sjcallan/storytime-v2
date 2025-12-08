@@ -25,6 +25,7 @@ class Character extends Model
         'nationality',
         'backstory',
         'portrait_image',
+        'portrait_image_prompt',
     ];
 
     public function user(): BelongsTo

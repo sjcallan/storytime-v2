@@ -107,8 +107,9 @@ function escapeHtml(text: string): string {
 
 export interface InlineImage {
     paragraph_index: number;
-    url: string;
+    url: string | null;
     prompt: string;
+    status?: 'pending' | 'complete';
 }
 
 export interface Chapter {
@@ -139,7 +140,8 @@ export interface CardPosition {
 export interface PageContentItem {
     type: 'paragraph' | 'image';
     content: string;
-    imageUrl?: string;
+    imageUrl?: string | null;
+    imageStatus?: 'pending' | 'complete';
 }
 
 export interface PageSpread {

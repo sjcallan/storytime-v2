@@ -71,10 +71,10 @@ class BookService
 
         $metaData = $this->getBookBuilderService()->getBookMetaData($bookId, $userCharacters);
 
-        if (! empty($metaData['title'])) {
-            $this->updateById($bookId, ['title' => $metaData['title']]);
-            Log::info("Book title updated: {$metaData['title']}");
-        }
+        $this->updateById($bookId, [
+            'title' => $metaData['title'],
+            'summary' => $metaData['summary'],
+        ]);
 
         if (! empty($metaData['characters'])) {
             $this->saveBookCharacters($book, $metaData['characters']);
@@ -102,7 +102,7 @@ class BookService
                 'description' => $characterData['description'] ?? '',
                 'gender' => $characterData['gender'] ?? '',
                 'age' => $characterData['age'] ?? '',
-                'backstory' => '',
+                'backstory' => $characterData['backstory'] ?? '',
                 'nationality' => $characterData['nationality'] ?? '',
             ]);
         }

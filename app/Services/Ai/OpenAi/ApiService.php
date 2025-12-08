@@ -210,6 +210,7 @@ class ApiService implements AiApiServiceInterface
             'model' => $this->model,
             'messages' => $messages,
             'temperature' => $this->temperature,
+            'max_tokens' => $this->maxTokens,
         ];
 
         if ($this->responseFormat !== 'text') {
@@ -235,7 +236,7 @@ class ApiService implements AiApiServiceInterface
 
         try {
             $httpResponse = Http::withToken($this->apiKey)
-                ->timeout(120)
+                ->timeout(360)
                 ->post($url, $settings);
         } catch (\Exception $e) {
             $this->setEndTime();
@@ -345,7 +346,7 @@ class ApiService implements AiApiServiceInterface
      */
     public function setModel(string $model): void
     {
-        $allowedModels = ['gpt-4.1', 'gpt-5.1', 'gpt-4o-mini', 'gpt-4.1-mini'];
+        $allowedModels = ['gpt-4.1', 'gpt-4.1', 'gpt-5.1', 'gpt-4o-mini', 'gpt-4.1-mini'];
 
         if (in_array($model, $allowedModels)) {
             $this->model = $model;

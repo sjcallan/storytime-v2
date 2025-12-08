@@ -23,6 +23,7 @@ const emit = defineEmits<{
     (e: 'update:prompt', value: string): void;
     (e: 'update:isFinalChapter', value: boolean): void;
     (e: 'generate'): void;
+    (e: 'textareaFocused', value: boolean): void;
 }>();
 
 const chapterLabel = computed(() => getChapterLabel(props.bookType));
@@ -271,8 +272,8 @@ onUnmounted(() => {
                 </h2>
                 <p class="mt-2 text-base text-stone-600 dark:text-stone-700">
                     {{ isScript 
-                        ? `What happens in the next scene? Share your ideas below.`
-                        : `What adventure awaits in the next chapter? Share your ideas below.` 
+                        ? `What happens in the next scene? Share your ideas below. (or leave empty for a surprise!)`
+                        : `What adventure awaits in the next chapter? Share your ideas below. (or leave empty for a surprise!)` 
                     }}
                 </p>
             </div>
@@ -300,6 +301,8 @@ onUnmounted(() => {
                 <Textarea
                     :model-value="prompt"
                     @update:model-value="emit('update:prompt', String($event))"
+                    @focus="emit('textareaFocused', true)"
+                    @blur="emit('textareaFocused', false)"
                     :placeholder="placeholderText"
                     rows="4"
                     :disabled="isGenerating || isRecording || isTranscribing"
@@ -312,9 +315,6 @@ onUnmounted(() => {
                                 : 'placeholder:text-stone-400 dark:placeholder:text-stone-500'
                     ]"
                 />
-                <p class="text-center text-sm text-stone-500 dark:text-stone-600">
-                    {{ props.suggestedPlaceholder ? 'Continue the thought above, or write your own!' : 'Optional — leave empty for a surprise!' }}
-                </p>
             </div>
             
             <!-- Voice Recording Section -->

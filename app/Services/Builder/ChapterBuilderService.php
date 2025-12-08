@@ -109,6 +109,23 @@ class ChapterBuilderService extends BuilderService
 
             $sceneImages = $chapterContent['scene_images'] ?? [];
 
+            // Store pending placeholders for inline images so frontend can show loading state
+            if (! empty($sceneImages) && is_array($sceneImages)) {
+                $pendingImages = [];
+                foreach ($sceneImages as $index => $scene) {
+                    $paragraphIndex = is_numeric($scene['paragraph_index'] ?? null)
+                        ? (int) $scene['paragraph_index']
+                        : $index * 2;
+                    $pendingImages[] = [
+                        'paragraph_index' => $paragraphIndex,
+                        'url' => null,
+                        'prompt' => $scene['prompt'] ?? '',
+                        'status' => 'pending',
+                    ];
+                }
+                $data['inline_images'] = $pendingImages;
+            }
+
             Log::info('[ChapterBuilderService::buildChapter] Updating chapter with final data', [
                 'chapter_id' => $chapter->id,
                 'status' => 'complete',
@@ -117,6 +134,7 @@ class ChapterBuilderService extends BuilderService
                 'has_title' => ! empty($data['title']),
                 'has_image_prompt' => ! empty($data['image_prompt']),
                 'scene_images_count' => count($sceneImages),
+                'pending_inline_images' => count($data['inline_images'] ?? []),
             ]);
 
             $chapter = $this->chapterService->updateById($chapter->id, $data);
@@ -362,10 +380,51 @@ class ChapterBuilderService extends BuilderService
             'scene_count' => count($scenePrompts),
         ]);
 
-        $book = $this->bookService->getById($bookId, null, ['with' => ['characters']]);
+        $book = $this->bookService->getById($bookId, null, ['with' => ['characters', 'chapters']]);
         $style = $this->getSceneImageStylePrefix($book);
 
         $characterImages = [];
+
+        // Add book cover image first
+        if ($book->cover_image) {
+            $coverUrl = $book->cover_image;
+            if (! str_starts_with($coverUrl, 'http')) {
+                $coverUrl = $this->getCloudFrontImageUrl($coverUrl);
+            }
+            if ($coverUrl) {
+                $characterImages[] = $coverUrl;
+                Log::debug('[ChapterBuilderService::generateChapterImages] Added book cover image', [
+                    'cover_url' => $coverUrl,
+                ]);
+            }
+        }
+
+        // Add last inline chapter image
+        $lastInlineImage = null;
+        foreach ($book->chapters->sortByDesc('sort') as $chapter) {
+            if ($chapter->inline_images && is_array($chapter->inline_images)) {
+                foreach (array_reverse($chapter->inline_images) as $image) {
+                    if (! empty($image['url']) && isset($image['status']) && $image['status'] !== 'pending') {
+                        $lastInlineImage = $image['url'];
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        if ($lastInlineImage) {
+            if (! str_starts_with($lastInlineImage, 'http')) {
+                $lastInlineImage = $this->getCloudFrontImageUrl($lastInlineImage);
+            }
+            if ($lastInlineImage) {
+                $characterImages[] = $lastInlineImage;
+                Log::debug('[ChapterBuilderService::generateChapterImages] Added last inline chapter image', [
+                    'image_url' => $lastInlineImage,
+                ]);
+            }
+        }
+
+        // Add character portraits
         if ($book->characters) {
             foreach ($book->characters as $character) {
                 if ($character->portrait_image) {
@@ -385,9 +444,9 @@ class ChapterBuilderService extends BuilderService
             }
         }
 
-        Log::info('[ChapterBuilderService::generateChapterImages] Character portraits collected', [
-            'character_images_count' => count($characterImages),
-            'character_image_urls' => $characterImages,
+        Log::info('[ChapterBuilderService::generateChapterImages] Reference images collected', [
+            'total_reference_images' => count($characterImages),
+            'reference_image_urls' => $characterImages,
         ]);
 
         $inlineImages = [];

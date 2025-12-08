@@ -1,9 +1,4 @@
 <script setup lang="ts">
-import { ref, computed, watch, inject, onUnmounted } from 'vue';
-import { router, usePage } from '@inertiajs/vue3';
-import { apiFetch } from '@/composables/ApiFetch';
-import { echo } from '@laravel/echo-vue';
-import type { Profile } from '@/types';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,25 +10,28 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
-import { 
-    Sparkles, 
-    BookOpen, 
-    Users, 
-    Wand2, 
-    ChevronLeft, 
-    ChevronRight, 
-    Plus, 
-    Trash2,
-    User,
+import { Textarea } from '@/components/ui/textarea';
+import { apiFetch } from '@/composables/ApiFetch';
+import { useCreateStoryModal } from '@/composables/useCreateStoryModal';
+import type { Profile } from '@/types';
+import { router, usePage } from '@inertiajs/vue3';
+import { echo } from '@laravel/echo-vue';
+import {
+    BookOpen,
     Check,
+    ChevronLeft,
+    ChevronRight,
     Mic,
-    MicOff,
+    Plus,
+    Sparkles,
     Square,
-    X
+    Trash2,
+    Users,
+    Wand2,
+    X,
 } from 'lucide-vue-next';
+import { computed, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps<{
     defaultGenre: string | null;
@@ -43,7 +41,12 @@ const isOpen = defineModel<boolean>('isOpen');
 
 // Get current profile from page props for default age group
 const page = usePage();
-const currentProfile = computed(() => page.props.auth?.currentProfile as Profile | null);
+const currentProfile = computed(
+    () => page.props.auth?.currentProfile as Profile | null,
+);
+
+// Use composable for story creation callback
+const { setCreatedBook } = useCreateStoryModal();
 
 // localStorage key for story preferences
 const STORAGE_KEY = 'create-story-preferences';
@@ -57,21 +60,21 @@ interface StoredPreferences {
 
 const savePreferences = () => {
     if (!currentProfile.value?.id) return;
-    
+
     const preferences: StoredPreferences = {
         profileId: currentProfile.value.id,
         type: formData.value.type,
         genre: formData.value.genre,
         age_level: formData.value.age_level,
     };
-    
+
     localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
 };
 
 const loadPreferences = (): Partial<StoredPreferences> | null => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return null;
-    
+
     try {
         const preferences = JSON.parse(stored) as StoredPreferences;
         if (preferences.profileId === currentProfile.value?.id) {
@@ -148,46 +151,60 @@ const setupPortraitListener = (characterId: string) => {
         console.log('[Echo] Skipping listener for temp ID:', characterId);
         return;
     }
-    
+
     // Don't add duplicate listeners
     if (activeListeners.value.has(characterId)) {
         console.log('[Echo] Listener already exists for:', characterId);
         return;
     }
-    
+
     try {
         // Subscribe to the private characters channel if not already
         if (!echoChannel.value) {
             console.log('[Echo] Subscribing to private channel: characters');
             echoChannel.value = echo().private('characters');
-            
+
             // Log when successfully subscribed
             echoChannel.value.subscribed(() => {
-                console.log('[Echo] Successfully subscribed to characters channel');
+                console.log(
+                    '[Echo] Successfully subscribed to characters channel',
+                );
             });
-            
+
             // Log subscription errors
             echoChannel.value.error((error: unknown) => {
                 console.error('[Echo] Channel subscription error:', error);
             });
         }
-        
+
         // Listen for this character's portrait-created event
         const eventName = `.character.${characterId}.portrait-created`;
         console.log('[Echo] Setting up listener for event:', eventName);
-        
-        echoChannel.value.listen(eventName, (payload: PortraitCreatedPayload) => {
-            console.log('[Echo] Received portrait-created event:', payload);
-            // Find and update the character's portrait_image
-            const charIndex = characters.value.findIndex(c => c.id === payload.id);
-            if (charIndex !== -1) {
-                console.log('[Echo] Updating character portrait at index:', charIndex);
-                characters.value[charIndex].portrait_image = payload.portrait_image;
-            } else {
-                console.log('[Echo] Character not found in list for ID:', payload.id);
-            }
-        });
-        
+
+        echoChannel.value.listen(
+            eventName,
+            (payload: PortraitCreatedPayload) => {
+                console.log('[Echo] Received portrait-created event:', payload);
+                // Find and update the character's portrait_image
+                const charIndex = characters.value.findIndex(
+                    (c) => c.id === payload.id,
+                );
+                if (charIndex !== -1) {
+                    console.log(
+                        '[Echo] Updating character portrait at index:',
+                        charIndex,
+                    );
+                    characters.value[charIndex].portrait_image =
+                        payload.portrait_image;
+                } else {
+                    console.log(
+                        '[Echo] Character not found in list for ID:',
+                        payload.id,
+                    );
+                }
+            },
+        );
+
         activeListeners.value.add(characterId);
         console.log('[Echo] Listener setup complete for:', characterId);
     } catch (err) {
@@ -199,7 +216,7 @@ const cleanupPortraitListener = (characterId: string) => {
     if (!echoChannel.value || !activeListeners.value.has(characterId)) {
         return;
     }
-    
+
     try {
         const eventName = `.character.${characterId}.portrait-created`;
         echoChannel.value.stopListening(eventName);
@@ -211,7 +228,7 @@ const cleanupPortraitListener = (characterId: string) => {
 
 const cleanupAllListeners = () => {
     if (echoChannel.value) {
-        activeListeners.value.forEach(characterId => {
+        activeListeners.value.forEach((characterId) => {
             const eventName = `.character.${characterId}.portrait-created`;
             try {
                 echoChannel.value?.stopListening(eventName);
@@ -220,7 +237,7 @@ const cleanupAllListeners = () => {
             }
         });
         activeListeners.value.clear();
-        
+
         try {
             echo().leave('characters');
         } catch (err) {
@@ -231,24 +248,28 @@ const cleanupAllListeners = () => {
 };
 
 // Watch for character changes to setup/cleanup listeners
-watch(characters, (newChars, oldChars) => {
-    // Setup listeners for new characters (only those with real IDs from backend)
-    newChars.forEach(char => {
-        if (!char.id.startsWith('temp-')) {
-            setupPortraitListener(char.id);
-        }
-    });
-    
-    // Cleanup listeners for removed characters
-    if (oldChars) {
-        const newIds = new Set(newChars.map(c => c.id));
-        oldChars.forEach(char => {
-            if (!newIds.has(char.id)) {
-                cleanupPortraitListener(char.id);
+watch(
+    characters,
+    (newChars, oldChars) => {
+        // Setup listeners for new characters (only those with real IDs from backend)
+        newChars.forEach((char) => {
+            if (!char.id.startsWith('temp-')) {
+                setupPortraitListener(char.id);
             }
         });
-    }
-}, { deep: true });
+
+        // Cleanup listeners for removed characters
+        if (oldChars) {
+            const newIds = new Set(newChars.map((c) => c.id));
+            oldChars.forEach((char) => {
+                if (!newIds.has(char.id)) {
+                    cleanupPortraitListener(char.id);
+                }
+            });
+        }
+    },
+    { deep: true },
+);
 
 // Cleanup on unmount
 onUnmounted(() => {
@@ -267,14 +288,15 @@ const showCloseConfirm = ref(false);
 
 const requestClose = () => {
     // Check if user has entered any data
-    const hasData = formData.value.type || 
-                    formData.value.genre || 
-                    formData.value.age_level || 
-                    formData.value.plot || 
-                    formData.value.first_chapter_prompt || 
-                    formData.value.scene || 
-                    characters.value.length > 0;
-    
+    const hasData =
+        formData.value.type ||
+        formData.value.genre ||
+        formData.value.age_level ||
+        formData.value.plot ||
+        formData.value.first_chapter_prompt ||
+        formData.value.scene ||
+        characters.value.length > 0;
+
     if (hasData && !processing.value) {
         showCloseConfirm.value = true;
     } else {
@@ -314,17 +336,30 @@ const audioLevels = ref<number[]>(Array(12).fill(0));
 
 const PLOT_MAX_LENGTH = 2000;
 
-// Metadata & character generation state
-const isGeneratingMetadata = ref(false);
-const metadataStatus = ref('');
-const isFindingCharacters = ref(false);
+// Character generation state
 const hasAIGeneratedCharacters = ref(false);
 
 const bookTypes = [
-    { value: 'chapter', label: '📚 Chapter Book', description: 'A longer story with multiple chapters' },
-    { value: 'theatre', label: '🎭 Theatre Play', description: 'A story written as a play with acts' },
-    { value: 'story', label: '📖 Short Story', description: 'A quick adventure in one sitting' },
-    { value: 'screenplay', label: '🎬 Screenplay', description: 'A story written for the screen' },
+    {
+        value: 'chapter',
+        label: '📚 Chapter Book',
+        description: 'A longer story with multiple chapters',
+    },
+    {
+        value: 'theatre',
+        label: '🎭 Theatre Play',
+        description: 'A story written as a play with acts',
+    },
+    {
+        value: 'story',
+        label: '📖 Short Story',
+        description: 'A quick adventure in one sitting',
+    },
+    {
+        value: 'screenplay',
+        label: '🎬 Screenplay',
+        description: 'A story written for the screen',
+    },
 ];
 
 const baseGenres = [
@@ -346,9 +381,13 @@ const matureGenres = [
 ];
 
 const genres = computed(() => {
-    const adultGenresEnabled = (page.props.config as { storytime: { adult_genres_enabled: boolean } })?.storytime?.adult_genres_enabled ?? false;
+    const adultGenresEnabled =
+        (page.props.config as { storytime: { adult_genres_enabled: boolean } })
+            ?.storytime?.adult_genres_enabled ?? false;
     const isAdult = formData.value.age_level === '18';
-    return isAdult && adultGenresEnabled ? [...baseGenres, ...matureGenres] : baseGenres;
+    return isAdult && adultGenresEnabled
+        ? [...baseGenres, ...matureGenres]
+        : baseGenres;
 });
 
 const ageLevels = [
@@ -378,28 +417,32 @@ const stepInfo = computed(() => {
             return {
                 icon: Sparkles,
                 title: "Let's Start Your Adventure!",
-                description: "First, tell us what kind of story you want to create.",
+                description:
+                    'First, tell us what kind of story you want to create.',
                 color: 'from-violet-500 to-purple-600',
             };
         case 2:
             return {
                 icon: BookOpen,
                 title: "What's Your Story About?",
-                description: "Every great story starts with an idea. What's yours?",
+                description:
+                    "Every great story starts with an idea. What's yours?",
                 color: 'from-blue-500 to-cyan-600',
             };
         case 3:
             return {
                 icon: Wand2,
                 title: 'Set the Scene!',
-                description: "How does your adventure begin? Set up the opening scene.",
+                description:
+                    'How does your adventure begin? Set up the opening scene.',
                 color: 'from-amber-500 to-orange-600',
             };
         case 4:
             return {
                 icon: Users,
                 title: 'Create Your Characters!',
-                description: "Who will be in your story? Add as many characters as you'd like!",
+                description:
+                    "Who will be in your story? Add as many characters as you'd like!",
                 color: 'from-emerald-500 to-teal-600',
             };
         default:
@@ -415,7 +458,11 @@ const stepInfo = computed(() => {
 const canProceed = computed(() => {
     switch (currentStep.value) {
         case 1:
-            return formData.value.type && formData.value.genre && formData.value.age_level;
+            return (
+                formData.value.type &&
+                formData.value.genre &&
+                formData.value.age_level
+            );
         case 2:
             return formData.value.plot.trim().length > 0;
         case 3:
@@ -427,17 +474,21 @@ const canProceed = computed(() => {
     }
 });
 
-const resetForm = (genre: string | null = null, loadFromStorage: boolean = false) => {
+const resetForm = (
+    genre: string | null = null,
+    loadFromStorage: boolean = false,
+) => {
     // Clean up Echo listeners before resetting characters
     cleanupAllListeners();
-    
+
     // Try to load saved preferences if requested
     const savedPrefs = loadFromStorage ? loadPreferences() : null;
-    
+
     formData.value = {
         type: savedPrefs?.type ?? '',
         genre: genre ?? savedPrefs?.genre ?? '',
-        age_level: savedPrefs?.age_level ?? currentProfile.value?.age_group ?? '',
+        age_level:
+            savedPrefs?.age_level ?? currentProfile.value?.age_group ?? '',
         plot: '',
         first_chapter_prompt: '',
         scene: '',
@@ -450,9 +501,6 @@ const resetForm = (genre: string | null = null, loadFromStorage: boolean = false
     currentStep.value = 1;
     bookId.value = null;
     isSaving.value = false;
-    isFindingCharacters.value = false;
-    isGeneratingMetadata.value = false;
-    metadataStatus.value = '';
     hasAIGeneratedCharacters.value = false;
 };
 
@@ -466,7 +514,9 @@ const createBook = async (): Promise<boolean> => {
         const { data, error } = await requestApiFetch('/api/books', 'POST', {
             type: formData.value.type,
             genre: formData.value.genre,
-            age_level: formData.value.age_level ? parseInt(formData.value.age_level) : null,
+            age_level: formData.value.age_level
+                ? parseInt(formData.value.age_level)
+                : null,
             plot: formData.value.plot,
             first_chapter_prompt: formData.value.first_chapter_prompt,
             scene: formData.value.scene,
@@ -476,13 +526,54 @@ const createBook = async (): Promise<boolean> => {
         if (error) {
             const message = extractErrorMessage(error);
             console.error('[CreateBook] API error:', message);
-            errors.value = { general: message ?? 'Failed to create book. Please try again.' };
+            errors.value = {
+                general: message ?? 'Failed to create book. Please try again.',
+            };
             return false;
         }
 
         if (data && typeof data === 'object' && 'id' in data) {
-            bookId.value = (data as { id: string }).id;
-            console.log('[CreateBook] Book created successfully, bookId:', bookId.value);
+            const book = data as {
+                id: string;
+                characters?: Array<{
+                    id: string;
+                    name: string;
+                    age: string;
+                    gender: string;
+                    description: string;
+                    backstory: string;
+                    portrait_image?: string | null;
+                }>;
+            };
+
+            bookId.value = book.id;
+            console.log(
+                '[CreateBook] Book created successfully, bookId:',
+                bookId.value,
+            );
+
+            // Extract AI-generated characters from response
+            if (book.characters && book.characters.length > 0) {
+                console.log(
+                    '[CreateBook] Characters received:',
+                    book.characters.length,
+                );
+                characters.value = book.characters.map((char) => ({
+                    id: char.id,
+                    name: char.name || '',
+                    age: String(char.age ?? ''),
+                    gender: char.gender || '',
+                    description: char.description || '',
+                    backstory: char.backstory || '',
+                    portrait_image: char.portrait_image || null,
+                }));
+                hasAIGeneratedCharacters.value = true;
+                console.log(
+                    '[CreateBook] Characters loaded:',
+                    characters.value.length,
+                );
+            }
+
             return true;
         }
 
@@ -490,7 +581,9 @@ const createBook = async (): Promise<boolean> => {
         return false;
     } catch (err) {
         console.error('[CreateBook] Exception:', err);
-        errors.value = { general: 'An unexpected error occurred. Please try again.' };
+        errors.value = {
+            general: 'An unexpected error occurred. Please try again.',
+        };
         return false;
     } finally {
         isSaving.value = false;
@@ -506,7 +599,11 @@ const updateBook = async (data: Record<string, unknown>): Promise<boolean> => {
     isSaving.value = true;
 
     try {
-        const { error } = await requestApiFetch(`/api/books/${bookId.value}`, 'PUT', data);
+        const { error } = await requestApiFetch(
+            `/api/books/${bookId.value}`,
+            'PUT',
+            data,
+        );
 
         if (error) {
             const message = extractErrorMessage(error);
@@ -524,20 +621,33 @@ const updateBook = async (data: Record<string, unknown>): Promise<boolean> => {
 };
 
 // Save a single character to the book
-const saveCharacterToBook = async (character: Omit<Character, 'id'>): Promise<Character | null> => {
-    console.log('[SaveCharacter] Attempting to save character:', character.name, 'bookId:', bookId.value);
-    
+const saveCharacterToBook = async (
+    character: Omit<Character, 'id'>,
+): Promise<Character | null> => {
+    console.log(
+        '[SaveCharacter] Attempting to save character:',
+        character.name,
+        'bookId:',
+        bookId.value,
+    );
+
     if (!bookId.value) {
-        console.error('[SaveCharacter] Cannot save character - bookId is not set!');
+        console.error(
+            '[SaveCharacter] Cannot save character - bookId is not set!',
+        );
         return null;
     }
 
     try {
-        const { data, error } = await requestApiFetch('/api/characters', 'POST', {
-            ...character,
-            book_id: bookId.value,
-            type: 'user',
-        });
+        const { data, error } = await requestApiFetch(
+            '/api/characters',
+            'POST',
+            {
+                ...character,
+                book_id: bookId.value,
+                type: 'user',
+            },
+        );
 
         if (error) {
             console.error('[SaveCharacter] API error saving character:', error);
@@ -545,7 +655,10 @@ const saveCharacterToBook = async (character: Omit<Character, 'id'>): Promise<Ch
         }
 
         if (data && typeof data === 'object' && 'id' in data) {
-            console.log('[SaveCharacter] Character saved successfully:', (data as Character).id);
+            console.log(
+                '[SaveCharacter] Character saved successfully:',
+                (data as Character).id,
+            );
             return data as Character;
         }
 
@@ -558,11 +671,18 @@ const saveCharacterToBook = async (character: Omit<Character, 'id'>): Promise<Ch
 };
 
 // Update an existing character
-const updateCharacterInBook = async (characterId: string, character: Omit<Character, 'id'>): Promise<boolean> => {
+const updateCharacterInBook = async (
+    characterId: string,
+    character: Omit<Character, 'id'>,
+): Promise<boolean> => {
     try {
-        const { error } = await requestApiFetch(`/api/characters/${characterId}`, 'PUT', {
-            ...character,
-        });
+        const { error } = await requestApiFetch(
+            `/api/characters/${characterId}`,
+            'PUT',
+            {
+                ...character,
+            },
+        );
 
         if (error) {
             console.error('Error updating character:', error);
@@ -577,14 +697,19 @@ const updateCharacterInBook = async (characterId: string, character: Omit<Charac
 };
 
 // Delete a character from the book
-const deleteCharacterFromBook = async (characterId: string): Promise<boolean> => {
+const deleteCharacterFromBook = async (
+    characterId: string,
+): Promise<boolean> => {
     // Only delete if it's a real ID (not temp- prefix for unsaved characters)
     if (characterId.startsWith('temp-')) {
         return true;
     }
 
     try {
-        const { error } = await requestApiFetch(`/api/characters/${characterId}`, 'DELETE');
+        const { error } = await requestApiFetch(
+            `/api/characters/${characterId}`,
+            'DELETE',
+        );
 
         if (error) {
             console.error('Error deleting character:', error);
@@ -628,25 +753,27 @@ const formatRecordingTime = (seconds: number): string => {
 
 const updateAudioLevels = () => {
     if (!analyser.value) return;
-    
+
     const dataArray = new Uint8Array(analyser.value.frequencyBinCount);
     analyser.value.getByteFrequencyData(dataArray);
-    
+
     // Sample different frequency ranges for visualization
     const binSize = Math.floor(dataArray.length / 12);
-    const newLevels = Array(12).fill(0).map((_, i) => {
-        const start = i * binSize;
-        const end = start + binSize;
-        let sum = 0;
-        for (let j = start; j < end; j++) {
-            sum += dataArray[j];
-        }
-        // Normalize to 0-100 range with some boosting for visibility
-        return Math.min(100, (sum / binSize) * 0.6);
-    });
-    
+    const newLevels = Array(12)
+        .fill(0)
+        .map((_, i) => {
+            const start = i * binSize;
+            const end = start + binSize;
+            let sum = 0;
+            for (let j = start; j < end; j++) {
+                sum += dataArray[j];
+            }
+            // Normalize to 0-100 range with some boosting for visibility
+            return Math.min(100, (sum / binSize) * 0.6);
+        });
+
     audioLevels.value = newLevels;
-    
+
     if (isRecording.value) {
         animationFrameId.value = requestAnimationFrame(updateAudioLevels);
     }
@@ -654,70 +781,75 @@ const updateAudioLevels = () => {
 
 const startRecording = async () => {
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+        });
+
         // Set up audio context for visualization
         audioContext.value = new AudioContext();
         analyser.value = audioContext.value.createAnalyser();
         analyser.value.fftSize = 256;
-        
+
         const source = audioContext.value.createMediaStreamSource(stream);
         source.connect(analyser.value);
-        
+
         mediaRecorder.value = new MediaRecorder(stream, {
-            mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+            mimeType: MediaRecorder.isTypeSupported('audio/webm')
+                ? 'audio/webm'
+                : 'audio/mp4',
         });
-        
+
         audioChunks.value = [];
         recordingDuration.value = 0;
-        
+
         mediaRecorder.value.ondataavailable = (event) => {
             if (event.data.size > 0) {
                 audioChunks.value.push(event.data);
             }
         };
-        
+
         mediaRecorder.value.onstop = async () => {
-            stream.getTracks().forEach(track => track.stop());
-            
+            stream.getTracks().forEach((track) => track.stop());
+
             if (recordingInterval.value) {
                 clearInterval(recordingInterval.value);
                 recordingInterval.value = null;
             }
-            
+
             if (animationFrameId.value) {
                 cancelAnimationFrame(animationFrameId.value);
                 animationFrameId.value = null;
             }
-            
+
             if (audioContext.value) {
                 audioContext.value.close();
                 audioContext.value = null;
             }
-            
+
             audioLevels.value = Array(12).fill(0);
-            
+
             if (audioChunks.value.length > 0) {
                 await transcribeAudio();
             }
         };
-        
+
         mediaRecorder.value.start(1000);
         isRecording.value = true;
-        
+
         // Start visualization
         updateAudioLevels();
-        
+
         recordingInterval.value = setInterval(() => {
             recordingDuration.value++;
             if (recordingDuration.value >= 60) {
                 stopRecording();
             }
         }, 1000);
-        
     } catch (err) {
         console.error('Failed to start recording:', err);
-        errors.value = { plot: 'Could not access microphone. Please check your permissions.' };
+        errors.value = {
+            plot: 'Could not access microphone. Please check your permissions.',
+        };
     }
 };
 
@@ -731,41 +863,54 @@ const stopRecording = () => {
 const transcribeAudio = async () => {
     isTranscribing.value = true;
     transcribeStatus.value = 'Preparing your recording...';
-    
+
     try {
         const mimeType = mediaRecorder.value?.mimeType || 'audio/webm';
         const audioBlob = new Blob(audioChunks.value, { type: mimeType });
-        
+
         const formDataUpload = new FormData();
         const extension = mimeType.includes('webm') ? 'webm' : 'mp4';
         formDataUpload.append('audio', audioBlob, `recording.${extension}`);
-        
+
         transcribeStatus.value = 'Converting speech to text...';
-        
-        const { data, error } = await requestApiFetch('/api/transcribe', 'POST', formDataUpload, true);
-        
+
+        const { data, error } = await requestApiFetch(
+            '/api/transcribe',
+            'POST',
+            formDataUpload,
+            true,
+        );
+
         if (error) {
             const message = extractErrorMessage(error);
-            errors.value = { plot: message || 'Failed to transcribe audio. Please try again or type your story.' };
+            errors.value = {
+                plot:
+                    message ||
+                    'Failed to transcribe audio. Please try again or type your story.',
+            };
         } else if (data && typeof data === 'object' && 'text' in data) {
             const transcribedText = (data as { text: string }).text;
             if (transcribedText) {
                 transcribeStatus.value = 'Done! You can edit the text below.';
-                const newPlot = formData.value.plot 
-                    ? formData.value.plot + ' ' + transcribedText 
+                const newPlot = formData.value.plot
+                    ? formData.value.plot + ' ' + transcribedText
                     : transcribedText;
                 formData.value.plot = newPlot.slice(0, PLOT_MAX_LENGTH);
-                
+
                 setTimeout(() => {
                     transcribeStatus.value = '';
                 }, 2000);
             } else {
-                errors.value = { plot: "We couldn't hear anything. Please try again." };
+                errors.value = {
+                    plot: "We couldn't hear anything. Please try again.",
+                };
             }
         }
     } catch (err) {
         console.error('Transcription error:', err);
-        errors.value = { plot: 'Failed to transcribe audio. Please try again or type your story.' };
+        errors.value = {
+            plot: 'Failed to transcribe audio. Please try again or type your story.',
+        };
     } finally {
         isTranscribing.value = false;
         audioChunks.value = [];
@@ -784,106 +929,23 @@ const nextStep = async () => {
     if (currentStep.value < totalSteps && canProceed.value) {
         // Step 1 -> 2: Just proceed, no API calls yet
         // Step 2 -> 3: Just proceed, no API calls yet
-        
-        // Step 3 -> 4: Create the book, then generate metadata (title + characters)
-        // We stay on step 3 showing "Finding your characters" until complete
+
+        // Step 3 -> 4: Create the book (includes metadata and character generation)
         if (currentStep.value === 3) {
             const created = await createBook();
             if (!created) {
                 return; // Don't proceed if book creation failed
             }
-            
-            // Generate book metadata (title, summary, characters) - this blocks until complete
-            // The UI will show "Finding your characters..." while this runs
-            await generateBookMetadata();
-            
-            // Only proceed to step 4 after characters are found
+
+            // Book creation now includes metadata generation and character creation
+            // Characters are already populated from the response
             currentStep.value++;
             return;
         }
-        
+
         // Step 4: Characters are saved as they're added, so nothing special needed here
-        
+
         currentStep.value++;
-    }
-};
-
-const generateBookMetadata = async () => {
-    console.log('[GenerateMetadata] Starting metadata generation, bookId:', bookId.value);
-    
-    if (!bookId.value) {
-        console.error('[GenerateMetadata] No bookId - cannot generate metadata');
-        return;
-    }
-
-    isFindingCharacters.value = true;
-    isGeneratingMetadata.value = true;
-    metadataStatus.value = 'Creating your story title...';
-
-    try {
-        console.log('[GenerateMetadata] Calling API to generate metadata...');
-        const { data, error } = await requestApiFetch(`/api/books/${bookId.value}/generate-metadata`, 'POST');
-
-        if (error) {
-            console.error('[GenerateMetadata] API error:', error);
-            metadataStatus.value = '';
-            isFindingCharacters.value = false;
-            isGeneratingMetadata.value = false;
-            return;
-        }
-
-        console.log('[GenerateMetadata] Got response:', data);
-        
-        if (data && typeof data === 'object') {
-            const response = data as { 
-                title?: string;
-                characters?: Array<{
-                    id: string;
-                    name: string;
-                    age: string;
-                    gender: string;
-                    description: string;
-                    backstory: string;
-                    portrait_image?: string | null;
-                }>;
-            };
-
-            if (response.title) {
-                metadataStatus.value = `Title: "${response.title}" ✨`;
-                console.log('[GenerateMetadata] Book title set:', response.title);
-            }
-
-            if (response.characters && response.characters.length > 0) {
-                metadataStatus.value = `Found ${response.characters.length} characters!`;
-                console.log('[GenerateMetadata] Characters received:', response.characters.length);
-                
-                // Characters are already saved by the backend, just update our local state
-                characters.value = response.characters.map(char => ({
-                    id: char.id,
-                    name: char.name || '',
-                    age: String(char.age ?? ''),
-                    gender: char.gender || '',
-                    description: char.description || '',
-                    backstory: char.backstory || '',
-                    portrait_image: char.portrait_image || null,
-                }));
-                
-                // Mark that AI found characters for displaying the notice
-                hasAIGeneratedCharacters.value = true;
-                
-                console.log('[GenerateMetadata] Characters loaded:', characters.value.length);
-            }
-        }
-        
-        // Mark character finding complete
-        isFindingCharacters.value = false;
-        isGeneratingMetadata.value = false;
-        metadataStatus.value = '';
-    } catch (err) {
-        console.error('[GenerateMetadata] Exception:', err);
-        isFindingCharacters.value = false;
-        isGeneratingMetadata.value = false;
-        metadataStatus.value = '';
     }
 };
 
@@ -907,12 +969,12 @@ const saveCharacter = async (index: number) => {
         errors.value = { character_name: 'Please give your character a name!' };
         return;
     }
-    
+
     errors.value = {};
     isSaving.value = true;
-    
+
     const existingId = characters.value[index].id;
-    
+
     // Update the character in the API
     const success = await updateCharacterInBook(existingId, {
         name: newCharacter.value.name,
@@ -921,14 +983,14 @@ const saveCharacter = async (index: number) => {
         description: newCharacter.value.description,
         backstory: newCharacter.value.backstory,
     });
-    
+
     if (success) {
         characters.value[index] = {
             ...newCharacter.value,
             id: existingId,
         };
     }
-    
+
     resetCharacterForm();
     editingCharacterIndex.value = null;
     isSaving.value = false;
@@ -939,10 +1001,10 @@ const addNewCharacter = async () => {
         errors.value = { character_name: 'Please give your character a name!' };
         return;
     }
-    
+
     errors.value = {};
     isSaving.value = true;
-    
+
     // Save character to the API
     const savedChar = await saveCharacterToBook({
         name: newCharacter.value.name,
@@ -951,7 +1013,7 @@ const addNewCharacter = async () => {
         description: newCharacter.value.description,
         backstory: newCharacter.value.backstory,
     });
-    
+
     if (savedChar) {
         characters.value.push(savedChar);
     } else {
@@ -961,7 +1023,7 @@ const addNewCharacter = async () => {
             id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         });
     }
-    
+
     resetCharacterForm();
     isAddingNewCharacter.value = false;
     isSaving.value = false;
@@ -975,10 +1037,10 @@ const toggleEditCharacter = (index: number) => {
         errors.value = {};
         return;
     }
-    
+
     // Close new character form if open
     isAddingNewCharacter.value = false;
-    
+
     // Open the clicked character for editing
     editingCharacterIndex.value = index;
     newCharacter.value = { ...characters.value[index] };
@@ -995,18 +1057,21 @@ const startAddingCharacter = () => {
 
 const removeCharacter = async (index: number) => {
     const characterId = characters.value[index].id;
-    
+
     // Delete from API
     await deleteCharacterFromBook(characterId);
-    
+
     // Remove locally
     characters.value.splice(index, 1);
-    
+
     // If we removed the character being edited, reset
     if (editingCharacterIndex.value === index) {
         editingCharacterIndex.value = null;
         resetCharacterForm();
-    } else if (editingCharacterIndex.value !== null && editingCharacterIndex.value > index) {
+    } else if (
+        editingCharacterIndex.value !== null &&
+        editingCharacterIndex.value > index
+    ) {
         // Adjust index if we removed a character before the one being edited
         editingCharacterIndex.value--;
     }
@@ -1039,16 +1104,25 @@ const handleSubmit = async () => {
         });
 
         if (!updateSuccess) {
-            errors.value = { general: 'Failed to save your story details. Please try again.' };
+            errors.value = {
+                general: 'Failed to save your story details. Please try again.',
+            };
             processing.value = false;
             return;
         }
-        
+
+        // Set the created book ID so the parent can open the book view modal
+        const createdBookId = bookId.value;
+
+        // Signal that a book was created (parent will handle opening book view modal)
+        setCreatedBook(createdBookId);
+
         resetForm();
         isOpen.value = false;
-        router.reload();
     } catch (err) {
-        errors.value = { general: 'An unexpected error occurred. Please try again.' };
+        errors.value = {
+            general: 'An unexpected error occurred. Please try again.',
+        };
     } finally {
         processing.value = false;
     }
@@ -1065,20 +1139,27 @@ const handleOpenChange = (open: boolean) => {
     isOpen.value = open;
 };
 
-watch(() => props.defaultGenre, (newGenre) => {
-    if (newGenre && isOpen.value) {
-        formData.value.genre = newGenre;
-    }
-});
+watch(
+    () => props.defaultGenre,
+    (newGenre) => {
+        if (newGenre && isOpen.value) {
+            formData.value.genre = newGenre;
+        }
+    },
+);
 
 // Save preferences when type, genre, or age_level changes
 watch(
     () => [formData.value.type, formData.value.genre, formData.value.age_level],
     () => {
-        if (formData.value.type || formData.value.genre || formData.value.age_level) {
+        if (
+            formData.value.type ||
+            formData.value.genre ||
+            formData.value.age_level
+        ) {
             savePreferences();
         }
-    }
+    },
 );
 
 // Clear preferences when profile changes
@@ -1088,13 +1169,13 @@ watch(
         if (oldId && newId !== oldId) {
             clearPreferences();
         }
-    }
+    },
 );
 </script>
 
 <template>
     <Dialog :open="isOpen" @update:open="handleOpenChange">
-        <DialogContent 
+        <DialogContent
             class="max-w-2xl overflow-visible rounded-3xl border-2 p-0 sm:max-w-2xl [&>button[data-slot]]:hidden"
             :class="processing ? 'pointer-events-none' : ''"
         >
@@ -1103,7 +1184,7 @@ watch(
                 type="button"
                 @click="requestClose"
                 :disabled="processing"
-                class="absolute -right-2 -top-2 z-[60] flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-gray-800 text-white shadow-xl transition-all duration-200 hover:scale-110 hover:bg-gray-700 hover:shadow-2xl active:scale-95 sm:-right-3 sm:-top-3 sm:h-12 sm:w-12"
+                class="absolute -top-2 -right-2 z-[60] flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-gray-800 text-white shadow-xl transition-all duration-200 hover:scale-110 hover:bg-gray-700 hover:shadow-2xl active:scale-95 sm:-top-3 sm:-right-3 sm:h-12 sm:w-12"
             >
                 <X class="h-5 w-5 sm:h-6 sm:w-6" />
             </button>
@@ -1117,22 +1198,37 @@ watch(
                 leave-from-class="opacity-100 scale-100"
                 leave-to-class="opacity-0 scale-75"
             >
-                <div 
-                    v-if="showCloseConfirm" 
+                <div
+                    v-if="showCloseConfirm"
                     class="absolute inset-0 z-[70] flex items-center justify-center rounded-3xl bg-black/50 backdrop-blur-sm"
                 >
-                    <div class="mx-4 w-full max-w-sm animate-bounce-in rounded-2xl border-2 border-orange-200 bg-white p-6 shadow-2xl dark:border-orange-800 dark:bg-gray-900">
+                    <div
+                        class="animate-bounce-in mx-4 w-full max-w-sm rounded-2xl border-2 border-orange-200 bg-white p-6 shadow-2xl dark:border-orange-800 dark:bg-gray-900"
+                    >
                         <div class="mb-4 text-center">
-                            <div class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-                                <span class="text-3xl">{{ bookId ? '📖' : '🤔' }}</span>
+                            <div
+                                class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30"
+                            >
+                                <span class="text-3xl">{{
+                                    bookId ? '📖' : '🤔'
+                                }}</span>
                             </div>
-                            <h3 class="text-xl font-bold text-gray-900 dark:text-white">
-                                {{ bookId ? 'Close and continue later?' : 'Wait! Are you sure?' }}
+                            <h3
+                                class="text-xl font-bold text-gray-900 dark:text-white"
+                            >
+                                {{
+                                    bookId
+                                        ? 'Close and continue later?'
+                                        : 'Wait! Are you sure?'
+                                }}
                             </h3>
-                            <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                {{ bookId 
-                                    ? "Your story has been saved! You can find it in your library and continue anytime." 
-                                    : "Your amazing story ideas will disappear into the void!" 
+                            <p
+                                class="mt-2 text-sm text-gray-600 dark:text-gray-400"
+                            >
+                                {{
+                                    bookId
+                                        ? 'Your story has been saved! You can find it in your library and continue anytime.'
+                                        : 'Your amazing story ideas will disappear into the void!'
                                 }}
                             </p>
                         </div>
@@ -1149,9 +1245,11 @@ watch(
                                 type="button"
                                 @click="confirmClose"
                                 class="flex-1 cursor-pointer rounded-xl bg-gradient-to-r text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                                :class="bookId 
-                                    ? 'from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600' 
-                                    : 'from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600'"
+                                :class="
+                                    bookId
+                                        ? 'from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600'
+                                        : 'from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600'
+                                "
                             >
                                 {{ bookId ? 'Close for Now' : 'Close Anyway' }}
                             </Button>
@@ -1163,662 +1261,1014 @@ watch(
             <!-- Content wrapper with overflow hidden for rounded corners -->
             <div class="overflow-hidden rounded-3xl">
                 <!-- Animated Header -->
-                <div 
+                <div
                     class="relative overflow-hidden bg-gradient-to-r px-6 py-8 text-white transition-all duration-500"
                     :class="stepInfo.color"
                 >
-                <!-- Floating decorative elements -->
-                <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
-                <div class="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
-                <div class="absolute right-1/4 top-1/2 h-16 w-16 rounded-full bg-white/5 blur-xl" />
+                    <!-- Floating decorative elements -->
+                    <div
+                        class="absolute -top-4 -right-4 h-24 w-24 rounded-full bg-white/10 blur-2xl"
+                    />
+                    <div
+                        class="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-white/10 blur-3xl"
+                    />
+                    <div
+                        class="absolute top-1/2 right-1/4 h-16 w-16 rounded-full bg-white/5 blur-xl"
+                    />
 
-                <DialogHeader class="relative z-10">
-                    <!-- Icon, Title, and Dots on same row -->
-                    <div class="mb-3 flex items-center gap-4">
-                        <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
-                            <component :is="stepInfo.icon" class="h-8 w-8" />
-                        </div>
-                        <DialogTitle class="flex-1 text-2xl font-bold tracking-tight sm:text-3xl">
-                            {{ stepInfo.title }}
-                        </DialogTitle>
-                        <!-- Step indicator dots -->
-                        <div class="flex shrink-0 gap-2">
-                            <button
-                                v-for="step in totalSteps"
-                                :key="step"
-                                type="button"
-                                @click="goToStep(step)"
-                                class="h-3 w-3 rounded-full transition-all duration-300"
-                                :class="[
-                                    step === currentStep 
-                                        ? 'bg-white scale-125 shadow-lg' 
-                                        : step < currentStep 
-                                            ? 'bg-white/80 hover:bg-white hover:scale-110 cursor-pointer' 
-                                            : 'bg-white/30 cursor-not-allowed'
-                                ]"
-                                :disabled="step > currentStep"
-                            />
-                        </div>
-                    </div>
-                    <DialogDescription class="text-base text-white/90">
-                        {{ stepInfo.description }}
-                </DialogDescription>
-            </DialogHeader>
-            </div>
-
-            <!-- Form Content -->
-            <div class="max-h-[60vh] overflow-y-auto px-6 py-6">
-                <form @submit.prevent="currentStep === totalSteps ? handleSubmit() : nextStep()">
-                    
-                    <!-- Step 1: Book Type, Genre, Age Level -->
-                    <div v-show="currentStep === 1" class="space-y-6">
-                        <!-- Book Type Selection -->
-                        <div class="space-y-3">
-                            <Label class="text-lg font-semibold">What kind of story?</Label>
-                            <div class="grid grid-cols-2 gap-3">
-                                <button
-                                v-for="bookType in bookTypes"
-                                :key="bookType.value"
-                                    type="button"
-                                    @click="formData.type = bookType.value"
-                                    :disabled="processing"
-                                    class="group relative flex cursor-pointer flex-col items-start gap-1 rounded-2xl border-2 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-400/50 hover:bg-orange-50 hover:shadow-md active:scale-[0.98] dark:hover:bg-orange-950/20"
-                                    :class="formData.type === bookType.value 
-                                        ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 dark:bg-orange-950/30' 
-                                        : 'border-border'"
-                                >
-                                    <span class="text-lg font-semibold">{{ bookType.label }}</span>
-                                    <span class="text-sm text-muted-foreground">{{ bookType.description }}</span>
-                                    <div 
-                                        v-if="formData.type === bookType.value"
-                                        class="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white"
-                                    >
-                                        <Check class="h-4 w-4" />
-                                    </div>
-                                </button>
-                            </div>
-                    <InputError :message="errors.type" />
-                </div>
-
-                        <!-- Age Level Selection -->
-                        <div class="space-y-3">
-                            <Label class="text-lg font-semibold">Who is this story for?</Label>
-                            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                <button
-                                v-for="age in ageLevels"
-                                :key="age.value"
-                                    type="button"
-                                    @click="isAgeLevelAllowed(age.value) && (formData.age_level = age.value, age.value !== '18' && ['drama', 'romance', 'horror', 'erotica'].includes(formData.genre) && (formData.genre = ''))"
-                                    :disabled="processing || !isAgeLevelAllowed(age.value)"
-                                    class="relative flex flex-col items-center gap-1 rounded-2xl border-2 p-4 transition-all duration-200"
-                                    :class="[
-                                        !isAgeLevelAllowed(age.value) 
-                                            ? 'cursor-not-allowed border-border/50 bg-muted/30 opacity-50' 
-                                            : 'cursor-pointer hover:-translate-y-0.5 hover:border-orange-400/50 hover:bg-orange-50 hover:shadow-md active:scale-95 dark:hover:bg-orange-950/20',
-                                        formData.age_level === age.value 
-                                            ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 dark:bg-orange-950/30' 
-                                            : 'border-border'
-                                    ]"
-                                >
-                                    <span class="text-sm font-bold">{{ age.label }}</span>
-                                    <span class="text-xs text-muted-foreground">{{ age.range }}</span>
-                                    <div 
-                                        v-if="formData.age_level === age.value"
-                                        class="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white"
-                                    >
-                                        <Check class="h-3 w-3" />
-                                    </div>
-                                </button>
-                            </div>
-                            <InputError :message="errors.age_level" />
-                        </div>
-
-                        <!-- Genre Selection -->
-                        <div class="space-y-3">
-                            <Label class="text-lg font-semibold">Pick a genre!</Label>
-                            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                                <button
-                                v-for="genre in genres"
-                                :key="genre.value"
-                                    type="button"
-                                    @click="formData.genre = genre.value"
-                                    :disabled="processing"
-                                    class="relative flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 p-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-400/50 hover:bg-orange-50 hover:shadow-md active:scale-95 dark:hover:bg-orange-950/20"
-                                    :class="formData.genre === genre.value 
-                                        ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 dark:bg-orange-950/30' 
-                                        : 'border-border'"
-                                >
-                                    <span class="text-2xl">{{ genre.emoji }}</span>
-                                    <span class="text-xs font-bold">{{ genre.label.replace(genre.emoji + ' ', '') }}</span>
-                                    <div 
-                                        v-if="formData.genre === genre.value"
-                                        class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-white"
-                                    >
-                                        <Check class="h-2.5 w-2.5" />
-                                    </div>
-                                </button>
-                            </div>
-                    <InputError :message="errors.genre" />
-                </div>
-                    </div>
-
-                    <!-- Step 2: Plot/Story Description -->
-                    <div v-show="currentStep === 2" class="space-y-6">
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                
-                                
-                                
-                            </div>
-                            
-                            <!-- Transcription Status Message -->
-                            <div 
-                                v-if="transcribeStatus" 
-                                class="flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:bg-blue-950/30 dark:text-blue-300"
+                    <DialogHeader class="relative z-10">
+                        <!-- Icon, Title, and Dots on same row -->
+                        <div class="mb-3 flex items-center gap-4">
+                            <div
+                                class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm"
                             >
-                                <Spinner v-if="isTranscribing" class="h-4 w-4" />
-                                <Check v-else class="h-4 w-4 text-green-500" />
-                                {{ transcribeStatus }}
+                                <component
+                                    :is="stepInfo.icon"
+                                    class="h-8 w-8"
+                                />
+                            </div>
+                            <DialogTitle
+                                class="flex-1 text-2xl font-bold tracking-tight sm:text-3xl"
+                            >
+                                {{ stepInfo.title }}
+                            </DialogTitle>
+                            <!-- Step indicator dots -->
+                            <div class="flex shrink-0 gap-2">
+                                <button
+                                    v-for="step in totalSteps"
+                                    :key="step"
+                                    type="button"
+                                    @click="goToStep(step)"
+                                    class="h-3 w-3 rounded-full transition-all duration-300"
+                                    :class="[
+                                        step === currentStep
+                                            ? 'scale-125 bg-white shadow-lg'
+                                            : step < currentStep
+                                              ? 'cursor-pointer bg-white/80 hover:scale-110 hover:bg-white'
+                                              : 'cursor-not-allowed bg-white/30',
+                                    ]"
+                                    :disabled="step > currentStep"
+                                />
+                            </div>
+                        </div>
+                        <DialogDescription class="text-base text-white/90">
+                            {{ stepInfo.description }}
+                        </DialogDescription>
+                    </DialogHeader>
                 </div>
 
-                            <div class="relative">
-    <Textarea
-        id="plot"
-        v-model="formData.plot"
-                                    placeholder="Example: A young wizard discovers a magical map that leads to a hidden kingdom where dragons and unicorns live together in harmony..."
-                                    rows="8"
-                                    :maxlength="PLOT_MAX_LENGTH"
-                                    :disabled="processing || isRecording || isTranscribing"
-                                    class="resize-none rounded-2xl border-2 pb-8 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
-                                />
-                                <div class="absolute bottom-3 right-3 text-xs" :class="plotCharacterCountClass">
-                                    {{ plotCharacterCount.toLocaleString() }} / {{ PLOT_MAX_LENGTH.toLocaleString() }}
+                <!-- Form Content -->
+                <div class="max-h-[60vh] overflow-y-auto px-6 py-6">
+                    <form
+                        @submit.prevent="
+                            currentStep === totalSteps
+                                ? handleSubmit()
+                                : nextStep()
+                        "
+                    >
+                        <!-- Step 1: Book Type, Genre, Age Level -->
+                        <div v-show="currentStep === 1" class="space-y-6">
+                            <!-- Book Type Selection -->
+                            <div class="space-y-3">
+                                <Label class="text-lg font-semibold"
+                                    >What kind of story?</Label
+                                >
+                                <div class="grid grid-cols-2 gap-3">
+                                    <button
+                                        v-for="bookType in bookTypes"
+                                        :key="bookType.value"
+                                        type="button"
+                                        @click="formData.type = bookType.value"
+                                        :disabled="processing"
+                                        class="group relative flex cursor-pointer flex-col items-start gap-1 rounded-2xl border-2 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-400/50 hover:bg-orange-50 hover:shadow-md active:scale-[0.98] dark:hover:bg-orange-950/20"
+                                        :class="
+                                            formData.type === bookType.value
+                                                ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 dark:bg-orange-950/30'
+                                                : 'border-border'
+                                        "
+                                    >
+                                        <span class="text-lg font-semibold">{{
+                                            bookType.label
+                                        }}</span>
+                                        <span
+                                            class="text-sm text-muted-foreground"
+                                            >{{ bookType.description }}</span
+                                        >
+                                        <div
+                                            v-if="
+                                                formData.type === bookType.value
+                                            "
+                                            class="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white"
+                                        >
+                                            <Check class="h-4 w-4" />
+                                        </div>
+                                    </button>
                                 </div>
+                                <InputError :message="errors.type" />
                             </div>
-    <InputError :message="errors.plot" />
-                            
-                            <!-- Microphone Button -->
-                            <div class="flex flex-col items-start gap-3 mt-5">
+
+                            <!-- Age Level Selection -->
+                            <div class="space-y-3">
+                                <Label class="text-lg font-semibold"
+                                    >Who is this story for?</Label
+                                >
+                                <div
+                                    class="grid grid-cols-2 gap-3 sm:grid-cols-4"
+                                >
+                                    <button
+                                        v-for="age in ageLevels"
+                                        :key="age.value"
+                                        type="button"
+                                        @click="
+                                            isAgeLevelAllowed(age.value) &&
+                                            ((formData.age_level = age.value),
+                                            age.value !== '18' &&
+                                                [
+                                                    'drama',
+                                                    'romance',
+                                                    'horror',
+                                                    'erotica',
+                                                ].includes(formData.genre) &&
+                                                (formData.genre = ''))
+                                        "
+                                        :disabled="
+                                            processing ||
+                                            !isAgeLevelAllowed(age.value)
+                                        "
+                                        class="relative flex flex-col items-center gap-1 rounded-2xl border-2 p-4 transition-all duration-200"
+                                        :class="[
+                                            !isAgeLevelAllowed(age.value)
+                                                ? 'cursor-not-allowed border-border/50 bg-muted/30 opacity-50'
+                                                : 'cursor-pointer hover:-translate-y-0.5 hover:border-orange-400/50 hover:bg-orange-50 hover:shadow-md active:scale-95 dark:hover:bg-orange-950/20',
+                                            formData.age_level === age.value
+                                                ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 dark:bg-orange-950/30'
+                                                : 'border-border',
+                                        ]"
+                                    >
+                                        <span class="text-sm font-bold">{{
+                                            age.label
+                                        }}</span>
+                                        <span
+                                            class="text-xs text-muted-foreground"
+                                            >{{ age.range }}</span
+                                        >
+                                        <div
+                                            v-if="
+                                                formData.age_level === age.value
+                                            "
+                                            class="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white"
+                                        >
+                                            <Check class="h-3 w-3" />
+                                        </div>
+                                    </button>
+                                </div>
+                                <InputError :message="errors.age_level" />
+                            </div>
+
+                            <!-- Genre Selection -->
+                            <div class="space-y-3">
+                                <Label class="text-lg font-semibold"
+                                    >Pick a genre!</Label
+                                >
+                                <div
+                                    class="grid grid-cols-2 gap-2 sm:grid-cols-4"
+                                >
+                                    <button
+                                        v-for="genre in genres"
+                                        :key="genre.value"
+                                        type="button"
+                                        @click="formData.genre = genre.value"
+                                        :disabled="processing"
+                                        class="relative flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 p-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-400/50 hover:bg-orange-50 hover:shadow-md active:scale-95 dark:hover:bg-orange-950/20"
+                                        :class="
+                                            formData.genre === genre.value
+                                                ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 dark:bg-orange-950/30'
+                                                : 'border-border'
+                                        "
+                                    >
+                                        <span class="text-2xl">{{
+                                            genre.emoji
+                                        }}</span>
+                                        <span class="text-xs font-bold">{{
+                                            genre.label.replace(
+                                                genre.emoji + ' ',
+                                                '',
+                                            )
+                                        }}</span>
+                                        <div
+                                            v-if="
+                                                formData.genre === genre.value
+                                            "
+                                            class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-white"
+                                        >
+                                            <Check class="h-2.5 w-2.5" />
+                                        </div>
+                                    </button>
+                                </div>
+                                <InputError :message="errors.genre" />
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Plot/Story Description -->
+                        <div v-show="currentStep === 2" class="space-y-6">
+                            <div class="space-y-3">
+                                <div
+                                    class="flex items-center justify-between"
+                                ></div>
+
+                                <!-- Transcription Status Message -->
+                                <div
+                                    v-if="transcribeStatus"
+                                    class="flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:bg-blue-950/30 dark:text-blue-300"
+                                >
+                                    <Spinner
+                                        v-if="isTranscribing"
+                                        class="h-4 w-4"
+                                    />
+                                    <Check
+                                        v-else
+                                        class="h-4 w-4 text-green-500"
+                                    />
+                                    {{ transcribeStatus }}
+                                </div>
+
+                                <div class="relative">
+                                    <Textarea
+                                        id="plot"
+                                        v-model="formData.plot"
+                                        placeholder="Example: A young wizard discovers a magical map that leads to a hidden kingdom where dragons and unicorns live together in harmony..."
+                                        rows="8"
+                                        :maxlength="PLOT_MAX_LENGTH"
+                                        :disabled="
+                                            processing ||
+                                            isRecording ||
+                                            isTranscribing
+                                        "
+                                        class="resize-none rounded-2xl border-2 pb-8 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
+                                    />
+                                    <div
+                                        class="absolute right-3 bottom-3 text-xs"
+                                        :class="plotCharacterCountClass"
+                                    >
+                                        {{
+                                            plotCharacterCount.toLocaleString()
+                                        }}
+                                        / {{ PLOT_MAX_LENGTH.toLocaleString() }}
+                                    </div>
+                                </div>
+                                <InputError :message="errors.plot" />
+
+                                <!-- Microphone Button -->
+                                <div
+                                    class="mt-5 flex flex-col items-start gap-3"
+                                >
                                     <button
                                         v-if="!isRecording && !isTranscribing"
                                         type="button"
                                         @click="startRecording"
                                         :disabled="processing"
-                                        class="group flex cursor-pointer items-center gap-2 rounded-full bg-linear-to-r from-orange-500 to-amber-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-orange-500/25 hover:shadow-xl active:scale-95"
+                                        class="group flex cursor-pointer items-center gap-2 rounded-full bg-linear-to-r from-orange-500 to-amber-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-orange-500/25 active:scale-95"
                                     >
                                         <Mic class="h-5 w-5" />
-                                        <span class="hidden sm:inline">Speak Your Story</span>
+                                        <span class="hidden sm:inline"
+                                            >Speak Your Story</span
+                                        >
                                     </button>
-                                    
+
                                     <!-- Recording State with Waveform -->
-                                    <div v-if="isRecording" class="flex w-full flex-col gap-3">
+                                    <div
+                                        v-if="isRecording"
+                                        class="flex w-full flex-col gap-3"
+                                    >
                                         <!-- Audio Waveform Visualization -->
-                                        <div class="flex h-14 w-full items-center justify-center gap-1 rounded-2xl bg-red-50 px-4 dark:bg-red-100">
-                                            <div 
-                                                v-for="(level, index) in audioLevels" 
+                                        <div
+                                            class="flex h-14 w-full items-center justify-center gap-1 rounded-2xl bg-red-50 px-4 dark:bg-red-100"
+                                        >
+                                            <div
+                                                v-for="(
+                                                    level, index
+                                                ) in audioLevels"
                                                 :key="index"
                                                 class="w-2.5 rounded-full bg-linear-to-t from-red-500 to-red-400 transition-all duration-75"
-                                                :style="{ 
+                                                :style="{
                                                     height: `${Math.max(6, level * 0.5)}px`,
-                                                    opacity: level > 5 ? 1 : 0.4
+                                                    opacity:
+                                                        level > 5 ? 1 : 0.4,
                                                 }"
                                             />
                                         </div>
-                                        
+
                                         <!-- Recording Controls -->
                                         <div class="flex items-center gap-3">
-                                            <div class="flex items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-sm font-medium text-white shadow-lg">
-                                                <span class="relative flex h-3 w-3">
-                                                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
-                                                    <span class="relative inline-flex h-3 w-3 rounded-full bg-white"></span>
+                                            <div
+                                                class="flex items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-sm font-medium text-white shadow-lg"
+                                            >
+                                                <span
+                                                    class="relative flex h-3 w-3"
+                                                >
+                                                    <span
+                                                        class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"
+                                                    ></span>
+                                                    <span
+                                                        class="relative inline-flex h-3 w-3 rounded-full bg-white"
+                                                    ></span>
                                                 </span>
-                                                <span>{{ formatRecordingTime(recordingDuration) }}</span>
+                                                <span>{{
+                                                    formatRecordingTime(
+                                                        recordingDuration,
+                                                    )
+                                                }}</span>
                                             </div>
                                             <button
                                                 type="button"
                                                 @click="stopRecording"
-                                                class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-red-600 text-white shadow-lg transition-all hover:scale-110 hover:bg-red-700 hover:shadow-red-500/30 hover:shadow-xl active:scale-95"
+                                                class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-red-600 text-white shadow-lg transition-all hover:scale-110 hover:bg-red-700 hover:shadow-xl hover:shadow-red-500/30 active:scale-95"
                                             >
-                                                <Square class="h-4 w-4 fill-current" />
+                                                <Square
+                                                    class="h-4 w-4 fill-current"
+                                                />
                                             </button>
-                                            <span class="text-xs text-muted-foreground">Tap the square to stop</span>
+                                            <span
+                                                class="text-xs text-muted-foreground"
+                                                >Tap the square to stop</span
+                                            >
                                         </div>
                                     </div>
-                                    
+
                                     <!-- Transcribing State -->
-                                    <div v-if="isTranscribing" class="flex items-center gap-2 rounded-full bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-lg">
+                                    <div
+                                        v-if="isTranscribing"
+                                        class="flex items-center gap-2 rounded-full bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-lg"
+                                    >
                                         <Spinner class="h-4 w-4" />
-                                        <span class="hidden sm:inline">Processing...</span>
+                                        <span class="hidden sm:inline"
+                                            >Processing...</span
+                                        >
                                     </div>
                                 </div>
-                        </div>
-                    </div>
-
-                    <!-- Step 3: First Chapter Setup -->
-                    <div v-show="currentStep === 3" class="space-y-6">
-                        <div class="space-y-3">
-                            <Label for="first_chapter_prompt" class="text-lg font-semibold">
-                                How does your story begin? 🌟
-                            </Label>
-                            <p class="text-sm text-muted-foreground">
-                                Set the scene for your opening chapter. Where does it take place? What's happening?
-                            </p>
-                    <Textarea
-                        id="first_chapter_prompt"
-                        v-model="formData.first_chapter_prompt"
-                                placeholder="Example: The story begins on a stormy night when our hero finds a mysterious letter on their doorstep..."
-                                rows="5"
-                        :disabled="processing"
-                                class="resize-none rounded-2xl border-2 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
-                    />
-                    <InputError :message="errors.first_chapter_prompt" />
-                </div>
-
-                        <div class="space-y-3">
-                            <Label for="scene" class="text-lg font-semibold">
-                                Where does it happen? 🏔️
-                            </Label>
-                            <p class="text-sm text-muted-foreground">
-                                Describe the setting - is it a magical forest, a busy city, or somewhere else entirely?
-                            </p>
-                    <Textarea
-                                id="scene"
-                                v-model="formData.scene"
-                                placeholder="Example: A cozy cottage at the edge of an enchanted forest, where fireflies dance at night..."
-                                rows="4"
-                        :disabled="processing"
-                                class="resize-none rounded-2xl border-2 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
-                            />
-                            <InputError :message="errors.scene" />
-                        </div>
-                    </div>
-
-                    <!-- Step 4: Characters -->
-                    <div v-show="currentStep === 4" class="space-y-6">
-                        <!-- AI-generated characters notice -->
-                        <div 
-                            v-if="characters.length > 0 && hasAIGeneratedCharacters" 
-                            class="flex items-start gap-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30"
-                        >
-                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-xl">
-                                ✨
-                            </div>
-                            <div>
-                                <p class="font-semibold text-emerald-800 dark:text-emerald-200">
-                                    We found some characters in your story!
-                                </p>
-                                <p class="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
-                                    Based on your plot, we've suggested these characters. Click on any to edit or add your own!
-                                </p>
                             </div>
                         </div>
 
-                        <!-- Character List with Accordion -->
-                        <div v-if="characters.length > 0" class="space-y-3">
-                            <Label class="text-lg font-semibold">Your Characters</Label>
-                            <div class="grid gap-3">
-                                <div
-                                    v-for="(character, index) in characters"
-                                    :key="character.id"
-                                    class="overflow-hidden rounded-2xl border-2 transition-all duration-300"
-                                    :class="editingCharacterIndex === index 
-                                        ? 'border-orange-400 bg-orange-50/50 shadow-lg shadow-orange-500/10 dark:bg-orange-950/20' 
-                                        : 'border-border bg-card hover:border-primary/30'"
+                        <!-- Step 3: First Chapter Setup -->
+                        <div v-show="currentStep === 3" class="space-y-6">
+                            <div class="space-y-3">
+                                <Label
+                                    for="first_chapter_prompt"
+                                    class="text-lg font-semibold"
                                 >
-                                    <!-- Character Header (Always Visible) -->
-                                    <div 
-                                        class="flex cursor-pointer items-center gap-4 p-4 transition-all"
-                                        @click="toggleEditCharacter(index)"
-                                    >
-                                        <!-- Character Avatar: Portrait, Loading Spinner, or Initial -->
-                                        <div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-lg">
-                                            <!-- Portrait Image -->
-                                            <img 
-                                                v-if="character.portrait_image" 
-                                                :src="character.portrait_image" 
-                                                :alt="character.name"
-                                                class="h-full w-full object-cover"
-                                            />
-                                            <!-- Loading State (no portrait yet) -->
-                                            <div 
-                                                v-else 
-                                                class="flex h-full w-full items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600"
-                                            >
-                                                <!-- Show spinner if character has real ID (portrait is being generated) -->
-                                                <Spinner 
-                                                    v-if="!character.id.startsWith('temp-')" 
-                                                    class="h-6 w-6 text-white/80"
-                                                />
-                                                <!-- Show initial for temp characters -->
-                                                <span v-else class="text-2xl font-bold text-white">
-                                                    {{ character.name.charAt(0).toUpperCase() }}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="min-w-0 flex-1">
-                                            <div class="flex items-center gap-2">
-                                                <span class="text-lg font-semibold">{{ character.name }}</span>
-                                                <span v-if="character.age" class="text-sm text-muted-foreground">
-                                                    ({{ character.age }} years old)
-                                                </span>
-                                            </div>
-                                            <p v-if="character.description && editingCharacterIndex !== index" class="line-clamp-1 text-sm text-muted-foreground">
-                                                {{ character.description }}
-                                            </p>
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="sm"
-                                                @click.stop="removeCharacter(index)"
-                                                class="h-9 w-9 cursor-pointer rounded-xl p-0 text-destructive transition-all duration-200 hover:scale-110 hover:bg-destructive/10 hover:text-destructive active:scale-95"
-                                            >
-                                                <Trash2 class="h-4 w-4" />
-                                            </Button>
-                                            <ChevronRight 
-                                                class="h-5 w-5 text-muted-foreground transition-transform duration-300"
-                                                :class="editingCharacterIndex === index ? 'rotate-90' : ''"
-                                            />
-                                        </div>
-                                    </div>
+                                    How does your story begin? 🌟
+                                </Label>
+                                <p class="text-sm text-muted-foreground">
+                                    Set the scene for your opening chapter.
+                                    Where does it take place? What's happening?
+                                </p>
+                                <Textarea
+                                    id="first_chapter_prompt"
+                                    v-model="formData.first_chapter_prompt"
+                                    placeholder="Example: The story begins on a stormy night when our hero finds a mysterious letter on their doorstep..."
+                                    rows="5"
+                                    :disabled="processing"
+                                    class="resize-none rounded-2xl border-2 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
+                                />
+                                <InputError
+                                    :message="errors.first_chapter_prompt"
+                                />
+                            </div>
 
-                                    <!-- Character Edit Form (Accordion Content) -->
-                                    <Transition
-                                        enter-active-class="transition-all duration-300 ease-out"
-                                        enter-from-class="max-h-0 opacity-0"
-                                        enter-to-class="max-h-[600px] opacity-100"
-                                        leave-active-class="transition-all duration-200 ease-in"
-                                        leave-from-class="max-h-[600px] opacity-100"
-                                        leave-to-class="max-h-0 opacity-0"
-                                    >
-                                        <div v-if="editingCharacterIndex === index" class="overflow-hidden">
-                                            <div class="space-y-4 border-t border-orange-200 bg-white/50 p-4 dark:border-orange-800 dark:bg-gray-900/50">
-                                                <div class="grid gap-4 sm:grid-cols-2">
-                                                    <div class="space-y-2">
-                                                        <Label :for="'char_name_' + index" class="font-medium">Name *</Label>
-                                                        <Input
-                                                            :id="'char_name_' + index"
-                                                            v-model="newCharacter.name"
-                                                            placeholder="What's their name?"
-                                                            class="h-12 rounded-xl border-2 bg-white text-base dark:bg-gray-950"
-                                                        />
-                                                        <InputError :message="errors.character_name" />
-                                                    </div>
-
-                                                    <div class="space-y-2">
-                                                        <Label :for="'char_age_' + index" class="font-medium">Age</Label>
-                                                        <Input
-                                                            :id="'char_age_' + index"
-                                                            v-model="newCharacter.age"
-                                                            placeholder="How old are they?"
-                                                            class="h-12 rounded-xl border-2 bg-white text-base dark:bg-gray-950"
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div class="space-y-2">
-                                                    <Label class="font-medium">Gender</Label>
-                                                    <div class="flex flex-wrap gap-2">
-                                                        <button
-                                                            v-for="gender in genderOptions"
-                                                            :key="gender.value"
-                                                            type="button"
-                                                            @click="newCharacter.gender = gender.value"
-                                                            class="cursor-pointer rounded-xl border-2 px-4 py-2 text-sm font-medium transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-95"
-                                                            :class="newCharacter.gender === gender.value 
-                                                                ? 'border-orange-500 bg-orange-500 text-white' 
-                                                                : 'border-border bg-white hover:border-orange-400/50 hover:bg-orange-50 dark:bg-gray-950 dark:hover:bg-orange-950/20'"
-                                                        >
-                                                            {{ gender.label }}
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                <div class="space-y-2">
-                                                    <Label :for="'char_description_' + index" class="font-medium">What are they like?</Label>
-                                                    <Textarea
-                                                        :id="'char_description_' + index"
-                                                        v-model="newCharacter.description"
-                                                        placeholder="Describe their personality, appearance, or special abilities..."
-                                                        rows="2"
-                                                        class="resize-none rounded-xl border-2 bg-white text-base dark:bg-gray-950"
-                                                    />
-                                                </div>
-
-                                                <div class="space-y-2">
-                                                    <Label :for="'char_backstory_' + index" class="font-medium">Their story so far</Label>
-                                                    <Textarea
-                                                        :id="'char_backstory_' + index"
-                                                        v-model="newCharacter.backstory"
-                                                        placeholder="What's their background? Where do they come from?"
-                                                        rows="2"
-                                                        class="resize-none rounded-xl border-2 bg-white text-base dark:bg-gray-950"
-                                                    />
-                                                </div>
-
-                                                <div class="flex gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        @click="cancelCharacterEdit"
-                                                        :disabled="isSaving"
-                                                        class="flex-1 cursor-pointer rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
-                                                    >
-                                                        Cancel
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        @click="saveCharacter(index)"
-                                                        :disabled="isSaving"
-                                                        class="flex-1 cursor-pointer gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg transition-all duration-200 hover:scale-[1.01] hover:from-emerald-600 hover:to-teal-600 hover:shadow-emerald-500/25 hover:shadow-xl active:scale-[0.99]"
-                                                    >
-                                                        <Spinner v-if="isSaving" class="h-4 w-4" />
-                                                        <Check v-else class="h-4 w-4" />
-                                                        {{ isSaving ? 'Saving...' : 'Save Changes' }}
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </Transition>
-                                </div>
+                            <div class="space-y-3">
+                                <Label
+                                    for="scene"
+                                    class="text-lg font-semibold"
+                                >
+                                    Where does it happen? 🏔️
+                                </Label>
+                                <p class="text-sm text-muted-foreground">
+                                    Describe the setting - is it a magical
+                                    forest, a busy city, or somewhere else
+                                    entirely?
+                                </p>
+                                <Textarea
+                                    id="scene"
+                                    v-model="formData.scene"
+                                    placeholder="Example: A cozy cottage at the edge of an enchanted forest, where fireflies dance at night..."
+                                    rows="4"
+                                    :disabled="processing"
+                                    class="resize-none rounded-2xl border-2 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
+                                />
+                                <InputError :message="errors.scene" />
                             </div>
                         </div>
 
-                        <!-- Add New Character Accordion -->
-                        <div class="overflow-hidden rounded-2xl border-2 transition-all duration-300"
-                            :class="isAddingNewCharacter 
-                                ? 'border-orange-400 bg-orange-50/50 shadow-lg shadow-orange-500/10 dark:bg-orange-950/20' 
-                                : 'border-dashed border-border hover:border-orange-400/50 hover:bg-orange-50/30 dark:hover:bg-orange-950/10'"
-                        >
-                            <!-- Add New Character Header -->
-                            <div 
-                                class="flex cursor-pointer items-center justify-center gap-3 p-6 transition-all"
-                                @click="startAddingCharacter"
+                        <!-- Step 4: Characters -->
+                        <div v-show="currentStep === 4" class="space-y-6">
+                            <!-- AI-generated characters notice -->
+                            <div
+                                v-if="
+                                    characters.length > 0 &&
+                                    hasAIGeneratedCharacters
+                                "
+                                class="flex items-start gap-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30"
                             >
-                                <Plus class="h-6 w-6 text-orange-500" />
-                                <span class="text-lg font-medium">
-                                    {{ characters.length === 0 ? 'Add Your First Character' : 'Add Another Character' }}
-                                </span>
+                                <div
+                                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-xl"
+                                >
+                                    ✨
+                                </div>
+                                <div>
+                                    <p
+                                        class="font-semibold text-emerald-800 dark:text-emerald-200"
+                                    >
+                                        We found some characters in your story!
+                                    </p>
+                                    <p
+                                        class="mt-1 text-sm text-emerald-700 dark:text-emerald-300"
+                                    >
+                                        Based on your plot, we've suggested
+                                        these characters. Click on any to edit
+                                        or add your own!
+                                    </p>
+                                </div>
                             </div>
 
-                            <!-- New Character Form (Accordion Content) -->
-                            <Transition
-                                enter-active-class="transition-all duration-300 ease-out"
-                                enter-from-class="max-h-0 opacity-0"
-                                enter-to-class="max-h-[600px] opacity-100"
-                                leave-active-class="transition-all duration-200 ease-in"
-                                leave-from-class="max-h-[600px] opacity-100"
-                                leave-to-class="max-h-0 opacity-0"
-                            >
-                                <div v-if="isAddingNewCharacter" class="overflow-hidden">
-                                    <div class="space-y-4 border-t border-orange-200 bg-white/50 p-4 dark:border-orange-800 dark:bg-gray-900/50">
-                                        <div class="grid gap-4 sm:grid-cols-2">
-                                            <div class="space-y-2">
-                                                <Label for="new_char_name" class="font-medium">Name *</Label>
-                                                <Input
-                                                    id="new_char_name"
-                                                    v-model="newCharacter.name"
-                                                    placeholder="What's their name?"
-                                                    class="h-12 rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                            <!-- Character List with Accordion -->
+                            <div v-if="characters.length > 0" class="space-y-3">
+                                <Label class="text-lg font-semibold"
+                                    >Your Characters</Label
+                                >
+                                <div class="grid gap-3">
+                                    <div
+                                        v-for="(character, index) in characters"
+                                        :key="character.id"
+                                        class="overflow-hidden rounded-2xl border-2 transition-all duration-300"
+                                        :class="
+                                            editingCharacterIndex === index
+                                                ? 'border-orange-400 bg-orange-50/50 shadow-lg shadow-orange-500/10 dark:bg-orange-950/20'
+                                                : 'border-border bg-card hover:border-primary/30'
+                                        "
+                                    >
+                                        <!-- Character Header (Always Visible) -->
+                                        <div
+                                            class="flex cursor-pointer items-center gap-4 p-4 transition-all"
+                                            @click="toggleEditCharacter(index)"
+                                        >
+                                            <!-- Character Avatar: Portrait, Loading Spinner, or Initial -->
+                                            <div
+                                                class="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-lg"
+                                            >
+                                                <!-- Portrait Image -->
+                                                <img
+                                                    v-if="
+                                                        character.portrait_image
+                                                    "
+                                                    :src="
+                                                        character.portrait_image
+                                                    "
+                                                    :alt="character.name"
+                                                    class="h-full w-full object-cover"
                                                 />
-                                                <InputError :message="errors.character_name" />
-                                            </div>
-
-                                            <div class="space-y-2">
-                                                <Label for="new_char_age" class="font-medium">Age</Label>
-                                                <Input
-                                                    id="new_char_age"
-                                                    v-model="newCharacter.age"
-                                                    placeholder="How old are they?"
-                                                    class="h-12 rounded-xl border-2 bg-white text-base dark:bg-gray-950"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div class="space-y-2">
-                                            <Label class="font-medium">Gender</Label>
-                                            <div class="flex flex-wrap gap-2">
-                                                <button
-                                                    v-for="gender in genderOptions"
-                                                    :key="gender.value"
-                                                    type="button"
-                                                    @click="newCharacter.gender = gender.value"
-                                                    class="cursor-pointer rounded-xl border-2 px-4 py-2 text-sm font-medium transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-95"
-                                                    :class="newCharacter.gender === gender.value 
-                                                        ? 'border-orange-500 bg-orange-500 text-white' 
-                                                        : 'border-border bg-white hover:border-orange-400/50 hover:bg-orange-50 dark:bg-gray-950 dark:hover:bg-orange-950/20'"
+                                                <!-- Loading State (no portrait yet) -->
+                                                <div
+                                                    v-else
+                                                    class="flex h-full w-full items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600"
                                                 >
-                                                    {{ gender.label }}
-                                                </button>
+                                                    <!-- Show spinner if character has real ID (portrait is being generated) -->
+                                                    <Spinner
+                                                        v-if="
+                                                            !character.id.startsWith(
+                                                                'temp-',
+                                                            )
+                                                        "
+                                                        class="h-6 w-6 text-white/80"
+                                                    />
+                                                    <!-- Show initial for temp characters -->
+                                                    <span
+                                                        v-else
+                                                        class="text-2xl font-bold text-white"
+                                                    >
+                                                        {{
+                                                            character.name
+                                                                .charAt(0)
+                                                                .toUpperCase()
+                                                        }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div class="min-w-0 flex-1">
+                                                <div
+                                                    class="flex items-center gap-2"
+                                                >
+                                                    <span
+                                                        class="text-lg font-semibold"
+                                                        >{{
+                                                            character.name
+                                                        }}</span
+                                                    >
+                                                    <span
+                                                        v-if="character.age"
+                                                        class="text-sm text-muted-foreground"
+                                                    >
+                                                        ({{
+                                                            character.age
+                                                        }}
+                                                        years old)
+                                                    </span>
+                                                </div>
+                                                <p
+                                                    v-if="
+                                                        character.description &&
+                                                        editingCharacterIndex !==
+                                                            index
+                                                    "
+                                                    class="line-clamp-1 text-sm text-muted-foreground"
+                                                >
+                                                    {{ character.description }}
+                                                </p>
+                                            </div>
+                                            <div
+                                                class="flex items-center gap-2"
+                                            >
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    @click.stop="
+                                                        removeCharacter(index)
+                                                    "
+                                                    class="h-9 w-9 cursor-pointer rounded-xl p-0 text-destructive transition-all duration-200 hover:scale-110 hover:bg-destructive/10 hover:text-destructive active:scale-95"
+                                                >
+                                                    <Trash2 class="h-4 w-4" />
+                                                </Button>
+                                                <ChevronRight
+                                                    class="h-5 w-5 text-muted-foreground transition-transform duration-300"
+                                                    :class="
+                                                        editingCharacterIndex ===
+                                                        index
+                                                            ? 'rotate-90'
+                                                            : ''
+                                                    "
+                                                />
                                             </div>
                                         </div>
 
-                                        <div class="space-y-2">
-                                            <Label for="new_char_description" class="font-medium">What are they like?</Label>
-                                            <Textarea
-                                                id="new_char_description"
-                                                v-model="newCharacter.description"
-                                                placeholder="Describe their personality, appearance, or special abilities..."
-                                                rows="2"
-                                                class="resize-none rounded-xl border-2 bg-white text-base dark:bg-gray-950"
-                                            />
-                                        </div>
-
-                                        <div class="space-y-2">
-                                            <Label for="new_char_backstory" class="font-medium">Their story so far</Label>
-                                            <Textarea
-                                                id="new_char_backstory"
-                                                v-model="newCharacter.backstory"
-                                                placeholder="What's their background? Where do they come from?"
-                                                rows="2"
-                                                class="resize-none rounded-xl border-2 bg-white text-base dark:bg-gray-950"
-                                            />
-                                        </div>
-
-                                        <div class="flex gap-2">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                @click="cancelCharacterEdit"
-                                                :disabled="isSaving"
-                                                class="flex-1 cursor-pointer rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+                                        <!-- Character Edit Form (Accordion Content) -->
+                                        <Transition
+                                            enter-active-class="transition-all duration-300 ease-out"
+                                            enter-from-class="max-h-0 opacity-0"
+                                            enter-to-class="max-h-[600px] opacity-100"
+                                            leave-active-class="transition-all duration-200 ease-in"
+                                            leave-from-class="max-h-[600px] opacity-100"
+                                            leave-to-class="max-h-0 opacity-0"
+                                        >
+                                            <div
+                                                v-if="
+                                                    editingCharacterIndex ===
+                                                    index
+                                                "
+                                                class="overflow-hidden"
                                             >
-                                                Cancel
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                @click="addNewCharacter"
-                                                :disabled="isSaving"
-                                                class="flex-1 cursor-pointer gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg transition-all duration-200 hover:scale-[1.01] hover:from-emerald-600 hover:to-teal-600 hover:shadow-emerald-500/25 hover:shadow-xl active:scale-[0.99]"
-                                            >
-                                                <Spinner v-if="isSaving" class="h-4 w-4" />
-                                                <Plus v-else class="h-4 w-4" />
-                                                {{ isSaving ? 'Saving...' : 'Add Character' }}
-                                            </Button>
-                                        </div>
+                                                <div
+                                                    class="space-y-4 border-t border-orange-200 bg-white/50 p-4 dark:border-orange-800 dark:bg-gray-900/50"
+                                                >
+                                                    <div
+                                                        class="grid gap-4 sm:grid-cols-2"
+                                                    >
+                                                        <div class="space-y-2">
+                                                            <Label
+                                                                :for="
+                                                                    'char_name_' +
+                                                                    index
+                                                                "
+                                                                class="font-medium"
+                                                                >Name *</Label
+                                                            >
+                                                            <Input
+                                                                :id="
+                                                                    'char_name_' +
+                                                                    index
+                                                                "
+                                                                v-model="
+                                                                    newCharacter.name
+                                                                "
+                                                                placeholder="What's their name?"
+                                                                class="h-12 rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                            />
+                                                            <InputError
+                                                                :message="
+                                                                    errors.character_name
+                                                                "
+                                                            />
+                                                        </div>
+
+                                                        <div class="space-y-2">
+                                                            <Label
+                                                                :for="
+                                                                    'char_age_' +
+                                                                    index
+                                                                "
+                                                                class="font-medium"
+                                                                >Age</Label
+                                                            >
+                                                            <Input
+                                                                :id="
+                                                                    'char_age_' +
+                                                                    index
+                                                                "
+                                                                v-model="
+                                                                    newCharacter.age
+                                                                "
+                                                                placeholder="How old are they?"
+                                                                class="h-12 rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="space-y-2">
+                                                        <Label
+                                                            class="font-medium"
+                                                            >Gender</Label
+                                                        >
+                                                        <div
+                                                            class="flex flex-wrap gap-2"
+                                                        >
+                                                            <button
+                                                                v-for="gender in genderOptions"
+                                                                :key="
+                                                                    gender.value
+                                                                "
+                                                                type="button"
+                                                                @click="
+                                                                    newCharacter.gender =
+                                                                        gender.value
+                                                                "
+                                                                class="cursor-pointer rounded-xl border-2 px-4 py-2 text-sm font-medium transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+                                                                :class="
+                                                                    newCharacter.gender ===
+                                                                    gender.value
+                                                                        ? 'border-orange-500 bg-orange-500 text-white'
+                                                                        : 'border-border bg-white hover:border-orange-400/50 hover:bg-orange-50 dark:bg-gray-950 dark:hover:bg-orange-950/20'
+                                                                "
+                                                            >
+                                                                {{
+                                                                    gender.label
+                                                                }}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="space-y-2">
+                                                        <Label
+                                                            :for="
+                                                                'char_description_' +
+                                                                index
+                                                            "
+                                                            class="font-medium"
+                                                            >What are they
+                                                            like?</Label
+                                                        >
+                                                        <Textarea
+                                                            :id="
+                                                                'char_description_' +
+                                                                index
+                                                            "
+                                                            v-model="
+                                                                newCharacter.description
+                                                            "
+                                                            placeholder="Describe their personality, appearance, or special abilities..."
+                                                            rows="2"
+                                                            class="resize-none rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                        />
+                                                    </div>
+
+                                                    <div class="space-y-2">
+                                                        <Label
+                                                            :for="
+                                                                'char_backstory_' +
+                                                                index
+                                                            "
+                                                            class="font-medium"
+                                                            >Their story so
+                                                            far</Label
+                                                        >
+                                                        <Textarea
+                                                            :id="
+                                                                'char_backstory_' +
+                                                                index
+                                                            "
+                                                            v-model="
+                                                                newCharacter.backstory
+                                                            "
+                                                            placeholder="What's their background? Where do they come from?"
+                                                            rows="2"
+                                                            class="resize-none rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                        />
+                                                    </div>
+
+                                                    <div class="flex gap-2">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            @click="
+                                                                cancelCharacterEdit
+                                                            "
+                                                            :disabled="isSaving"
+                                                            class="flex-1 cursor-pointer rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+                                                        >
+                                                            Cancel
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            @click="
+                                                                saveCharacter(
+                                                                    index,
+                                                                )
+                                                            "
+                                                            :disabled="isSaving"
+                                                            class="flex-1 cursor-pointer gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg transition-all duration-200 hover:scale-[1.01] hover:from-emerald-600 hover:to-teal-600 hover:shadow-xl hover:shadow-emerald-500/25 active:scale-[0.99]"
+                                                        >
+                                                            <Spinner
+                                                                v-if="isSaving"
+                                                                class="h-4 w-4"
+                                                            />
+                                                            <Check
+                                                                v-else
+                                                                class="h-4 w-4"
+                                                            />
+                                                            {{
+                                                                isSaving
+                                                                    ? 'Saving...'
+                                                                    : 'Save Changes'
+                                                            }}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </Transition>
                                     </div>
                                 </div>
-                            </Transition>
+                            </div>
+
+                            <!-- Add New Character Accordion -->
+                            <div
+                                class="overflow-hidden rounded-2xl border-2 transition-all duration-300"
+                                :class="
+                                    isAddingNewCharacter
+                                        ? 'border-orange-400 bg-orange-50/50 shadow-lg shadow-orange-500/10 dark:bg-orange-950/20'
+                                        : 'border-dashed border-border hover:border-orange-400/50 hover:bg-orange-50/30 dark:hover:bg-orange-950/10'
+                                "
+                            >
+                                <!-- Add New Character Header -->
+                                <div
+                                    class="flex cursor-pointer items-center justify-center gap-3 p-6 transition-all"
+                                    @click="startAddingCharacter"
+                                >
+                                    <Plus class="h-6 w-6 text-orange-500" />
+                                    <span class="text-lg font-medium">
+                                        {{
+                                            characters.length === 0
+                                                ? 'Add Your First Character'
+                                                : 'Add Another Character'
+                                        }}
+                                    </span>
+                                </div>
+
+                                <!-- New Character Form (Accordion Content) -->
+                                <Transition
+                                    enter-active-class="transition-all duration-300 ease-out"
+                                    enter-from-class="max-h-0 opacity-0"
+                                    enter-to-class="max-h-[600px] opacity-100"
+                                    leave-active-class="transition-all duration-200 ease-in"
+                                    leave-from-class="max-h-[600px] opacity-100"
+                                    leave-to-class="max-h-0 opacity-0"
+                                >
+                                    <div
+                                        v-if="isAddingNewCharacter"
+                                        class="overflow-hidden"
+                                    >
+                                        <div
+                                            class="space-y-4 border-t border-orange-200 bg-white/50 p-4 dark:border-orange-800 dark:bg-gray-900/50"
+                                        >
+                                            <div
+                                                class="grid gap-4 sm:grid-cols-2"
+                                            >
+                                                <div class="space-y-2">
+                                                    <Label
+                                                        for="new_char_name"
+                                                        class="font-medium"
+                                                        >Name *</Label
+                                                    >
+                                                    <Input
+                                                        id="new_char_name"
+                                                        v-model="
+                                                            newCharacter.name
+                                                        "
+                                                        placeholder="What's their name?"
+                                                        class="h-12 rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                    />
+                                                    <InputError
+                                                        :message="
+                                                            errors.character_name
+                                                        "
+                                                    />
+                                                </div>
+
+                                                <div class="space-y-2">
+                                                    <Label
+                                                        for="new_char_age"
+                                                        class="font-medium"
+                                                        >Age</Label
+                                                    >
+                                                    <Input
+                                                        id="new_char_age"
+                                                        v-model="
+                                                            newCharacter.age
+                                                        "
+                                                        placeholder="How old are they?"
+                                                        class="h-12 rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div class="space-y-2">
+                                                <Label class="font-medium"
+                                                    >Gender</Label
+                                                >
+                                                <div
+                                                    class="flex flex-wrap gap-2"
+                                                >
+                                                    <button
+                                                        v-for="gender in genderOptions"
+                                                        :key="gender.value"
+                                                        type="button"
+                                                        @click="
+                                                            newCharacter.gender =
+                                                                gender.value
+                                                        "
+                                                        class="cursor-pointer rounded-xl border-2 px-4 py-2 text-sm font-medium transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+                                                        :class="
+                                                            newCharacter.gender ===
+                                                            gender.value
+                                                                ? 'border-orange-500 bg-orange-500 text-white'
+                                                                : 'border-border bg-white hover:border-orange-400/50 hover:bg-orange-50 dark:bg-gray-950 dark:hover:bg-orange-950/20'
+                                                        "
+                                                    >
+                                                        {{ gender.label }}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div class="space-y-2">
+                                                <Label
+                                                    for="new_char_description"
+                                                    class="font-medium"
+                                                    >What are they like?</Label
+                                                >
+                                                <Textarea
+                                                    id="new_char_description"
+                                                    v-model="
+                                                        newCharacter.description
+                                                    "
+                                                    placeholder="Describe their personality, appearance, or special abilities..."
+                                                    rows="2"
+                                                    class="resize-none rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                />
+                                            </div>
+
+                                            <div class="space-y-2">
+                                                <Label
+                                                    for="new_char_backstory"
+                                                    class="font-medium"
+                                                    >Their story so far</Label
+                                                >
+                                                <Textarea
+                                                    id="new_char_backstory"
+                                                    v-model="
+                                                        newCharacter.backstory
+                                                    "
+                                                    placeholder="What's their background? Where do they come from?"
+                                                    rows="2"
+                                                    class="resize-none rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                />
+                                            </div>
+
+                                            <div class="flex gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    @click="cancelCharacterEdit"
+                                                    :disabled="isSaving"
+                                                    class="flex-1 cursor-pointer rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+                                                >
+                                                    Cancel
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    @click="addNewCharacter"
+                                                    :disabled="isSaving"
+                                                    class="flex-1 cursor-pointer gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg transition-all duration-200 hover:scale-[1.01] hover:from-emerald-600 hover:to-teal-600 hover:shadow-xl hover:shadow-emerald-500/25 active:scale-[0.99]"
+                                                >
+                                                    <Spinner
+                                                        v-if="isSaving"
+                                                        class="h-4 w-4"
+                                                    />
+                                                    <Plus
+                                                        v-else
+                                                        class="h-4 w-4"
+                                                    />
+                                                    {{
+                                                        isSaving
+                                                            ? 'Saving...'
+                                                            : 'Add Character'
+                                                    }}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Transition>
+                            </div>
+
+                            <p
+                                v-if="
+                                    characters.length === 0 &&
+                                    !isAddingNewCharacter
+                                "
+                                class="text-center text-sm text-muted-foreground"
+                            >
+                                Characters are optional - you can always add
+                                them later!
+                            </p>
                         </div>
 
-                        <p v-if="characters.length === 0 && !isAddingNewCharacter" class="text-center text-sm text-muted-foreground">
-                            Characters are optional - you can always add them later!
-                        </p>
-                    </div>
-
-                    <InputError v-if="errors.general" :message="errors.general" class="mt-4" />
-                </form>
+                        <InputError
+                            v-if="errors.general"
+                            :message="errors.general"
+                            class="mt-4"
+                        />
+                    </form>
                 </div>
 
-            <!-- Footer Navigation -->
-            <div class="flex items-center justify-between border-t bg-muted/30 px-6 py-5">
+                <!-- Footer Navigation -->
+                <div
+                    class="flex items-center justify-between border-t bg-muted/30 px-6 py-5"
+                >
                     <Button
                         v-if="currentStep > 1"
                         type="button"
                         variant="ghost"
                         @click="prevStep"
-                        :disabled="processing || isSaving || isGeneratingMetadata || isFindingCharacters"
+                        :disabled="processing || isSaving"
                         class="h-14 cursor-pointer gap-3 rounded-2xl px-6 text-lg font-semibold transition-all duration-200 hover:-translate-x-0.5 hover:bg-muted"
                     >
-                    <ChevronLeft class="h-6 w-6" />
-                    Back
-                </Button>
-                <div v-else />
+                        <ChevronLeft class="h-6 w-6" />
+                        Back
+                    </Button>
+                    <div v-else />
 
-                <div class="flex gap-4">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        @click="requestClose"
-                        :disabled="processing || isSaving"
-                        class="h-14 cursor-pointer rounded-2xl px-8 text-lg font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                        Cancel
-                    </Button>
-                    
-                    <Button
-                        v-if="currentStep < totalSteps"
-                        type="button"
-                        @click="nextStep"
-                        :disabled="!canProceed || processing || isGeneratingMetadata || isSaving || isFindingCharacters"
-                        class="h-14 cursor-pointer gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-10 text-lg font-semibold text-white shadow-lg transition-all duration-200 hover:translate-x-0.5 hover:from-orange-600 hover:to-amber-600 hover:shadow-orange-500/25 hover:shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:shadow-none"
-                    >
-                        <Spinner v-if="isGeneratingMetadata || isSaving || isFindingCharacters" class="h-5 w-5" />
-                        <template v-if="isSaving && currentStep === 3">
-                            Creating Story...
-                        </template>
-                        <template v-else-if="isFindingCharacters">
-                            Finding your characters...
-                        </template>
-                        <template v-else-if="isGeneratingMetadata">
-                            Generating Story Details...
-                        </template>
-                        <template v-else>
-                            Next
-                            <ChevronRight class="h-6 w-6 transition-transform group-hover:translate-x-0.5" />
-                        </template>
-                    </Button>
-                    
-                    <Button
-                        v-else
-                        type="button"
-                        @click="handleSubmit"
-                        :disabled="processing"
-                        class="h-14 cursor-pointer gap-3 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 px-10 text-lg font-semibold shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-violet-700 hover:to-purple-700 hover:shadow-violet-500/25 hover:shadow-xl active:scale-[0.98]"
-                    >
-                        <Spinner v-if="processing" class="h-5 w-5" />
-                        <Sparkles v-else class="h-5 w-5" />
-                        <template v-if="processing">
-                            Creating...
-                        </template>
-                        <template v-else>
-                            Create My Story!
-                        </template>
-                    </Button>
+                    <div class="flex gap-4">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="requestClose"
+                            :disabled="processing || isSaving"
+                            class="h-14 cursor-pointer rounded-2xl px-8 text-lg font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                            Cancel
+                        </Button>
+
+                        <Button
+                            v-if="currentStep < totalSteps"
+                            type="button"
+                            @click="nextStep"
+                            :disabled="!canProceed || processing || isSaving"
+                            class="h-14 cursor-pointer gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-10 text-lg font-semibold text-white shadow-lg transition-all duration-200 hover:translate-x-0.5 hover:from-orange-600 hover:to-amber-600 hover:shadow-xl hover:shadow-orange-500/25 active:scale-[0.98] disabled:opacity-50 disabled:shadow-none"
+                        >
+                            <Spinner v-if="isSaving" class="h-5 w-5" />
+                            <template v-if="isSaving && currentStep === 3">
+                                Setting up your story...
+                            </template>
+                            <template v-else>
+                                Next
+                                <ChevronRight
+                                    class="h-6 w-6 transition-transform group-hover:translate-x-0.5"
+                                />
+                            </template>
+                        </Button>
+
+                        <Button
+                            v-else
+                            type="button"
+                            @click="handleSubmit"
+                            :disabled="processing"
+                            class="h-14 cursor-pointer gap-3 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 px-10 text-lg font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-violet-700 hover:to-purple-700 hover:shadow-xl hover:shadow-violet-500/25 active:scale-[0.98]"
+                        >
+                            <Spinner v-if="processing" class="h-5 w-5" />
+                            <Sparkles v-else class="h-5 w-5" />
+                            <template v-if="processing"> Creating... </template>
+                            <template v-else> Start Reading! </template>
+                        </Button>
+                    </div>
                 </div>
             </div>
-            </div><!-- End content wrapper -->
+            <!-- End content wrapper -->
         </DialogContent>
     </Dialog>
 </template>

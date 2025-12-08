@@ -39,10 +39,12 @@ class EventServiceProvider extends ServiceProvider
     protected $listen = [
         \App\Events\Book\BookUpdatedEvent::class => [
             \App\Listeners\Chapter\CreateFirstChapterListener::class,
-            \App\Listeners\Book\GenerateBookCoverListener::class,
         ],
         \App\Events\Character\CharacterCreatedEvent::class => [
             \App\Listeners\Character\GenerateCharacterPortraitListener::class,
+        ],
+        \App\Events\Character\AllCharactersPortraitsCreatedEvent::class => [
+            \App\Listeners\Book\GenerateBookCoverListener::class,
         ],
         \App\Events\User\UserCreatedEvent::class => [
             \App\Listeners\User\CreateDefaultProfileListener::class,

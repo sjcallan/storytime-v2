@@ -201,7 +201,7 @@ const sparkleSize = {
 /* Individual sparkles */
 .sparkle {
     position: absolute;
-    filter: drop-shadow(0 0 3px currentColor);
+    filter: drop-shadow(0 0 1px currentColor);
     animation: sparkle-twinkle var(--sparkle-duration) ease-in-out infinite;
 }
 
@@ -294,6 +294,7 @@ const sparkleSize = {
     }
 }
 </style>
+
 
 
 

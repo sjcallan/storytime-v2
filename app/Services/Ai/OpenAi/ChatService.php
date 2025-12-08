@@ -246,7 +246,7 @@ class ChatService implements AiChatServiceInterface
     }
 
     /**
-     * Set the model. Allows gpt-4.1, gpt-5.1, gpt-4o-mini, and gpt-4.1-mini.
+     * Set the model. Allows gpt-4.1, gpt-4.1, gpt-5.1, gpt-4o-mini, and gpt-4.1-mini.
      */
     public function setModel(string $model): void
     {

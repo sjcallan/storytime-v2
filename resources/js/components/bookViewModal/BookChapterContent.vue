@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Sparkles } from 'lucide-vue-next';
+import { Sparkles, ImageIcon } from 'lucide-vue-next';
 import type { Chapter, PageSpread, PageContentItem, BookType } from './types';
 import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
 
@@ -34,6 +34,15 @@ const formatContent = (content: string): string => {
     return formatScriptDialogue(content, isScript.value);
 };
 
+// Check if a URL looks like a valid image URL (starts with http, https, or /)
+const isValidImageUrl = (url: string | null | undefined): boolean => {
+    if (!url || typeof url !== 'string') {
+        return false;
+    }
+    const trimmed = url.trim();
+    return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/');
+};
+
 // Calculate right page number
 const rightPageNumber = computed(() => {
     if (props.spreadIndex === undefined) {
@@ -61,9 +70,9 @@ const rightPageNumber = computed(() => {
                         
                         <!-- Decorative -->
                         <div class="mt-3 flex items-center justify-center gap-3">
-                            <div class="h-px w-12 bg-gradient-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
+                            <div class="h-px w-12 bg-linear-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
                             <Sparkles class="h-3 w-3 text-amber-700 dark:text-amber-500" />
-                            <div class="h-px w-12 bg-gradient-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
+                            <div class="h-px w-12 bg-linear-to-r from-transparent via-amber-700 to-transparent dark:via-amber-600"></div>
                         </div>
                     </div>
                 </div>
@@ -80,14 +89,40 @@ const rightPageNumber = computed(() => {
                                 ]"
                                 v-html="formatContent(item.content)"
                             />
-                            <figure v-else-if="item.type === 'image'" class="my-6">
-                                <img
-                                    :src="item.imageUrl"
-                                    :alt="item.content"
-                                    class="w-full h-auto rounded-lg shadow-md object-cover aspect-video"
-                                    loading="lazy"
-                                />
-                            </figure>
+                        <figure v-else-if="item.type === 'image'" class="my-6">
+                            <!-- Pending image placeholder (when generating or no valid URL) -->
+                            <div 
+                                v-if="item.imageStatus === 'pending' || !item.imageUrl || !isValidImageUrl(item.imageUrl)"
+                                class="image-placeholder w-full aspect-video rounded-lg bg-amber-50 dark:bg-amber-950/50 flex flex-col items-center justify-center gap-3 border-2 border-dashed border-amber-600 dark:border-amber-500"
+                            >
+                                <div class="relative">
+                                    <ImageIcon class="w-12 h-12 text-amber-800 dark:text-amber-300" />
+                                    <div class="absolute -top-1 -right-1">
+                                        <Sparkles class="w-5 h-5 text-orange-600 dark:text-orange-400 animate-pulse" />
+                                    </div>
+                                </div>
+                                <div class="text-center px-4">
+                                    <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                                        Creating illustration...
+                                    </p>
+                                    <p class="text-xs text-amber-700 dark:text-amber-400 mt-1 max-w-xs">
+                                        The magic is happening ✨
+                                    </p>
+                                </div>
+                                <!-- Animated loading bar -->
+                                <div class="w-32 h-1.5 bg-amber-200 dark:bg-amber-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-linear-to-r from-amber-600 to-orange-500 dark:from-amber-400 dark:to-orange-400 rounded-full animate-shimmer"></div>
+                                </div>
+                            </div>
+                            <!-- Loaded image (only when we have a valid URL) -->
+                            <img
+                                v-else
+                                :src="item.imageUrl!"
+                                :alt="'Chapter illustration'"
+                                class="w-full h-auto rounded-lg shadow-md object-cover aspect-video"
+                                loading="lazy"
+                            />
+                        </figure>
                         </template>
                     </div>
                 </div>
@@ -105,9 +140,35 @@ const rightPageNumber = computed(() => {
                             v-html="formatContent(item.content)"
                         />
                         <figure v-else-if="item.type === 'image'" class="my-6">
+                            <!-- Pending image placeholder (when generating or no valid URL) -->
+                            <div 
+                                v-if="item.imageStatus === 'pending' || !item.imageUrl || !isValidImageUrl(item.imageUrl)"
+                                class="image-placeholder w-full aspect-video rounded-lg bg-amber-50 dark:bg-amber-950/50 flex flex-col items-center justify-center gap-3 border-2 border-dashed border-amber-600 dark:border-amber-500"
+                            >
+                                <div class="relative">
+                                    <ImageIcon class="w-12 h-12 text-amber-800 dark:text-amber-300" />
+                                    <div class="absolute -top-1 -right-1">
+                                        <Sparkles class="w-5 h-5 text-orange-600 dark:text-orange-400 animate-pulse" />
+                                    </div>
+                                </div>
+                                <div class="text-center px-4">
+                                    <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                                        Creating illustration...
+                                    </p>
+                                    <p class="text-xs text-amber-700 dark:text-amber-400 mt-1 max-w-xs">
+                                        The magic is happening ✨
+                                    </p>
+                                </div>
+                                <!-- Animated loading bar -->
+                                <div class="w-32 h-1.5 bg-amber-200 dark:bg-amber-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-linear-to-r from-amber-600 to-orange-500 dark:from-amber-400 dark:to-orange-400 rounded-full animate-shimmer"></div>
+                                </div>
+                            </div>
+                            <!-- Loaded image (only when we have a valid URL) -->
                             <img
-                                :src="item.imageUrl"
-                                :alt="item.content"
+                                v-else
+                                :src="item.imageUrl!"
+                                :alt="'Chapter illustration'"
                                 class="w-full h-auto rounded-lg shadow-md object-cover aspect-video"
                                 loading="lazy"
                             />
@@ -145,6 +206,37 @@ const rightPageNumber = computed(() => {
     margin-right: 0.5rem;
     line-height: 0.8;
     color: inherit;
+}
+
+.image-placeholder {
+    animation: placeholder-pulse 2s ease-in-out infinite;
+}
+
+@keyframes placeholder-pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.85;
+    }
+}
+
+.animate-shimmer {
+    animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+        width: 30%;
+    }
+    50% {
+        width: 60%;
+    }
+    100% {
+        transform: translateX(400%);
+        width: 30%;
+    }
 }
 </style>
 

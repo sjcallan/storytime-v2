@@ -15,6 +15,16 @@ class GenerateBookCoverJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
+     * The number of times the job may be attempted.
+     */
+    public int $tries = 3;
+
+    /**
+     * The number of seconds the job can run before timing out.
+     */
+    public int $timeout = 360;
+
+    /**
      * Create a new job instance.
      */
     public function __construct(public string $bookId)

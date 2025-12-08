@@ -61,14 +61,17 @@ class BookBuilderService extends BuilderService
             'childrens' => 'Write a heartwarming title for this book in less than 6 words.',
             'romance' => 'Write a romantic title for this book in less than 6 words.',
             'paranormal' => 'Write an eerie title for this book in less than 6 words.',
-            'adventure' => 'Write a thrilling title for this book in less than 6 words.',
-            default => 'Write a compelling title for this book in less than 6 words.',
+            'adventure' => 'Write a thrilling adventure book title for this book in less than 6 words.',
+            default => 'Write a compelling book title for this book in less than 6 words.',
         };
 
         $titlePrompt .= ' Do not use colons or punctuation.';
 
+        $summaryPrompt = 'Write a 2-3 sentence summary of the story.';
+
         $responseTemplate = [
             'title' => '',
+            'summary' => '',
             'characters' => [
                 [
                     'name' => '',
@@ -76,15 +79,12 @@ class BookBuilderService extends BuilderService
                     'gender' => '',
                     'age' => '',
                     'nationality' => '',
-                    'thoughts' => '',
-                    'motivations' => '',
-                    'goals' => '',
-                    'experience' => '',
+                    'backstory' => '',
                 ],
             ],
         ];
 
-        $characterPrompt = 'Who are all the characters? Create a valid json array, one object per character each formatted like: {name:"",description:"",gender:"",age:"",nationality:"",thoughts:"",motivations:"",goals:"",experience:""}'
+        $characterPrompt = 'Who are the characters? Create a valid json array of no more than 4 primary characters, one object per character each formatted like: {name:"",description:"",gender:"",age:"",nationality:"",thoughts:"",motivations:"",goals:"",experience:""}'
             .' replace name with the character\'s name.'
             .' for description: a physical description of this character'
             .' for gender: the sex of this character, choose: male or female'
@@ -93,10 +93,11 @@ class BookBuilderService extends BuilderService
             .' for goals: What is this character trying to accomplish in this book?'
             .' for thoughts: What is this character thinking about at the moment?'
             .' for motivations: What is this character\'s personal motivations?'
-            .' for experience: Summarize what this character experienced in this book.';
+            .' for experience: Summarize what this character experienced in this book.'
+            .' for backstory: What is this character\'s backstory in 3 sentences or less.';
 
-        $this->chatService->setContext($this->getPersonaPrompt($bookId).' Respond using the JSON Format: "'.json_encode($responseTemplate).'"');
-        $this->chatService->setTemperature(.25);
+        $this->chatService->setContext($this->getSystemPrompt($bookId).' Respond using the JSON Format: "'.json_encode($responseTemplate).'"');
+        $this->chatService->setModel('gpt-4.1');
         $this->chatService->setResponseFormat('json_object');
 
         if ($userCharacters) {
@@ -104,7 +105,7 @@ class BookBuilderService extends BuilderService
             $this->chatService->addAssistantMessage($userCharacters);
         }
 
-        $this->chatService->addUserMessage($titlePrompt.' ALSO: '.$characterPrompt);
+        $this->chatService->addUserMessage($titlePrompt.' '.$summaryPrompt.' '.$characterPrompt);
 
         $metaDataResponse = $this->chatService->chat();
         $metaData = json_decode($metaDataResponse['completion'], true);
@@ -113,6 +114,7 @@ class BookBuilderService extends BuilderService
 
         return [
             'title' => $this->stripQuotes($metaData['title'] ?? ''),
+            'summary' => $metaData['summary'] ?? '',
             'characters' => $metaData['characters'] ?? [],
             'user_id' => $book->user_id,
         ];

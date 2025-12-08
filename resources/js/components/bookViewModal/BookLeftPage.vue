@@ -4,7 +4,7 @@ import BookPageTexture from './BookPageTexture.vue';
 import BookPageDecorative from './BookPageDecorative.vue';
 import CharacterGrid from './CharacterGrid.vue';
 import CreateChapterForm from './CreateChapterForm.vue';
-import { BookOpen } from 'lucide-vue-next';
+import { BookOpen, ImageIcon, Sparkles } from 'lucide-vue-next';
 import type { Chapter, PageSpread, ReadingView, Character, BookType } from './types';
 import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
 
@@ -34,6 +34,7 @@ const emit = defineEmits<{
     (e: 'update:nextChapterPrompt', value: string): void;
     (e: 'update:isFinalChapter', value: boolean): void;
     (e: 'generateChapter'): void;
+    (e: 'textareaFocused', value: boolean): void;
 }>();
 
 // Calculate left page number
@@ -61,6 +62,15 @@ const isScript = computed(() => isSceneBasedBook(props.bookType));
 // Format content - applies script formatting for theatre/screenplay
 const formatContent = (content: string): string => {
     return formatScriptDialogue(content, isScript.value);
+};
+
+// Check if a URL looks like a valid image URL (starts with http, https, or /)
+const isValidImageUrl = (url: string | null | undefined): boolean => {
+    if (!url || typeof url !== 'string') {
+        return false;
+    }
+    const trimmed = url.trim();
+    return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/');
 };
 </script>
 
@@ -117,9 +127,35 @@ const formatContent = (content: string): string => {
                                     v-html="formatContent(item.content)"
                                 />
                                 <figure v-else-if="item.type === 'image'" class="my-6">
+                                    <!-- Pending image placeholder (when generating or no valid URL) -->
+                                    <div 
+                                        v-if="item.imageStatus === 'pending' || !item.imageUrl || !isValidImageUrl(item.imageUrl)"
+                                        class="image-placeholder w-full aspect-video rounded-lg bg-amber-50 dark:bg-amber-950/50 flex flex-col items-center justify-center gap-3 border-2 border-dashed border-amber-600 dark:border-amber-500"
+                                    >
+                                        <div class="relative">
+                                            <ImageIcon class="w-12 h-12 text-amber-800 dark:text-amber-300" />
+                                            <div class="absolute -top-1 -right-1">
+                                                <Sparkles class="w-5 h-5 text-orange-600 dark:text-orange-400 animate-pulse" />
+                                            </div>
+                                        </div>
+                                        <div class="text-center px-4">
+                                            <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                                                Creating illustration...
+                                            </p>
+                                            <p class="text-xs text-amber-700 dark:text-amber-400 mt-1 max-w-xs">
+                                                The magic is happening ✨
+                                            </p>
+                                        </div>
+                                        <!-- Animated loading bar -->
+                                        <div class="w-32 h-1.5 bg-amber-200 dark:bg-amber-800 rounded-full overflow-hidden">
+                                            <div class="h-full bg-linear-to-r from-amber-600 to-orange-500 dark:from-amber-400 dark:to-orange-400 rounded-full animate-shimmer"></div>
+                                        </div>
+                                    </div>
+                                    <!-- Loaded image (only when we have a valid URL) -->
                                     <img
-                                        :src="item.imageUrl"
-                                        :alt="item.content"
+                                        v-else
+                                        :src="item.imageUrl!"
+                                        :alt="'Chapter illustration'"
                                         class="w-full h-auto rounded-lg shadow-md object-cover aspect-video"
                                         loading="lazy"
                                     />
@@ -149,6 +185,7 @@ const formatContent = (content: string): string => {
                 @update:prompt="emit('update:nextChapterPrompt', $event)"
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
+                @textarea-focused="emit('textareaFocused', $event)"
             />
             <!-- Otherwise show decorative -->
             <BookPageDecorative v-else variant="wand" />
@@ -168,3 +205,35 @@ const formatContent = (content: string): string => {
     </div>
 </template>
 
+<style scoped>
+.image-placeholder {
+    animation: placeholder-pulse 2s ease-in-out infinite;
+}
+
+@keyframes placeholder-pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.85;
+    }
+}
+
+.animate-shimmer {
+    animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+        width: 30%;
+    }
+    50% {
+        width: 60%;
+    }
+    100% {
+        transform: translateX(400%);
+        width: 30%;
+    }
+}
+</style>

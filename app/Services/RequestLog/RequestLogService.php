@@ -2,8 +2,8 @@
 
 namespace App\Services\RequestLog;
 
+use App\Models\Chapter;
 use App\Repositories\RequestLog\RequestLogRepository;
-use App\Repositories\User\UserRepository;
 use App\Traits\Service\Creatable;
 use App\Traits\Service\Deletable;
 use App\Traits\Service\Gettable;
@@ -11,22 +11,47 @@ use App\Traits\Service\Updatable;
 
 class RequestLogService
 {
-    use Gettable, Creatable, Updatable, Deletable;
+    use Creatable, Deletable, Gettable, Updatable;
 
     /** @var \App\Repositories\RequestLog\RequestLogRepository */
     protected $repository;
 
-    /**
-     * @param \App\Repositories\RequestLog\RequestLogRepository $userRepository
-     */
-    public function __construct(RequestLogRepository $userRepository ) 
+    public function __construct(RequestLogRepository $userRepository)
     {
         $this->repository = $userRepository;
     }
 
     /**
-     * @param array $response
+     * Store a request log with validation
      */
+    public function store(array $data, ?array $options = null)
+    {
+        $data = $this->validateAndSanitizeData($data);
+
+        $data['created_at'] = date('Y-m-d H:i:s');
+        $data['updated_at'] = date('Y-m-d H:i:s');
+
+        return $this->repository->store($data, $options);
+    }
+
+    /**
+     * Validate and sanitize request log data
+     */
+    protected function validateAndSanitizeData(array $data): array
+    {
+        if (isset($data['chapter_id']) && ! empty($data['chapter_id'])) {
+            $chapterExists = Chapter::where('id', $data['chapter_id'])->exists();
+
+            if (! $chapterExists) {
+                $data['chapter_id'] = null;
+            }
+        } else {
+            $data['chapter_id'] = null;
+        }
+
+        return $data;
+    }
+
     public function parseResponseForStore(array $response)
     {
         return [
@@ -40,12 +65,7 @@ class RequestLogService
         ];
     }
 
-    /**
-     * @param string $bookId
-     * @param array $fields
-     * @param array $options
-     */
-    public function getAllByBookId(string $bookId, array $fields = null, array $options = null)
+    public function getAllByBookId(string $bookId, ?array $fields = null, ?array $options = null)
     {
         return $this->repository->getAllByBookId($bookId, $fields, $options);
     }
