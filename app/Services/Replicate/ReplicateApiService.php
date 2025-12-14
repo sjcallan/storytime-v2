@@ -16,9 +16,15 @@ class ReplicateApiService
 
     protected string $kreaModel = 'black-forest-labs/flux-krea-dev';
 
+    protected ?string $customModelVersion;
+
+    protected bool $useCustomModel;
+
     public function __construct()
     {
         $this->apiKey = config('services.replicate.api_key');
+        $this->customModelVersion = config('services.replicate.custom_model_version');
+        $this->useCustomModel = (bool) config('services.replicate.use_custom_model', false);
     }
 
     /**
@@ -92,6 +98,10 @@ class ReplicateApiService
         string $prompt,
         string $aspectRatio = '1:1'
     ): array {
+        if ($this->useCustomModel) {
+            return $this->generateImageWithCustomModel($prompt, $aspectRatio);
+        }
+
         $input = [
             'prompt' => $prompt,
             'go_fast' => true,
@@ -152,6 +162,83 @@ class ReplicateApiService
     }
 
     /**
+     * Generate an image using a custom model/version with LoRA training.
+     * Best for consistent character generation with trained models.
+     *
+     * @param  string  $prompt  The text prompt for image generation
+     * @param  string  $aspectRatio  The aspect ratio for the generated image (default: 1:1)
+     * @param  array<string, mixed>  $customParams  Optional custom parameters to override defaults
+     * @return array{url: string|null, error: string|null}
+     */
+    public function generateImageWithCustomModel(
+        string $prompt,
+        string $aspectRatio = '1:1',
+        array $customParams = []
+    ): array {
+        $input = array_merge([
+            'prompt' => $prompt,
+            'model' => 'dev',
+            'go_fast' => false,
+            'lora_scale' => 1,
+            'megapixels' => '1',
+            'num_outputs' => 1,
+            'aspect_ratio' => $aspectRatio,
+            'output_format' => 'webp',
+            'guidance_scale' => 2,
+            'output_quality' => 80,
+            'prompt_strength' => 0.8,
+            'extra_lora_scale' => 1,
+            'num_inference_steps' => 28,
+            'disable_safety_checker' => true,
+        ], $customParams);
+
+        Log::debug('Replicate API: Making request with custom model', [
+            'model_version' => $this->customModelVersion,
+            'prompt_length' => strlen($prompt),
+            'prompt_preview' => substr($prompt, 0, 150),
+            'aspect_ratio' => $aspectRatio,
+            'guidance_scale' => $input['guidance_scale'],
+            'lora_scale' => $input['lora_scale'],
+        ]);
+
+        $response = $this->makeCustomModelRequestWithRetry($input);
+
+        if ($response->failed()) {
+            Log::error('Replicate API error with custom model', [
+                'model_version' => $this->customModelVersion,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return [
+                'url' => null,
+                'error' => $response->json('detail') ?? 'Failed to generate image',
+            ];
+        }
+
+        $data = $response->json();
+        $output = $data['output'] ?? null;
+
+        // Custom model may return an array of URLs, extract the first one
+        if (is_array($output) && count($output) > 0) {
+            $url = $output[0];
+        } else {
+            $url = $output;
+        }
+
+        Log::debug('Replicate API: Custom model response processed', [
+            'output_is_array' => is_array($output),
+            'output_count' => is_array($output) ? count($output) : 0,
+            'extracted_url' => $url,
+        ]);
+
+        return [
+            'url' => $url,
+            'error' => null,
+        ];
+    }
+
+    /**
      * Make a request to the Replicate API with retry logic for rate limiting.
      *
      * @param  string  $model  The model identifier to use
@@ -197,6 +284,50 @@ class ReplicateApiService
     }
 
     /**
+     * Make a request to the Replicate API with retry logic for custom model versions.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    protected function makeCustomModelRequestWithRetry(array $input, int $maxRetries = 3): Response
+    {
+        $attempt = 0;
+
+        while ($attempt <= $maxRetries) {
+            $response = $this->makeCustomModelRequest($input);
+
+            if ($response->status() === 429) {
+                $attempt++;
+
+                if ($attempt > $maxRetries) {
+                    Log::warning('Replicate API: Max retries reached for rate limit', [
+                        'model_version' => $this->customModelVersion,
+                    ]);
+
+                    return $response;
+                }
+
+                $waitTime = $this->extractWaitTime($response->json('detail', ''));
+                $waitSeconds = max($waitTime + 1, 5);
+
+                Log::info('Replicate API: Rate limited, waiting before retry', [
+                    'model_version' => $this->customModelVersion,
+                    'attempt' => $attempt,
+                    'max_retries' => $maxRetries,
+                    'wait_seconds' => $waitSeconds,
+                ]);
+
+                sleep($waitSeconds);
+
+                continue;
+            }
+
+            return $response;
+        }
+
+        return $this->makeCustomModelRequest($input);
+    }
+
+    /**
      * Extract wait time from rate limit error message.
      */
     protected function extractWaitTime(string $errorMessage): int
@@ -225,6 +356,23 @@ class ReplicateApiService
             'Content-Type' => 'application/json',
             'Prefer' => 'wait',
         ])->timeout(120)->post("{$this->baseUrl}/models/{$model}/predictions", [
+            'input' => $input,
+        ]);
+    }
+
+    /**
+     * Make a request to the Replicate API using a custom model version.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    protected function makeCustomModelRequest(array $input): Response
+    {
+        return Http::withHeaders([
+            'Authorization' => 'Bearer '.$this->apiKey,
+            'Content-Type' => 'application/json',
+            'Prefer' => 'wait',
+        ])->timeout(120)->post("{$this->baseUrl}/predictions", [
+            'version' => $this->customModelVersion,
             'input' => $input,
         ]);
     }

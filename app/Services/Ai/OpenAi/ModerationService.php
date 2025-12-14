@@ -30,7 +30,7 @@ class ModerationService
      */
     public function test(string $string):array
     {
-        if(config('gpt.moderation_enabled') == 'disabled') {
+        if(config('ai_moderation_enabled') == 'disabled') {
             $this->setFlagged(false);
             return [];
         }
