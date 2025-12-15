@@ -3,10 +3,15 @@ import { provide, computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import CreateStoryModal from '@/components/CreateStoryModal.vue';
 import ProfileSwitcher from '@/components/ProfileSwitcher.vue';
+import ThemeCustomizer from '@/components/ThemeCustomizer.vue';
 import { useCreateStoryModal } from '@/composables/useCreateStoryModal';
+import { useTheme } from '@/composables/useTheme';
 import { dashboard } from '@/routes';
 import { Link, usePage } from '@inertiajs/vue3';
 import { BookOpen, Wand2, Sparkles } from 'lucide-vue-next';
+
+// Initialize theme system
+useTheme();
 
 const page = usePage();
 const profiles = computed(() => page.props.auth.profiles || []);
@@ -49,8 +54,11 @@ provide('currentProfile', currentProfile);
                     </nav>
                 </div>
 
-                <!-- Right: Create Story Button & Profile Menu -->
+                <!-- Right: Theme, Create Story Button & Profile Menu -->
                 <div class="flex items-center gap-3">
+                    <!-- Theme Customizer -->
+                    <ThemeCustomizer />
+
                     <!-- Start a New Story Button -->
                     <button
                         @click="isCreateModalOpen = true"

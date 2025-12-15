@@ -3,6 +3,7 @@
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\ProfilesController;
+use App\Http\Controllers\Settings\ThemeController;
 use App\Http\Controllers\Settings\TwoFactorAuthenticationController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -39,4 +40,12 @@ Route::middleware('auth')->group(function () {
     Route::post('settings/profiles/{profile}/image', [ProfilesController::class, 'updateImage'])->name('profiles.image.update');
     Route::delete('settings/profiles/{profile}/image', [ProfilesController::class, 'destroyImage'])->name('profiles.image.destroy');
     Route::post('profiles/{profile}/switch', [ProfilesController::class, 'switchProfile'])->name('profiles.switch');
+
+    // Theme customization routes
+    Route::post('themes', [ThemeController::class, 'store'])->name('themes.store');
+    Route::patch('themes/{theme}', [ThemeController::class, 'update'])->name('themes.update');
+    Route::delete('themes/{theme}', [ThemeController::class, 'destroy'])->name('themes.destroy');
+    Route::post('themes/active', [ThemeController::class, 'setActive'])->name('themes.set-active');
+    Route::post('themes/generate-background', [ThemeController::class, 'generateBackgroundImage'])->name('themes.generate-background');
+    Route::post('themes/background-image', [ThemeController::class, 'setBackgroundImage'])->name('themes.set-background-image');
 });

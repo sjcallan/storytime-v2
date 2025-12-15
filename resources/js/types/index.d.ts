@@ -39,6 +39,13 @@ export interface User {
     updated_at: string;
 }
 
+export interface ProfileTheme {
+    id: string;
+    name: string;
+    background_color: string;
+    text_color: string;
+}
+
 export interface Profile {
     id: string;
     user_id: string;
@@ -48,6 +55,10 @@ export interface Profile {
     age_group: string;
     age_group_label: string;
     is_default: boolean;
+    themes: ProfileTheme[] | null;
+    active_theme_id: string | null;
+    active_theme: ProfileTheme | null;
+    background_image: string | null;
     created_at: string;
     updated_at: string;
 }

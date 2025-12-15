@@ -170,3 +170,56 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* Custom theme overrides */
+.custom-theme-active {
+    --background: var(--custom-background) !important;
+    --foreground: var(--custom-foreground) !important;
+    --card: var(--custom-card) !important;
+    --card-foreground: var(--custom-foreground) !important;
+    --popover: var(--custom-card) !important;
+    --popover-foreground: var(--custom-foreground) !important;
+    --accent: var(--custom-accent) !important;
+    --accent-foreground: var(--custom-foreground) !important;
+    --muted: var(--custom-muted) !important;
+    --muted-foreground: var(--custom-muted-foreground) !important;
+    --border: var(--custom-border) !important;
+    --input: var(--custom-border) !important;
+    --ring: var(--custom-foreground) !important;
+    --sidebar-background: var(--custom-sidebar) !important;
+    --sidebar-foreground: var(--custom-foreground) !important;
+    --sidebar-border: var(--custom-border) !important;
+    --sidebar-accent: var(--custom-accent) !important;
+    --sidebar-accent-foreground: var(--custom-foreground) !important;
+}
+
+/* Custom background image for dashboard */
+.custom-background-image-active body,
+.custom-background-image-active .bg-background {
+    background-image: var(--custom-background-image) !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+}
+
+/* Ensure content is readable over background image */
+.custom-background-image-active .bg-background::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.3) 0%,
+        rgba(0, 0, 0, 0.1) 50%,
+        rgba(0, 0, 0, 0.4) 100%
+    );
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Cards and content should overlay the background */
+.custom-background-image-active main > * {
+    position: relative;
+    z-index: 1;
+}

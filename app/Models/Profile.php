@@ -32,6 +32,9 @@ class Profile extends Model
         'profile_image_path',
         'age_group',
         'is_default',
+        'themes',
+        'active_theme_id',
+        'background_image',
     ];
 
     /**
@@ -42,12 +45,14 @@ class Profile extends Model
     protected $appends = [
         'avatar',
         'age_group_label',
+        'active_theme',
     ];
 
     protected function casts(): array
     {
         return [
             'is_default' => 'boolean',
+            'themes' => 'array',
         ];
     }
 
@@ -71,6 +76,77 @@ class Profile extends Model
         return Attribute::make(
             get: fn () => self::AGE_GROUPS[$this->age_group]['label'] ?? 'Unknown',
         );
+    }
+
+    /**
+     * Get the active theme for this profile.
+     *
+     * @return array{id: string, name: string, background_color: string, text_color: string}|null
+     */
+    protected function activeTheme(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                if (! $this->active_theme_id || ! $this->themes) {
+                    return null;
+                }
+
+                return collect($this->themes)->firstWhere('id', $this->active_theme_id);
+            },
+        );
+    }
+
+    /**
+     * Add a new theme to the profile's themes.
+     *
+     * @param  array{id: string, name: string, background_color: string, text_color: string}  $theme
+     */
+    public function addTheme(array $theme): void
+    {
+        $themes = $this->themes ?? [];
+        $themes[] = $theme;
+        $this->themes = $themes;
+        $this->save();
+    }
+
+    /**
+     * Update an existing theme.
+     *
+     * @param  array{id: string, name: string, background_color: string, text_color: string}  $theme
+     */
+    public function updateTheme(array $theme): void
+    {
+        $themes = $this->themes ?? [];
+        $themes = collect($themes)->map(function ($t) use ($theme) {
+            return $t['id'] === $theme['id'] ? $theme : $t;
+        })->values()->all();
+        $this->themes = $themes;
+        $this->save();
+    }
+
+    /**
+     * Delete a theme from the profile.
+     */
+    public function deleteTheme(string $themeId): void
+    {
+        $themes = $this->themes ?? [];
+        $themes = collect($themes)->reject(fn ($t) => $t['id'] === $themeId)->values()->all();
+        $this->themes = $themes;
+
+        if ($this->active_theme_id === $themeId) {
+            $this->active_theme_id = null;
+        }
+
+        $this->save();
+    }
+
+    /**
+     * Set the active theme for this profile.
+     */
+    public function setActiveTheme(?string $themeId): void
+    {
+        $this->active_theme_id = $themeId;
+        $this->save();
     }
 
     public function user(): BelongsTo
