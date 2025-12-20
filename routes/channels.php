@@ -17,3 +17,7 @@ Broadcast::channel('book.{bookId}', function (User $user, string $bookId) {
 
     return $book && $book->user_id === $user->id;
 });
+
+Broadcast::channel('user.{userId}.books', function (User $user, string $userId) {
+    return $user->id === $userId;
+});

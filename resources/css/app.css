@@ -193,9 +193,8 @@
     --sidebar-accent-foreground: var(--custom-foreground) !important;
 }
 
-/* Custom background image for dashboard */
-.custom-background-image-active body,
-.custom-background-image-active .bg-background {
+/* Custom background image for dashboard - only apply to the main layout container */
+.custom-background-image-active .bg-background.min-h-screen.flex-col {
     background-image: var(--custom-background-image) !important;
     background-size: cover !important;
     background-position: center !important;
@@ -203,8 +202,8 @@
     background-repeat: no-repeat !important;
 }
 
-/* Ensure content is readable over background image */
-.custom-background-image-active .bg-background::before {
+/* Ensure content is readable over background image - only on main layout */
+.custom-background-image-active .bg-background.min-h-screen.flex-col::before {
     content: '';
     position: fixed;
     inset: 0;

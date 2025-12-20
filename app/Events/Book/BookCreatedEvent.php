@@ -5,10 +5,11 @@ namespace App\Events\Book;
 use App\Models\Book;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class BookCreatedEvent
+class BookCreatedEvent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -29,6 +30,7 @@ class BookCreatedEvent
     {
         return [
             new PrivateChannel('book.'.$this->book->id),
+            new PrivateChannel('user.'.$this->book->user_id.'.books'),
         ];
     }
 
@@ -50,9 +52,14 @@ class BookCreatedEvent
         return [
             'id' => $this->book->id,
             'title' => $this->book->title,
+            'genre' => $this->book->genre,
+            'author' => $this->book->author,
+            'age_level' => $this->book->age_level,
+            'status' => $this->book->status,
+            'cover_image' => $this->book->cover_image,
+            'plot' => $this->book->plot,
             'user_id' => $this->book->user_id,
             'created_at' => $this->book->created_at,
         ];
     }
 }
-

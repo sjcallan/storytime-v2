@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue';
-import type { Chapter, ChapterResponse, PageSpread, PageContentItem, ReadingView, ApiFetchFn, InlineImage } from '../types';
+import type { Chapter, ChapterResponse, PageSpread, PageContentItem, ReadingView, ApiFetchFn, InlineImage, ReadingHistory } from '../types';
 import { apiFetch } from '@/composables/ApiFetch';
 
 const CHARS_PER_LINE = 55;
@@ -9,7 +9,34 @@ const CHARS_PER_FULL_PAGE = CHARS_PER_LINE * LINES_PER_FULL_PAGE;
 const CHARS_FIRST_PAGE = CHARS_PER_LINE * FIRST_PAGE_LINES;
 const IMAGE_CHAR_EQUIVALENT = 400;
 
-export function useChapterPagination() {
+// Types for chapter broadcast events
+export type ChapterCreatedPayload = {
+    id: string;
+    title: string | null;
+    book_id: string;
+    sort: number;
+    status: string | null;
+    created_at: string;
+};
+
+export type ChapterUpdatedPayload = {
+    id: string;
+    book_id: string;
+    title: string | null;
+    sort: number;
+    status: string | null;
+    body: string | null;
+    summary: string | null;
+    image: string | null;
+    image_prompt: string | null;
+    final_chapter: boolean;
+    inline_images: InlineImage[] | null;
+    updated_at: string;
+};
+
+export type ReadingHistoryCallback = (history: ReadingHistory) => void;
+
+export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCallback) {
     const requestApiFetch = apiFetch as ApiFetchFn;
 
     const currentChapterNumber = ref(0);
@@ -18,6 +45,8 @@ export function useChapterPagination() {
     const totalChapters = ref(0);
     const isLoadingChapter = ref(false);
     const isGeneratingChapter = ref(false);
+    const isAwaitingChapterGeneration = ref(false);
+    const pendingChapterId = ref<string | null>(null);
     const chapterError = ref<string | null>(null);
     const nextChapterPrompt = ref('');
     const suggestedPlaceholder = ref<string | null>(null);
@@ -355,6 +384,12 @@ export function useChapterPagination() {
         if (hasNextSpread.value) {
             currentSpreadIndex.value++;
         } else if (shouldShowNextChapterOnRight.value && nextChapterData.value) {
+            // User finished current chapter - record advancement to next chapter
+            const finishedChapterId = currentChapter.value?.id;
+            const nextChapterNumber = nextChapterData.value.sort;
+            console.log('[ReadingHistory] Advancing chapter (preview on right):', { bookId, nextChapterNumber, finishedChapterId });
+            recordChapterAdvancement(bookId, nextChapterNumber, finishedChapterId);
+            
             // When showing next chapter preview on right, advance to that chapter
             // but start from spread index 1 (skip the title spread since we already showed the first page)
             currentChapter.value = nextChapterData.value;
@@ -371,8 +406,20 @@ export function useChapterPagination() {
             const nextNumber = currentChapterNumber.value + 1;
 
             if (nextNumber <= totalChapters.value) {
+                // User finished current chapter - record advancement to next chapter
+                const finishedChapterId = currentChapter.value?.id;
+                console.log('[ReadingHistory] Advancing chapter (loading next):', { bookId, nextNumber, finishedChapterId });
+                recordChapterAdvancement(bookId, nextNumber, finishedChapterId);
+                
                 loadChapter(bookId, nextNumber);
             } else {
+                // User reached end of all chapters - record they finished the last chapter
+                const finishedChapterId = currentChapter.value?.id;
+                if (finishedChapterId) {
+                    console.log('[ReadingHistory] Advancing chapter (end of book):', { bookId, nextNumber, finishedChapterId });
+                    recordChapterAdvancement(bookId, nextNumber, finishedChapterId);
+                }
+                
                 // Preserve whether the chapter ended on left before clearing
                 lastChapterEndedOnLeft.value = chapterEndsOnLeft.value;
                 currentChapter.value = null;
@@ -489,6 +536,8 @@ export function useChapterPagination() {
         totalChapters.value = 0;
         isLoadingChapter.value = false;
         isGeneratingChapter.value = false;
+        isAwaitingChapterGeneration.value = false;
+        pendingChapterId.value = null;
         chapterError.value = null;
         nextChapterPrompt.value = '';
         suggestedPlaceholder.value = null;
@@ -519,6 +568,179 @@ export function useChapterPagination() {
         }
     };
 
+    // Handle chapter created event from broadcast
+    const handleChapterCreated = (payload: ChapterCreatedPayload): void => {
+        // A chapter was created - track it as pending if it doesn't have 'complete' status
+        if (payload.status !== 'complete') {
+            isAwaitingChapterGeneration.value = true;
+            pendingChapterId.value = payload.id;
+        }
+    };
+
+    // Handle chapter updated event from broadcast
+    const handleChapterUpdated = (payload: ChapterUpdatedPayload, bookId: string): void => {
+        // If this chapter just became complete, update state and load it
+        if (payload.status === 'complete') {
+            // Clear the awaiting state if this was the pending chapter
+            if (pendingChapterId.value === payload.id) {
+                isAwaitingChapterGeneration.value = false;
+                pendingChapterId.value = null;
+            }
+
+            // Update total chapters count
+            totalChapters.value = Math.max(totalChapters.value, payload.sort);
+
+            // If we're on the title page or waiting for chapter 1, auto-navigate
+            if (readingView.value === 'title' && payload.sort === 1) {
+                // Convert payload to Chapter type and load it
+                const chapter: Chapter = {
+                    id: payload.id,
+                    title: payload.title,
+                    sort: payload.sort,
+                    body: payload.body,
+                    summary: payload.summary,
+                    image: payload.image,
+                    image_prompt: payload.image_prompt,
+                    final_chapter: payload.final_chapter,
+                    inline_images: payload.inline_images,
+                };
+                currentChapter.value = chapter;
+                currentChapterNumber.value = payload.sort;
+                currentSpreadIndex.value = 0;
+                readingView.value = 'chapter-image';
+                
+                // Pre-fetch next chapter if available
+                if (payload.sort < totalChapters.value) {
+                    loadNextChapterData(bookId, payload.sort + 1);
+                }
+            }
+            // If we're on the create-chapter view and this is the chapter we're waiting for
+            else if (readingView.value === 'create-chapter' && payload.sort === currentChapterNumber.value) {
+                const chapter: Chapter = {
+                    id: payload.id,
+                    title: payload.title,
+                    sort: payload.sort,
+                    body: payload.body,
+                    summary: payload.summary,
+                    image: payload.image,
+                    image_prompt: payload.image_prompt,
+                    final_chapter: payload.final_chapter,
+                    inline_images: payload.inline_images,
+                };
+                currentChapter.value = chapter;
+                currentSpreadIndex.value = 0;
+                readingView.value = 'chapter-image';
+                nextChapterPrompt.value = '';
+                isFinalChapter.value = false;
+            }
+            // Update current chapter if viewing the same one
+            else if (currentChapter.value && currentChapter.value.id === payload.id) {
+                currentChapter.value = {
+                    ...currentChapter.value,
+                    title: payload.title,
+                    body: payload.body,
+                    summary: payload.summary,
+                    image: payload.image,
+                    image_prompt: payload.image_prompt,
+                    final_chapter: payload.final_chapter,
+                    inline_images: payload.inline_images,
+                };
+            }
+            // Update next chapter data if it matches
+            else if (nextChapterData.value && nextChapterData.value.id === payload.id) {
+                nextChapterData.value = {
+                    ...nextChapterData.value,
+                    title: payload.title,
+                    body: payload.body,
+                    summary: payload.summary,
+                    image: payload.image,
+                    image_prompt: payload.image_prompt,
+                    final_chapter: payload.final_chapter,
+                    inline_images: payload.inline_images,
+                };
+            }
+        }
+    };
+
+    // Set awaiting state (for when book has in_progress status but no chapters)
+    const setAwaitingChapterGeneration = (awaiting: boolean): void => {
+        isAwaitingChapterGeneration.value = awaiting;
+        if (!awaiting) {
+            pendingChapterId.value = null;
+        }
+    };
+
+    /**
+     * Record book opened - creates or updates reading history.
+     * Returns the full reading history object including saved chapter number.
+     */
+    const recordBookOpened = async (bookId: string): Promise<ReadingHistory | null> => {
+        console.log('[ReadingHistory] Recording book opened:', bookId);
+        try {
+            const { data, error } = await requestApiFetch(
+                `/api/books/${bookId}/reading-history/open`,
+                'POST',
+                {} // Send empty object to ensure POST body is included
+            );
+
+            if (error) {
+                console.error('[ReadingHistory] Failed to record book opened:', error);
+                return null;
+            }
+
+            if (data) {
+                const history = data as ReadingHistory;
+                console.log('[ReadingHistory] Book opened recorded successfully:', history);
+                if (onReadingHistoryUpdate) {
+                    onReadingHistoryUpdate(history);
+                }
+                return history;
+            }
+        } catch (err) {
+            console.error('[ReadingHistory] Exception recording book opened:', err);
+        }
+        return null;
+    };
+
+    /**
+     * Record chapter advancement - updates reading history when user finishes a chapter.
+     * Returns the updated reading history object.
+     */
+    const recordChapterAdvancement = async (
+        bookId: string,
+        chapterNumber: number,
+        chapterId?: string
+    ): Promise<ReadingHistory | null> => {
+        console.log('[ReadingHistory] Recording chapter advancement:', { bookId, chapterNumber, chapterId });
+        try {
+            const { data, error } = await requestApiFetch(
+                `/api/books/${bookId}/reading-history/advance`,
+                'POST',
+                {
+                    chapter_number: chapterNumber,
+                    chapter_id: chapterId || null,
+                }
+            );
+
+            if (error) {
+                console.error('[ReadingHistory] Failed to record chapter advancement:', error);
+                return null;
+            }
+            
+            if (data) {
+                const history = data as ReadingHistory;
+                console.log('[ReadingHistory] Chapter advancement recorded successfully:', history);
+                if (onReadingHistoryUpdate) {
+                    onReadingHistoryUpdate(history);
+                }
+                return history;
+            }
+        } catch (err) {
+            console.error('[ReadingHistory] Exception recording chapter advancement:', err);
+        }
+        return null;
+    };
+
     return {
         currentChapterNumber,
         currentChapter,
@@ -526,6 +748,8 @@ export function useChapterPagination() {
         totalChapters,
         isLoadingChapter,
         isGeneratingChapter,
+        isAwaitingChapterGeneration,
+        pendingChapterId,
         chapterError,
         nextChapterPrompt,
         suggestedPlaceholder,
@@ -556,6 +780,11 @@ export function useChapterPagination() {
         jumpToChapter,
         resetChapterState,
         updateChapterInlineImages,
+        handleChapterCreated,
+        handleChapterUpdated,
+        setAwaitingChapterGeneration,
+        recordBookOpened,
+        recordChapterAdvancement,
     };
 }
 

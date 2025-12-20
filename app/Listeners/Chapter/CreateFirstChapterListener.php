@@ -10,15 +10,22 @@ class CreateFirstChapterListener
     /**
      * Handle the event.
      *
-     * Only creates the first chapter when the book is ready (not in draft status
+     * Only creates the first chapter when the book is ready (status is 'in_progress'
      * and has the required data like plot). This prevents chapter generation
-     * from running during the multi-step book creation wizard.
+     * from running during the multi-step book creation wizard, ensuring all
+     * character additions, removals, and edits are complete before generation.
      */
     public function handle(object $event): void
     {
         $book = $event->book;
 
         if (! $book instanceof Book) {
+            return;
+        }
+
+        // Only create chapter when book status changes to 'in_progress'
+        // This ensures all character edits are complete (step 4 finished)
+        if ($book->status !== 'in_progress') {
             return;
         }
 

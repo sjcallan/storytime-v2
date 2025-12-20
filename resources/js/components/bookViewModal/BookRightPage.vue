@@ -22,6 +22,7 @@ interface Props {
     createdAt: string | null;
     isTitlePageFading: boolean;
     isLoadingChapter: boolean;
+    isAwaitingChapterGeneration?: boolean;
     isEditing: boolean;
     editForm: BookEditFormData;
     editErrors: Record<string, string>;
@@ -42,6 +43,7 @@ interface Props {
     shouldShowNextChapterOnRight?: boolean;
     nextChapterData?: Chapter | null;
     nextChapterFirstPage?: PageContentItem[] | null;
+    savedChapterNumber?: number | null;
 }
 
 // Book type is derived from the book prop
@@ -137,6 +139,8 @@ const showInlineCreateForm = computed(() => {
             :created-at="createdAt"
             :is-fading="isTitlePageFading"
             :is-loading="isLoadingChapter"
+            :is-awaiting-chapter-generation="isAwaitingChapterGeneration"
+            :saved-chapter-number="savedChapterNumber"
             @continue="emit('continueToChapter1')"
         />
 

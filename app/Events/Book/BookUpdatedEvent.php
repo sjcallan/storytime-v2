@@ -30,6 +30,7 @@ class BookUpdatedEvent implements ShouldBroadcast
     {
         return [
             new PrivateChannel('book.'.$this->book->id),
+            new PrivateChannel('user.'.$this->book->user_id.'.books'),
         ];
     }
 

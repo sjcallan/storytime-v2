@@ -77,4 +77,9 @@ class Book extends Model
     {
         return $this->hasMany(RequestLog::class);
     }
+
+    public function readingHistory(): HasMany
+    {
+        return $this->hasMany(ReadingHistory::class);
+    }
 }

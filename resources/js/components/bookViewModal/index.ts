@@ -4,6 +4,7 @@ export * from './types';
 // Composables
 export { useBookAnimation } from './composables/useBookAnimation';
 export { useChapterPagination } from './composables/useChapterPagination';
+export type { ChapterCreatedPayload, ChapterUpdatedPayload, ReadingHistoryCallback } from './composables/useChapterPagination';
 
 // Components
 export { default as BookCover } from './BookCover.vue';

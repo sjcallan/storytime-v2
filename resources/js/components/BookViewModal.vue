@@ -16,7 +16,17 @@ import {
     BookLoadingOverlay,
     DeleteConfirmDialog,
 } from '@/components/bookViewModal';
-import type { Book, CardPosition, BookEditFormData, ApiFetchFn, Character, ChapterSummary } from '@/components/bookViewModal';
+import type { 
+    Book, 
+    CardPosition, 
+    BookEditFormData, 
+    ApiFetchFn, 
+    Character, 
+    ChapterSummary,
+    ChapterCreatedPayload,
+    ChapterUpdatedPayload,
+    ReadingHistory,
+} from '@/components/bookViewModal';
 
 interface Props {
     bookId: string | null;
@@ -32,6 +42,7 @@ const isOpen = defineModel<boolean>('isOpen');
 const emit = defineEmits<{
     (e: 'updated', book: Book): void;
     (e: 'deleted', bookId: string): void;
+    (e: 'readingHistoryUpdated', history: ReadingHistory): void;
 }>();
 
 const requestApiFetch = apiFetch as ApiFetchFn;
@@ -39,13 +50,19 @@ const requestApiFetch = apiFetch as ApiFetchFn;
 // Animation composable
 const animation = useBookAnimation();
 
-// Chapter pagination composable
-const chapters = useChapterPagination();
+// Handle reading history updates by emitting to parent
+const handleReadingHistoryUpdate = (history: ReadingHistory) => {
+    emit('readingHistoryUpdated', history);
+};
+
+// Chapter pagination composable with reading history callback
+const chapters = useChapterPagination(handleReadingHistoryUpdate);
 
 // Book data state
 const book = ref<Book | null>(null);
 const loading = ref(false);
 const modalElement = ref<HTMLElement | null>(null);
+const savedChapterNumber = ref<number | null>(null);
 
 // Edit state
 const isEditing = ref(false);
@@ -105,6 +122,47 @@ const handleChapterInlineImagesEvent = (payload: ChapterInlineImagesPayload) => 
     chapters.updateChapterInlineImages(payload.chapter_id, payload.inline_images);
 };
 
+// Handle real-time chapter created events
+const handleChapterCreatedEvent = (payload: ChapterCreatedPayload) => {
+    if (!props.bookId || payload.book_id !== props.bookId) {
+        return;
+    }
+    
+    // Delegate to the composable
+    chapters.handleChapterCreated(payload);
+};
+
+// Handle real-time chapter updated events
+const handleChapterUpdatedEvent = (payload: ChapterUpdatedPayload) => {
+    if (!props.bookId || payload.book_id !== props.bookId) {
+        return;
+    }
+    
+    // Delegate to the composable
+    chapters.handleChapterUpdated(payload, props.bookId);
+    
+    // If a chapter is now complete, update book's chapter list for TOC
+    if (payload.status === 'complete' && book.value) {
+        const existingChapter = book.value.chapters?.find(ch => ch.id === payload.id);
+        if (existingChapter) {
+            // Update existing chapter
+            existingChapter.title = payload.title;
+            existingChapter.sort = payload.sort;
+        } else {
+            // Add new chapter to book's chapter list
+            if (!book.value.chapters) {
+                book.value.chapters = [];
+            }
+            book.value.chapters.push({
+                id: payload.id,
+                title: payload.title,
+                sort: payload.sort,
+                final_chapter: payload.final_chapter,
+            });
+        }
+    }
+};
+
 // Handle real-time book update events
 const handleBookUpdatedEvent = (payload: BookUpdatedPayload) => {
     if (!book.value || book.value.id !== payload.id) {
@@ -136,6 +194,8 @@ const subscribeToBookChannel = (bookId: string) => {
     try {
         const channel = echo().private(`book.${bookId}`);
         channel.listen('.book.updated', handleBookUpdatedEvent);
+        channel.listen('.chapter.created', handleChapterCreatedEvent);
+        channel.listen('.chapter.updated', handleChapterUpdatedEvent);
         channel.listen('.chapter.inline-images.created', handleChapterInlineImagesEvent);
         bookChannel.value = channel;
     } catch (err) {
@@ -151,9 +211,11 @@ const unsubscribeFromBookChannel = () => {
     
     try {
         bookChannel.value.stopListening('.book.updated');
+        bookChannel.value.stopListening('.chapter.created');
+        bookChannel.value.stopListening('.chapter.updated');
         bookChannel.value.stopListening('.chapter.inline-images.created');
         echo().leave(`book.${props.bookId}`);
-    } catch (err) {
+    } catch {
         // Ignore cleanup errors
     }
     bookChannel.value = null;
@@ -243,6 +305,11 @@ const loadBook = async () => {
     }
     
     loading.value = true;
+    
+    // Record that the book was opened and get saved reading position
+    const readingHistory = await chapters.recordBookOpened(props.bookId);
+    savedChapterNumber.value = readingHistory?.current_chapter_number ?? null;
+    
     const { data, error } = await requestApiFetch(`/api/books/${props.bookId}`, 'GET');
     
     if (error) {
@@ -252,6 +319,15 @@ const loadBook = async () => {
         book.value = fetchedBook;
         if (!isEditing.value) {
             initializeEditForm(fetchedBook);
+        }
+        
+        // Check if book is in_progress but has no completed chapters
+        // This means the first chapter is being generated
+        const completedChapters = fetchedBook.chapters?.filter(ch => ch.title || ch.sort) ?? [];
+        if (fetchedBook.status === 'in_progress' && completedChapters.length === 0) {
+            chapters.setAwaitingChapterGeneration(true);
+        } else {
+            chapters.setAwaitingChapterGeneration(false);
         }
     }
     
@@ -418,7 +494,12 @@ const handleKeydown = (event: KeyboardEvent) => {
 // Chapter navigation handlers
 const handleContinueToChapter1 = () => {
     if (props.bookId) {
-        chapters.goToChapter1(props.bookId, animation.scheduleTimeout);
+        // If we have a saved reading position greater than 1, jump to that chapter instead
+        if (savedChapterNumber.value && savedChapterNumber.value > 1) {
+            chapters.jumpToChapter(props.bookId, savedChapterNumber.value);
+        } else {
+            chapters.goToChapter1(props.bookId, animation.scheduleTimeout);
+        }
     }
 };
 
@@ -481,6 +562,7 @@ const resetAllState = () => {
     isDeleting.value = false;
     showDeleteConfirm.value = false;
     selectedCharacter.value = null;
+    savedChapterNumber.value = null;
     resetEditFeedback();
 };
 
@@ -605,6 +687,18 @@ onBeforeUnmount(() => {
                         :message="loading ? 'Opening your story...' : isSaving ? 'Saving changes...' : 'Deleting story...'"
                     />
 
+                    <!-- Awaiting First Chapter Generation Overlay (shown on title page) -->
+                    <BookLoadingOverlay 
+                        v-if="chapters.isAwaitingChapterGeneration.value && chapters.readingView.value === 'title'"
+                        message="Creating your first chapter..."
+                    >
+                        <template #subtitle>
+                            <p class="mt-2 text-sm text-amber-700 dark:text-amber-600 animate-pulse">
+                                The magic is happening 🪄
+                            </p>
+                        </template>
+                    </BookLoadingOverlay>
+
                     <!-- Header Controls -->
                     <BookHeaderControls
                         v-if="animation.animationPhase.value === 'complete' && !animation.isClosing.value && animation.isBookOpened.value"
@@ -649,7 +743,7 @@ onBeforeUnmount(() => {
                         >
                             <template #subtitle>
                                 <p v-if="chapters.isGeneratingChapter.value" class="mt-2 text-sm text-amber-700 dark:text-amber-600 animate-pulse">
-                                    The magic is happening ✨
+                                    The magic is happening 🪄
                                 </p>
                             </template>
                         </BookLoadingOverlay>
@@ -684,7 +778,7 @@ onBeforeUnmount(() => {
                             :suggested-placeholder="chapters.suggestedPlaceholder.value"
                             :is-loading-placeholder="chapters.isLoadingPlaceholder.value"
                             :is-final-chapter="chapters.isFinalChapter.value"
-                            :is-generating-chapter="chapters.isGeneratingChapter.value"
+                            :is-generating-chapter="chapters.isGeneratingChapter.value || chapters.isAwaitingChapterGeneration.value"
                             :book-type="book?.type"
                             @select-character="handleSelectCharacter"
                             @update:next-chapter-prompt="chapters.nextChapterPrompt.value = $event"
@@ -709,6 +803,7 @@ onBeforeUnmount(() => {
                             :created-at="displayCreatedAt"
                             :is-title-page-fading="chapters.isTitlePageFading.value"
                             :is-loading-chapter="chapters.isLoadingChapter.value"
+                            :is-awaiting-chapter-generation="chapters.isAwaitingChapterGeneration.value"
                             :is-editing="isEditing"
                             :edit-form="editForm"
                             :edit-errors="editErrors"
@@ -721,7 +816,7 @@ onBeforeUnmount(() => {
                             :suggested-placeholder="chapters.suggestedPlaceholder.value"
                             :is-loading-placeholder="chapters.isLoadingPlaceholder.value"
                             :is-final-chapter="chapters.isFinalChapter.value"
-                            :is-generating-chapter="chapters.isGeneratingChapter.value"
+                            :is-generating-chapter="chapters.isGeneratingChapter.value || chapters.isAwaitingChapterGeneration.value"
                             :selected-character="selectedCharacter"
                             :has-next-chapter="chapters.hasNextChapter.value"
                             :chapter-ends-on-left="chapters.chapterEndsOnLeft.value"
@@ -729,6 +824,7 @@ onBeforeUnmount(() => {
                             :should-show-next-chapter-on-right="chapters.shouldShowNextChapterOnRight.value"
                             :next-chapter-data="chapters.nextChapterData.value"
                             :next-chapter-first-page="chapters.nextChapterFirstPage.value"
+                            :saved-chapter-number="savedChapterNumber"
                             @continue-to-chapter1="handleContinueToChapter1"
                             @update:edit-form="editForm = $event"
                             @submit-edit="submitEdit"

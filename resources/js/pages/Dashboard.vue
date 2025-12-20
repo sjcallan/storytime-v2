@@ -3,9 +3,10 @@ import BookViewModal from '@/components/BookViewModal.vue';
 import { Button } from '@/components/ui/button';
 import { useCreateStoryModal } from '@/composables/useCreateStoryModal';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import type { User } from '@/types';
+import { Head, usePage } from '@inertiajs/vue3';
 import { echo } from '@laravel/echo-vue';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-vue-next';
+import { BookOpen, ChevronLeft, ChevronRight, Clock, Plus } from 'lucide-vue-next';
 import {
     computed,
     nextTick,
@@ -15,6 +16,18 @@ import {
     toRefs,
     watch,
 } from 'vue';
+
+type RecentlyReadBook = {
+    id: string;
+    title: string;
+    genre: string;
+    author: string | null;
+    age_level: number | null;
+    status: string;
+    cover_image?: string | null;
+    current_chapter_number: number;
+    last_read_at: string;
+};
 
 const props = defineProps<{
     booksByGenre: Record<
@@ -30,10 +43,15 @@ const props = defineProps<{
             created_at?: string;
         }>
     >;
+    recentlyRead: RecentlyReadBook[];
     userName: string;
 }>();
 
-const { booksByGenre } = toRefs(props);
+const { booksByGenre, recentlyRead } = toRefs(props);
+
+// Get current user for channel subscription
+const page = usePage();
+const currentUser = computed(() => page.props.auth?.user as User | null);
 
 type BookSummary = {
     id: string;
@@ -64,6 +82,19 @@ type BookUpdatedPayload = {
     updated_at: string;
 };
 
+type BookCreatedPayload = {
+    id: string;
+    title: string | null;
+    genre: string;
+    author: string | null;
+    age_level: number | null;
+    status: string;
+    cover_image: string | null;
+    plot: string | null;
+    user_id: string;
+    created_at: string;
+};
+
 const cloneBooksByGenre = (
     source: Record<string, BookSummary[]>,
 ): Record<string, BookSummary[]> => {
@@ -91,8 +122,15 @@ const booksByGenreState = ref<Record<string, BookSummary[]>>(
     cloneBooksByGenre(booksByGenre.value),
 );
 
+const recentlyReadState = ref<RecentlyReadBook[]>([...recentlyRead.value]);
+
 watch(booksByGenre, (newValue) => {
     booksByGenreState.value = cloneBooksByGenre(newValue);
+    nextTick(() => updateAllScrollStates());
+});
+
+watch(recentlyRead, (newValue) => {
+    recentlyReadState.value = [...newValue];
     nextTick(() => updateAllScrollStates());
 });
 
@@ -109,9 +147,14 @@ const sortedBooksByGenre = computed(() => {
 
 // Carousel functionality - use a non-reactive Map to avoid recursive updates
 const carouselRefs = new Map<string, HTMLElement>();
+const jumpBackInCarouselRef = ref<HTMLElement | null>(null);
 const scrollStates = ref<
     Record<string, { canScrollLeft: boolean; canScrollRight: boolean }>
 >({});
+const jumpBackInScrollState = ref<{
+    canScrollLeft: boolean;
+    canScrollRight: boolean;
+}>({ canScrollLeft: false, canScrollRight: false });
 
 const setCarouselRef = (genre: string, el: HTMLElement | null) => {
     if (el) {
@@ -151,6 +194,7 @@ const updateAllScrollStates = () => {
     carouselRefs.forEach((_, genre) => {
         updateScrollState(genre);
     });
+    updateJumpBackInScrollState();
 };
 
 const scrollCarousel = (genre: string, direction: 'left' | 'right') => {
@@ -176,10 +220,73 @@ const handleScroll = (genre: string) => {
     updateScrollState(genre);
 };
 
+const updateJumpBackInScrollState = () => {
+    const container = jumpBackInCarouselRef.value;
+    if (!container) {
+        return;
+    }
+
+    const { scrollLeft, scrollWidth, clientWidth } = container;
+    jumpBackInScrollState.value = {
+        canScrollLeft: scrollLeft > 1,
+        canScrollRight: scrollLeft < scrollWidth - clientWidth - 1,
+    };
+};
+
+const scrollJumpBackInCarousel = (direction: 'left' | 'right') => {
+    const container = jumpBackInCarouselRef.value;
+    if (!container) {
+        return;
+    }
+
+    const cardWidth = 280; // Approximate card width including gap
+    const scrollAmount = cardWidth * 2; // Scroll 2 cards at a time
+    const targetScroll =
+        direction === 'left'
+            ? container.scrollLeft - scrollAmount
+            : container.scrollLeft + scrollAmount;
+
+    container.scrollTo({
+        left: targetScroll,
+        behavior: 'smooth',
+    });
+};
+
+const handleJumpBackInScroll = () => {
+    updateJumpBackInScrollState();
+};
+
+const formatRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) {
+        return 'Just now';
+    }
+    if (diffMins < 60) {
+        return `${diffMins}m ago`;
+    }
+    if (diffHours < 24) {
+        return `${diffHours}h ago`;
+    }
+    if (diffDays === 1) {
+        return 'Yesterday';
+    }
+    if (diffDays < 7) {
+        return `${diffDays}d ago`;
+    }
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
 onMounted(() => {
     window.addEventListener('resize', updateAllScrollStates);
     nextTick(() => updateAllScrollStates());
     subscribeToAllBooks();
+    subscribeToUserBooksChannel();
 });
 
 onUnmounted(() => {
@@ -195,8 +302,41 @@ const {
 } = useCreateStoryModal();
 
 // Echo channel subscriptions for real-time book updates
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const bookChannels = ref<Map<string, any>>(new Map());
+ 
+const userBooksChannel = ref<any>(null);
+
+// Handle book created events from user channel
+const handleBookCreatedEvent = (payload: BookCreatedPayload) => {
+    // Check if book already exists in state (avoid duplicates)
+    const existingLocation = findBookLocation(payload.id);
+    if (existingLocation) {
+        return;
+    }
+
+    // Add the new book to the appropriate genre
+    const targetGenre = payload.genre;
+    if (!booksByGenreState.value[targetGenre]) {
+        booksByGenreState.value[targetGenre] = [];
+    }
+
+    booksByGenreState.value[targetGenre].unshift({
+        id: payload.id,
+        title: payload.title ?? 'Untitled Story',
+        genre: payload.genre,
+        author: payload.author,
+        age_level: payload.age_level,
+        status: payload.status,
+        cover_image: payload.cover_image ?? undefined,
+        created_at: payload.created_at,
+    });
+
+    // Subscribe to the new book's channel for future updates
+    subscribeToBook(payload.id);
+
+    nextTick(() => updateAllScrollStates());
+};
 
 // Handle book update events from Echo
 const handleBookUpdatedEvent = (payload: BookUpdatedPayload) => {
@@ -266,7 +406,7 @@ const unsubscribeFromBook = (bookId: string) => {
         try {
             channel.stopListening('.book.updated');
             echo().leave(`book.${bookId}`);
-        } catch (err) {
+        } catch {
             // Ignore cleanup errors
         }
         bookChannels.value.delete(bookId);
@@ -280,11 +420,72 @@ const subscribeToAllBooks = () => {
         .forEach((book) => subscribeToBook(book.id));
 };
 
+// Subscribe to user's books channel for new book notifications
+const subscribeToUserBooksChannel = () => {
+    const userId = currentUser.value?.id;
+    if (!userId || userBooksChannel.value) {
+        return;
+    }
+
+    try {
+        const channel = echo().private(`user.${userId}.books`);
+
+        // Listen for new books created
+        channel.listen('.book.created', handleBookCreatedEvent);
+
+        // Also listen for updates on the user channel (for books not yet subscribed individually)
+        channel.listen('.book.updated', (payload: BookUpdatedPayload) => {
+            // Check if book exists, if not add it, otherwise update it
+            const location = findBookLocation(payload.id);
+            if (!location) {
+                // Book doesn't exist yet, treat as new book
+                handleBookCreatedEvent({
+                    id: payload.id,
+                    title: payload.title,
+                    genre: payload.genre,
+                    author: payload.author,
+                    age_level: payload.age_level,
+                    status: payload.status,
+                    cover_image: payload.cover_image,
+                    plot: payload.plot,
+                    user_id: '', // Not needed for adding
+                    created_at: payload.updated_at,
+                });
+            } else {
+                // Book exists, update it
+                handleBookUpdatedEvent(payload);
+            }
+        });
+
+        userBooksChannel.value = channel;
+    } catch (err) {
+        console.error('[Echo] Failed to subscribe to user books channel:', err);
+    }
+};
+
+// Cleanup user books channel subscription
+const cleanupUserBooksChannel = () => {
+    if (userBooksChannel.value) {
+        try {
+            userBooksChannel.value.stopListening('.book.created');
+            userBooksChannel.value.stopListening('.book.updated');
+            const userId = currentUser.value?.id;
+            if (userId) {
+                echo().leave(`user.${userId}.books`);
+            }
+        } catch {
+            // Ignore cleanup errors
+        }
+        userBooksChannel.value = null;
+    }
+};
+
 // Cleanup all subscriptions
 const cleanupAllSubscriptions = () => {
     bookChannels.value.forEach((_, bookId) => {
         unsubscribeFromBook(bookId);
     });
+    cleanupUserBooksChannel();
 };
 
 // Watch for books changes to update subscriptions
@@ -601,12 +802,98 @@ const handleBookDeleted = (bookId: string) => {
         }
     }
 
+    // Also remove from recently read
+    const recentIndex = recentlyReadState.value.findIndex(
+        (b) => b.id === bookId,
+    );
+    if (recentIndex !== -1) {
+        recentlyReadState.value.splice(recentIndex, 1);
+    }
+
     selectedBookId.value = null;
     selectedCoverImage.value = null;
     selectedBookTitle.value = null;
     selectedBookAuthor.value = null;
     cardPosition.value = null;
     isBookViewOpen.value = false;
+};
+
+type ReadingHistoryPayload = {
+    id: string;
+    book_id: string;
+    current_chapter_number: number;
+    last_read_at: string;
+    book?: {
+        id: string;
+        title: string;
+        genre: string;
+        author: string | null;
+        age_level: number | null;
+        status: string;
+        cover_image: string | null;
+    } | null;
+};
+
+const handleReadingHistoryUpdated = (history: ReadingHistoryPayload) => {
+    const bookId = history.book_id;
+
+    // Find the book data - either from the history payload or from our existing state
+    let bookData = history.book;
+
+    if (!bookData) {
+        // Try to find book in our existing state
+        const location = findBookLocation(bookId);
+        if (location) {
+            const existingBook = booksByGenreState.value[location.genre][location.index];
+            bookData = {
+                id: existingBook.id,
+                title: existingBook.title,
+                genre: existingBook.genre,
+                author: existingBook.author,
+                age_level: existingBook.age_level,
+                status: existingBook.status,
+                cover_image: existingBook.cover_image ?? null,
+            };
+        }
+    }
+
+    if (!bookData) {
+        // Can't update without book data
+        return;
+    }
+
+    // Create the recently read entry
+    const recentEntry: RecentlyReadBook = {
+        id: bookData.id,
+        title: bookData.title,
+        genre: bookData.genre,
+        author: bookData.author,
+        age_level: bookData.age_level,
+        status: bookData.status,
+        cover_image: bookData.cover_image,
+        current_chapter_number: history.current_chapter_number,
+        last_read_at: history.last_read_at,
+    };
+
+    // Find existing entry in recently read
+    const existingIndex = recentlyReadState.value.findIndex(
+        (b) => b.id === bookId,
+    );
+
+    if (existingIndex !== -1) {
+        // Update and move to front
+        recentlyReadState.value.splice(existingIndex, 1);
+    }
+
+    // Add to front of list
+    recentlyReadState.value.unshift(recentEntry);
+
+    // Keep only the 10 most recent
+    if (recentlyReadState.value.length > 10) {
+        recentlyReadState.value = recentlyReadState.value.slice(0, 10);
+    }
+
+    nextTick(() => updateJumpBackInScrollState());
 };
 
 // Generate a random color gradient for books without cover images
@@ -653,6 +940,131 @@ const formatGenreName = (genre: string) => {
                         <Plus class="mr-2 h-4 w-4" />
                         Create Your First Story
                     </Button>
+                </div>
+            </div>
+
+            <!-- Jump Back In Section -->
+            <div v-if="recentlyReadState.length > 0" class="space-y-4">
+                <!-- Section Header -->
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/20">
+                        <BookOpen class="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-medium tracking-tight">Jump Back In</h2>
+                        <p class="text-sm text-muted-foreground">Continue where you left off</p>
+                    </div>
+                </div>
+
+                <!-- Recently Read Carousel -->
+                <div class="group/carousel relative">
+                    <!-- Left Navigation Arrow -->
+                    <button
+                        v-show="jumpBackInScrollState.canScrollLeft"
+                        @click="scrollJumpBackInCarousel('left')"
+                        class="absolute top-1/2 -left-2 z-10 flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-sidebar-border/70 bg-background/95 shadow-lg backdrop-blur-sm transition-all duration-200 hover:scale-110 hover:bg-background dark:border-sidebar-border"
+                        aria-label="Scroll left"
+                    >
+                        <ChevronLeft class="h-5 w-5 text-foreground" />
+                    </button>
+
+                    <!-- Carousel Container -->
+                    <div
+                        ref="jumpBackInCarouselRef"
+                        @scroll="handleJumpBackInScroll"
+                        class="scrollbar-none flex gap-4 overflow-x-auto scroll-smooth pb-4"
+                        style="scrollbar-width: none; -ms-overflow-style: none"
+                    >
+                        <div
+                            v-for="book in recentlyReadState"
+                            :key="`recent-${book.id}`"
+                            :style="getCardVisualStyles(book.id)"
+                            @click="
+                                openBook(
+                                    book.id,
+                                    book.cover_image || null,
+                                    book.title,
+                                    book.author || null,
+                                    $event,
+                                )
+                            "
+                            class="group relative flex w-[280px] shrink-0 cursor-pointer gap-4 overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card p-3 transition-all duration-300 hover:-translate-y-1 hover:[box-shadow:0_24px_48px_-18px_var(--card-shadow-color)] dark:border-sidebar-border"
+                        >
+                            <!-- Book Cover Thumbnail -->
+                            <div class="relative h-24 w-18 shrink-0 overflow-hidden rounded-lg">
+                                <template v-if="book.cover_image">
+                                    <img
+                                        :src="book.cover_image"
+                                        :alt="book.title"
+                                        class="h-full w-full object-cover transition-all duration-300 group-hover:scale-110"
+                                    />
+                                </template>
+                                <template v-else>
+                                    <div
+                                        class="flex h-full w-full items-center justify-center p-2"
+                                        :class="getGradientColors(book.id)"
+                                    >
+                                        <span class="text-center text-xs font-bold text-white leading-tight line-clamp-3">
+                                            {{ book.title || 'Untitled' }}
+                                        </span>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Book Info -->
+                            <div class="flex min-w-0 flex-1 flex-col justify-between py-0.5">
+                                <div>
+                                    <h3 class="line-clamp-2 text-sm font-semibold tracking-tight leading-snug">
+                                        {{ book.title || 'Untitled Story' }}
+                                    </h3>
+                                    <p v-if="book.author" class="mt-0.5 truncate text-xs text-muted-foreground">
+                                        {{ book.author }}
+                                    </p>
+                                </div>
+
+                                <div class="flex items-center justify-between gap-2">
+                                    <!-- Chapter Progress -->
+                                    <div class="flex items-center gap-1.5 rounded-full bg-amber-100 px-2 py-0.5 dark:bg-amber-900/30">
+                                        <BookOpen class="h-3 w-3 text-amber-700 dark:text-amber-400" />
+                                        <span class="text-xs font-medium text-amber-700 dark:text-amber-400">
+                                            Ch. {{ book.current_chapter_number }}
+                                        </span>
+                                    </div>
+
+                                    <!-- Last Read Time -->
+                                    <div class="flex items-center gap-1 text-xs text-muted-foreground">
+                                        <Clock class="h-3 w-3" />
+                                        <span>{{ formatRelativeTime(book.last_read_at) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Hover Shine Effect -->
+                            <div
+                                class="absolute inset-0 -translate-x-full bg-linear-to-tr from-transparent via-white/10 to-transparent opacity-0 transition-all duration-700 group-hover:translate-x-full group-hover:opacity-100"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Right Navigation Arrow -->
+                    <button
+                        v-show="jumpBackInScrollState.canScrollRight"
+                        @click="scrollJumpBackInCarousel('right')"
+                        class="absolute top-1/2 -right-2 z-10 flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-sidebar-border/70 bg-background/95 shadow-lg backdrop-blur-sm transition-all duration-200 hover:scale-110 hover:bg-background dark:border-sidebar-border"
+                        aria-label="Scroll right"
+                    >
+                        <ChevronRight class="h-5 w-5 text-foreground" />
+                    </button>
+
+                    <!-- Edge fade gradients -->
+                    <div
+                        v-show="jumpBackInScrollState.canScrollLeft"
+                        class="pointer-events-none absolute top-0 bottom-4 left-0 w-12 bg-linear-to-r from-background to-transparent"
+                    />
+                    <div
+                        v-show="jumpBackInScrollState.canScrollRight"
+                        class="pointer-events-none absolute top-0 right-0 bottom-4 w-12 bg-linear-to-l from-background to-transparent"
+                    />
                 </div>
             </div>
 
@@ -821,6 +1233,7 @@ const formatGenreName = (genre: string) => {
             :book-author="selectedBookAuthor"
             @updated="handleBookUpdated"
             @deleted="handleBookDeleted"
+            @reading-history-updated="handleReadingHistoryUpdated"
         />
     </AppLayout>
 </template>

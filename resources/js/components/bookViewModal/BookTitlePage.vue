@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 import { Sparkles, ChevronRight, Loader2 } from 'lucide-vue-next';
 
 interface Props {
@@ -10,6 +10,8 @@ interface Props {
     createdAt: string | null;
     isFading: boolean;
     isLoading: boolean;
+    isAwaitingChapterGeneration?: boolean;
+    savedChapterNumber?: number | null;
 }
 
 const props = defineProps<Props>();
@@ -18,8 +20,22 @@ const emit = defineEmits<{
     (e: 'continue'): void;
 }>();
 
+const isButtonDisabled = computed(() => {
+    return props.isFading || props.isLoading || props.isAwaitingChapterGeneration;
+});
+
+const buttonText = computed(() => {
+    if (props.isAwaitingChapterGeneration) {
+        return 'Creating Chapter...';
+    }
+    if (props.savedChapterNumber && props.savedChapterNumber > 1) {
+        return `Continue Chapter ${props.savedChapterNumber}`;
+    }
+    return 'Start Reading';
+});
+
 const handleKeyPress = (event: KeyboardEvent): void => {
-    if (event.key === 'ArrowRight' && !props.isFading && !props.isLoading) {
+    if (event.key === 'ArrowRight' && !isButtonDisabled.value) {
         emit('continue');
     }
 };
@@ -100,11 +116,12 @@ onUnmounted(() => {
         <!-- Next Button -->
         <button 
             @click="emit('continue')"
-            :disabled="isFading || isLoading"
+            :disabled="isButtonDisabled"
             class="group mt-6 flex cursor-pointer items-center gap-2 rounded-full bg-gradient-to-r from-amber-700 to-orange-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
-            <span>Start Reading</span>
-            <ChevronRight class="h-5 w-5 transition-transform group-hover:translate-x-1" />
+            <Loader2 v-if="isAwaitingChapterGeneration" class="h-5 w-5 animate-spin" />
+            <span>{{ buttonText }}</span>
+            <ChevronRight v-if="!isAwaitingChapterGeneration" class="h-5 w-5 transition-transform group-hover:translate-x-1" />
         </button>
     </div>
 </template>

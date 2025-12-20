@@ -165,6 +165,14 @@ class Profile extends Model
     }
 
     /**
+     * Get all reading history records for this profile.
+     */
+    public function readingHistory(): HasMany
+    {
+        return $this->hasMany(ReadingHistory::class);
+    }
+
+    /**
      * Delete the profile's photo.
      */
     public function deleteProfileImage(): void

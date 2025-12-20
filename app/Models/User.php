@@ -114,4 +114,12 @@ class User extends Authenticatable
             'is_default' => true,
         ]);
     }
+
+    /**
+     * Get all reading history records for the user.
+     */
+    public function readingHistory(): HasMany
+    {
+        return $this->hasMany(ReadingHistory::class);
+    }
 }

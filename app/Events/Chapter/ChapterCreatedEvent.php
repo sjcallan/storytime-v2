@@ -5,10 +5,11 @@ namespace App\Events\Chapter;
 use App\Models\Chapter;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class ChapterCreatedEvent
+class ChapterCreatedEvent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -29,6 +30,7 @@ class ChapterCreatedEvent
     {
         return [
             new PrivateChannel('chapter.'.$this->chapter->id),
+            new PrivateChannel('book.'.$this->chapter->book_id),
         ];
     }
 
@@ -51,8 +53,9 @@ class ChapterCreatedEvent
             'id' => $this->chapter->id,
             'title' => $this->chapter->title,
             'book_id' => $this->chapter->book_id,
+            'sort' => $this->chapter->sort,
+            'status' => $this->chapter->status,
             'created_at' => $this->chapter->created_at,
         ];
     }
 }
-

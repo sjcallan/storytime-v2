@@ -286,7 +286,7 @@ class ChapterBuilderService extends BuilderService
             $characterInstructions = $this->getCharacterIdentificationInstructions($characters);
 
             $outputFormat = [
-                'body' => 'The full '.$chapterLabel.' text',
+                'body' => 'The full '.$chapterLabel.' text, but no more than ',
                 'title' => 'A compelling '.$chapterLabel.' title (plain text, no '.$chapterLabel.' number)',
                 'summary' => 'A detailed summary with key events, character names, descriptions, ages, genders, experiences, thoughts, goals, and nationalities. No commentary.',
                 'image_prompt' => 'A detailed one-sentence prompt for an image generation service describing a key scene from this '.$chapterLabel.'. '.$characterInstructions.' Describe the visual scene, setting, mood, and action.',

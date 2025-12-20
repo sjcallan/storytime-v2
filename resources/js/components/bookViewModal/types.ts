@@ -130,6 +130,17 @@ export interface ChapterResponse {
     has_previous?: boolean;
 }
 
+export interface ReadingHistory {
+    id: string;
+    user_id: string;
+    book_id: string;
+    profile_id: string;
+    chapter_id: string | null;
+    last_read_at: string;
+    current_chapter_number: number;
+    book?: Book | null;
+}
+
 export interface CardPosition {
     top: number;
     left: number;

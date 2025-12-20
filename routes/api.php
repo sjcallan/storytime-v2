@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CharacterExtractController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\ConversationMessageController;
 use App\Http\Controllers\Api\GenreController;
+use App\Http\Controllers\Api\ReadingHistoryController;
 use App\Http\Controllers\Api\ReadingLogController;
 use App\Http\Controllers\Api\RequestLogController;
 use App\Http\Controllers\Api\TranscribeController;
@@ -42,4 +43,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->name('api.books.chapters.show');
     Route::post('books/{book}/chapters/generate', [ChapterController::class, 'generateNext'])->name('api.books.chapters.generate');
     Route::get('books/{book}/chapters/suggest-prompt', [ChapterController::class, 'suggestPrompt'])->name('api.books.chapters.suggest-prompt');
+
+    // Reading history endpoints
+    Route::post('books/{book}/reading-history/open', [ReadingHistoryController::class, 'open'])->name('api.books.reading-history.open');
+    Route::post('books/{book}/reading-history/advance', [ReadingHistoryController::class, 'advanceChapter'])->name('api.books.reading-history.advance');
 });
