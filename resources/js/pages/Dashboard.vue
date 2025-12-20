@@ -6,7 +6,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import type { User } from '@/types';
 import { Head, usePage } from '@inertiajs/vue3';
 import { echo } from '@laravel/echo-vue';
-import { BookOpen, ChevronLeft, ChevronRight, Clock, Plus } from 'lucide-vue-next';
+import { BookOpen, ChevronLeft, ChevronRight, Clock, Heart, Plus } from 'lucide-vue-next';
 import {
     computed,
     nextTick,
@@ -18,6 +18,18 @@ import {
 } from 'vue';
 
 type RecentlyReadBook = {
+    id: string;
+    title: string;
+    genre: string;
+    author: string | null;
+    age_level: number | null;
+    status: string;
+    cover_image?: string | null;
+    current_chapter_number: number;
+    last_read_at: string;
+};
+
+type FavoriteBook = {
     id: string;
     title: string;
     genre: string;
@@ -44,10 +56,11 @@ const props = defineProps<{
         }>
     >;
     recentlyRead: RecentlyReadBook[];
+    favorites: FavoriteBook[];
     userName: string;
 }>();
 
-const { booksByGenre, recentlyRead } = toRefs(props);
+const { booksByGenre, recentlyRead, favorites } = toRefs(props);
 
 // Get current user for channel subscription
 const page = usePage();
@@ -124,6 +137,8 @@ const booksByGenreState = ref<Record<string, BookSummary[]>>(
 
 const recentlyReadState = ref<RecentlyReadBook[]>([...recentlyRead.value]);
 
+const favoritesState = ref<FavoriteBook[]>([...favorites.value]);
+
 watch(booksByGenre, (newValue) => {
     booksByGenreState.value = cloneBooksByGenre(newValue);
     nextTick(() => updateAllScrollStates());
@@ -131,6 +146,11 @@ watch(booksByGenre, (newValue) => {
 
 watch(recentlyRead, (newValue) => {
     recentlyReadState.value = [...newValue];
+    nextTick(() => updateAllScrollStates());
+});
+
+watch(favorites, (newValue) => {
+    favoritesState.value = [...newValue];
     nextTick(() => updateAllScrollStates());
 });
 
@@ -148,10 +168,15 @@ const sortedBooksByGenre = computed(() => {
 // Carousel functionality - use a non-reactive Map to avoid recursive updates
 const carouselRefs = new Map<string, HTMLElement>();
 const jumpBackInCarouselRef = ref<HTMLElement | null>(null);
+const favoritesCarouselRef = ref<HTMLElement | null>(null);
 const scrollStates = ref<
     Record<string, { canScrollLeft: boolean; canScrollRight: boolean }>
 >({});
 const jumpBackInScrollState = ref<{
+    canScrollLeft: boolean;
+    canScrollRight: boolean;
+}>({ canScrollLeft: false, canScrollRight: false });
+const favoritesScrollState = ref<{
     canScrollLeft: boolean;
     canScrollRight: boolean;
 }>({ canScrollLeft: false, canScrollRight: false });
@@ -195,6 +220,7 @@ const updateAllScrollStates = () => {
         updateScrollState(genre);
     });
     updateJumpBackInScrollState();
+    updateFavoritesScrollState();
 };
 
 const scrollCarousel = (genre: string, direction: 'left' | 'right') => {
@@ -254,6 +280,42 @@ const scrollJumpBackInCarousel = (direction: 'left' | 'right') => {
 
 const handleJumpBackInScroll = () => {
     updateJumpBackInScrollState();
+};
+
+const updateFavoritesScrollState = () => {
+    const container = favoritesCarouselRef.value;
+    if (!container) {
+        return;
+    }
+
+    const { scrollLeft, scrollWidth, clientWidth } = container;
+    favoritesScrollState.value = {
+        canScrollLeft: scrollLeft > 1,
+        canScrollRight: scrollLeft < scrollWidth - clientWidth - 1,
+    };
+};
+
+const scrollFavoritesCarousel = (direction: 'left' | 'right') => {
+    const container = favoritesCarouselRef.value;
+    if (!container) {
+        return;
+    }
+
+    const cardWidth = 240; // Approximate card width including gap
+    const scrollAmount = cardWidth * 3; // Scroll 3 cards at a time
+    const targetScroll =
+        direction === 'left'
+            ? container.scrollLeft - scrollAmount
+            : container.scrollLeft + scrollAmount;
+
+    container.scrollTo({
+        left: targetScroll,
+        behavior: 'smooth',
+    });
+};
+
+const handleFavoritesScroll = () => {
+    updateFavoritesScrollState();
 };
 
 const formatRelativeTime = (dateString: string) => {
@@ -896,6 +958,84 @@ const handleReadingHistoryUpdated = (history: ReadingHistoryPayload) => {
     nextTick(() => updateJumpBackInScrollState());
 };
 
+type FavoriteToggledPayload = {
+    bookId: string;
+    isFavorite: boolean;
+};
+
+const handleFavoriteToggled = (payload: FavoriteToggledPayload) => {
+    const { bookId, isFavorite: isNowFavorite } = payload;
+
+    if (isNowFavorite) {
+        // Book was added to favorites
+        // Find book data from existing state
+        let bookData = null;
+
+        // Try to find from books by genre
+        const location = findBookLocation(bookId);
+        if (location) {
+            const existingBook = booksByGenreState.value[location.genre][location.index];
+            bookData = {
+                id: existingBook.id,
+                title: existingBook.title,
+                genre: existingBook.genre,
+                author: existingBook.author,
+                age_level: existingBook.age_level,
+                status: existingBook.status,
+                cover_image: existingBook.cover_image ?? null,
+            };
+        }
+
+        // Try to find from recently read if not found
+        if (!bookData) {
+            const recentBook = recentlyReadState.value.find((b) => b.id === bookId);
+            if (recentBook) {
+                bookData = {
+                    id: recentBook.id,
+                    title: recentBook.title,
+                    genre: recentBook.genre,
+                    author: recentBook.author,
+                    age_level: recentBook.age_level,
+                    status: recentBook.status,
+                    cover_image: recentBook.cover_image ?? null,
+                };
+            }
+        }
+
+        if (bookData) {
+            // Get reading history info if available
+            const recentEntry = recentlyReadState.value.find((b) => b.id === bookId);
+
+            const favoriteEntry: FavoriteBook = {
+                id: bookData.id,
+                title: bookData.title,
+                genre: bookData.genre,
+                author: bookData.author,
+                age_level: bookData.age_level,
+                status: bookData.status,
+                cover_image: bookData.cover_image,
+                current_chapter_number: recentEntry?.current_chapter_number ?? 1,
+                last_read_at: recentEntry?.last_read_at ?? new Date().toISOString(),
+            };
+
+            // Check if already in favorites
+            const existingIndex = favoritesState.value.findIndex((b) => b.id === bookId);
+            if (existingIndex === -1) {
+                // Add to front of favorites
+                favoritesState.value.unshift(favoriteEntry);
+            }
+        }
+    } else {
+        // Book was removed from favorites
+        const existingIndex = favoritesState.value.findIndex((b) => b.id === bookId);
+        if (existingIndex !== -1) {
+            favoritesState.value.splice(existingIndex, 1);
+        }
+    }
+
+    nextTick(() => updateFavoritesScrollState());
+};
+
 // Generate a random color gradient for books without cover images
 const getGradientColors = (bookId: string) => {
     // Use book ID to consistently pick the same gradient
@@ -1068,6 +1208,155 @@ const formatGenreName = (genre: string) => {
                 </div>
             </div>
 
+            <!-- Favorites Section -->
+            <div v-if="favoritesState.length > 0" class="space-y-4">
+                <!-- Section Header -->
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-rose-500 to-pink-600 shadow-lg shadow-rose-500/20">
+                        <Heart class="h-5 w-5 fill-white text-white" />
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-medium tracking-tight">Favorites</h2>
+                        <p class="text-sm text-muted-foreground">Your saved stories</p>
+                    </div>
+                </div>
+
+                <!-- Favorites Carousel -->
+                <div class="group/carousel relative">
+                    <!-- Left Navigation Arrow -->
+                    <button
+                        v-show="favoritesScrollState.canScrollLeft"
+                        @click="scrollFavoritesCarousel('left')"
+                        class="absolute top-1/2 -left-2 z-10 flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-sidebar-border/70 bg-background/95 shadow-lg backdrop-blur-sm transition-all duration-200 hover:scale-110 hover:bg-background dark:border-sidebar-border"
+                        aria-label="Scroll left"
+                    >
+                        <ChevronLeft class="h-5 w-5 text-foreground" />
+                    </button>
+
+                    <!-- Carousel Container -->
+                    <div
+                        ref="favoritesCarouselRef"
+                        @scroll="handleFavoritesScroll"
+                        class="scrollbar-none flex gap-6 overflow-x-auto scroll-smooth pb-4"
+                        style="scrollbar-width: none; -ms-overflow-style: none"
+                    >
+                        <div
+                            v-for="book in favoritesState"
+                            :key="`favorite-${book.id}`"
+                            :style="getCardVisualStyles(book.id)"
+                            @click="
+                                openBook(
+                                    book.id,
+                                    book.cover_image || null,
+                                    book.title,
+                                    book.author || null,
+                                    $event,
+                                )
+                            "
+                            class="group relative w-[200px] shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card transition-all duration-300 hover:-translate-y-1 hover:[box-shadow:0_24px_48px_-18px_var(--card-shadow-color)] dark:border-sidebar-border"
+                        >
+                            <!-- Book Cover -->
+                            <div class="relative aspect-3/4 overflow-hidden">
+                                <!-- Cover Image (if exists) -->
+                                <template v-if="book.cover_image">
+                                    <div
+                                        class="absolute inset-0 bg-linear-to-br from-primary/10 via-primary/5 to-background"
+                                    >
+                                        <img
+                                            :src="book.cover_image"
+                                            :alt="book.title"
+                                            class="h-full w-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:rotate-1"
+                                        />
+                                    </div>
+                                </template>
+
+                                <!-- Gradient Background with Title (no cover image) -->
+                                <template v-else>
+                                    <div
+                                        class="absolute inset-0 flex items-center justify-center p-4"
+                                        :class="getGradientColors(book.id)"
+                                    >
+                                        <h3
+                                            class="text-center text-xl font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] transition-all duration-500 group-hover:scale-105"
+                                            style="
+                                                text-shadow:
+                                                    0 2px 8px rgba(0, 0, 0, 0.2),
+                                                    0 -1px 2px
+                                                        rgba(255, 255, 255, 0.3);
+                                            "
+                                        >
+                                            {{ book.title || 'Untitled Story' }}
+                                        </h3>
+                                    </div>
+                                </template>
+
+                                <!-- Favorite Heart Badge -->
+                                <div class="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-rose-500 shadow-lg">
+                                    <Heart class="h-4 w-4 fill-white text-white" />
+                                </div>
+
+                                <!-- Magical Shine Effect on Hover -->
+                                <div
+                                    class="absolute inset-0 -translate-x-full bg-linear-to-tr from-transparent via-white/20 to-transparent opacity-0 transition-all duration-1000 group-hover:translate-x-full group-hover:opacity-100"
+                                />
+
+                                <!-- Overlay on Hover -->
+                                <div
+                                    class="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                                    :style="{
+                                        background:
+                                            'linear-gradient(to top, var(--card-overlay-dark) 0%, var(--card-overlay-mid) 55%, transparent 100%)',
+                                    }"
+                                />
+                            </div>
+
+                            <!-- Book Info -->
+                            <div class="space-y-1.5 p-3">
+                                <h3
+                                    class="line-clamp-2 text-sm font-semibold tracking-tight"
+                                >
+                                    {{ book.title || 'Untitled Story' }}
+                                </h3>
+
+                                <div
+                                    class="flex items-center gap-2 text-xs text-muted-foreground"
+                                >
+                                    <span v-if="book.author" class="truncate">{{
+                                        book.author
+                                    }}</span>
+                                    <span v-if="book.author && book.age_level"
+                                        >•</span
+                                    >
+                                    <span v-if="book.age_level" class="shrink-0"
+                                        >Age {{ book.age_level }}+</span
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Navigation Arrow -->
+                    <button
+                        v-show="favoritesScrollState.canScrollRight"
+                        @click="scrollFavoritesCarousel('right')"
+                        class="absolute top-1/2 -right-2 z-10 flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-sidebar-border/70 bg-background/95 shadow-lg backdrop-blur-sm transition-all duration-200 hover:scale-110 hover:bg-background dark:border-sidebar-border"
+                        aria-label="Scroll right"
+                    >
+                        <ChevronRight class="h-5 w-5 text-foreground" />
+                    </button>
+
+                    <!-- Edge fade gradients -->
+                    <div
+                        v-show="favoritesScrollState.canScrollLeft"
+                        class="pointer-events-none absolute top-0 bottom-4 left-0 w-12 bg-linear-to-r from-background to-transparent"
+                    />
+                    <div
+                        v-show="favoritesScrollState.canScrollRight"
+                        class="pointer-events-none absolute top-0 right-0 bottom-4 w-12 bg-linear-to-l from-background to-transparent"
+                    />
+                </div>
+            </div>
+
             <!-- Genre Sections -->
             <div
                 v-for="([genre, books], index) in sortedBooksByGenre"
@@ -1234,6 +1523,7 @@ const formatGenreName = (genre: string) => {
             @updated="handleBookUpdated"
             @deleted="handleBookDeleted"
             @reading-history-updated="handleReadingHistoryUpdated"
+            @favorite-toggled="handleFavoriteToggled"
         />
     </AppLayout>
 </template>

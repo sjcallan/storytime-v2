@@ -8,7 +8,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreVertical, X, List } from 'lucide-vue-next';
+import { MoreVertical, X, List, Heart } from 'lucide-vue-next';
 import TableOfContents from './TableOfContents.vue';
 import type { ChapterSummary, BookType } from './types';
 
@@ -22,6 +22,8 @@ interface Props {
     chapters?: ChapterSummary[];
     currentChapterNumber?: number;
     bookType?: BookType;
+    isFavorite?: boolean;
+    isTogglingFavorite?: boolean;
 }
 
 defineProps<Props>();
@@ -32,6 +34,7 @@ const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'tocSelectChapter', chapterNumber: number): void;
     (e: 'tocGoToTitle'): void;
+    (e: 'toggleFavorite'): void;
 }>();
 </script>
 
@@ -76,6 +79,18 @@ const emit = defineEmits<{
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal>
                     <DropdownMenuContent align="start" class="z-10001 w-48">
+                        <DropdownMenuItem
+                            @select="emit('toggleFavorite')"
+                            :disabled="isTogglingFavorite || isSaving || isDeleting"
+                            class="cursor-pointer"
+                        >
+                            <Heart 
+                                class="mr-2 h-4 w-4" 
+                                :class="isFavorite ? 'fill-rose-500 text-rose-500' : ''" 
+                            />
+                            {{ isFavorite ? 'Remove from Favorites' : 'Add to Favorites' }}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem
                             @select="emit('edit')"
                             :disabled="isEditing || isSaving || isDeleting"

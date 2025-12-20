@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CharacterController;
 use App\Http\Controllers\Api\CharacterExtractController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\ConversationMessageController;
+use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\GenreController;
 use App\Http\Controllers\Api\ReadingHistoryController;
 use App\Http\Controllers\Api\ReadingLogController;
@@ -47,4 +48,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Reading history endpoints
     Route::post('books/{book}/reading-history/open', [ReadingHistoryController::class, 'open'])->name('api.books.reading-history.open');
     Route::post('books/{book}/reading-history/advance', [ReadingHistoryController::class, 'advanceChapter'])->name('api.books.reading-history.advance');
+
+    // Favorite endpoints
+    Route::get('books/{book}/favorite', [FavoriteController::class, 'check'])->name('api.books.favorite.check');
+    Route::post('books/{book}/favorite', [FavoriteController::class, 'store'])->name('api.books.favorite.store');
+    Route::delete('books/{book}/favorite', [FavoriteController::class, 'destroy'])->name('api.books.favorite.destroy');
 });

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Favorite;
 use App\Models\ReadingHistory;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -49,9 +50,44 @@ Route::get('dashboard', function () {
             'last_read_at' => $history->last_read_at->toISOString(),
         ]);
 
+    // Get favorite books sorted by reading history last_read_at desc
+    $favorites = Favorite::query()
+        ->with(['book'])
+        ->where('user_id', $user->id)
+        ->when($currentProfileId, function ($query, $profileId) {
+            return $query->where('profile_id', $profileId);
+        })
+        ->whereHas('book')
+        ->get()
+        ->map(function ($favorite) use ($user, $currentProfileId) {
+            // Get the reading history for this book to get last_read_at
+            $readingHistory = ReadingHistory::query()
+                ->where('user_id', $user->id)
+                ->where('book_id', $favorite->book_id)
+                ->when($currentProfileId, function ($query, $profileId) {
+                    return $query->where('profile_id', $profileId);
+                })
+                ->first();
+
+            return [
+                'id' => $favorite->book->id,
+                'title' => $favorite->book->title,
+                'genre' => $favorite->book->genre,
+                'author' => $favorite->book->author,
+                'age_level' => $favorite->book->age_level,
+                'status' => $favorite->book->status,
+                'cover_image' => $favorite->book->cover_image,
+                'current_chapter_number' => $readingHistory?->current_chapter_number ?? 1,
+                'last_read_at' => $readingHistory?->last_read_at?->toISOString() ?? $favorite->created_at->toISOString(),
+            ];
+        })
+        ->sortByDesc('last_read_at')
+        ->values();
+
     return Inertia::render('Dashboard', [
         'booksByGenre' => $books,
         'recentlyRead' => $recentlyRead,
+        'favorites' => $favorites,
         'userName' => $user->name,
     ]);
 })->middleware(['auth', 'verified'])->name('dashboard');

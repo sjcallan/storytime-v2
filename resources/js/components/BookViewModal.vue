@@ -43,6 +43,7 @@ const emit = defineEmits<{
     (e: 'updated', book: Book): void;
     (e: 'deleted', bookId: string): void;
     (e: 'readingHistoryUpdated', history: ReadingHistory): void;
+    (e: 'favoriteToggled', data: { bookId: string; isFavorite: boolean }): void;
 }>();
 
 const requestApiFetch = apiFetch as ApiFetchFn;
@@ -84,6 +85,10 @@ const selectedCharacter = ref<Character | null>(null);
 
 // Textarea focus state (for disabling keyboard navigation)
 const isTextareaFocused = ref(false);
+
+// Favorite state
+const isFavorite = ref(false);
+const isTogglingFavorite = ref(false);
 
 // Echo channel for real-time book updates
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -310,6 +315,12 @@ const loadBook = async () => {
     const readingHistory = await chapters.recordBookOpened(props.bookId);
     savedChapterNumber.value = readingHistory?.current_chapter_number ?? null;
     
+    // Check if this book is a favorite
+    const { data: favoriteData } = await requestApiFetch(`/api/books/${props.bookId}/favorite`, 'GET');
+    if (favoriteData && typeof favoriteData === 'object' && 'is_favorite' in favoriteData) {
+        isFavorite.value = (favoriteData as { is_favorite: boolean }).is_favorite;
+    }
+    
     const { data, error } = await requestApiFetch(`/api/books/${props.bookId}`, 'GET');
     
     if (error) {
@@ -332,6 +343,35 @@ const loadBook = async () => {
     }
     
     loading.value = false;
+};
+
+// Toggle favorite handler
+const handleToggleFavorite = async () => {
+    if (!props.bookId || isTogglingFavorite.value) {
+        return;
+    }
+    
+    isTogglingFavorite.value = true;
+    
+    try {
+        if (isFavorite.value) {
+            // Remove from favorites
+            const { error } = await requestApiFetch(`/api/books/${props.bookId}/favorite`, 'DELETE');
+            if (!error) {
+                isFavorite.value = false;
+                emit('favoriteToggled', { bookId: props.bookId, isFavorite: false });
+            }
+        } else {
+            // Add to favorites
+            const { error } = await requestApiFetch(`/api/books/${props.bookId}/favorite`, 'POST');
+            if (!error) {
+                isFavorite.value = true;
+                emit('favoriteToggled', { bookId: props.bookId, isFavorite: true });
+            }
+        }
+    } finally {
+        isTogglingFavorite.value = false;
+    }
 };
 
 // Edit handlers
@@ -563,6 +603,8 @@ const resetAllState = () => {
     showDeleteConfirm.value = false;
     selectedCharacter.value = null;
     savedChapterNumber.value = null;
+    isFavorite.value = false;
+    isTogglingFavorite.value = false;
     resetEditFeedback();
 };
 
@@ -711,11 +753,14 @@ onBeforeUnmount(() => {
                         :is-deleting="isDeleting"
                         :is-page-turning="animation.isPageTurning.value"
                         :book-type="book?.type"
+                        :is-favorite="isFavorite"
+                        :is-toggling-favorite="isTogglingFavorite"
                         @edit="startEditing"
                         @delete="requestDelete"
                         @close="closeModal"
                         @toc-select-chapter="handleTocSelectChapter"
                         @toc-go-to-title="handleTocGoToTitle"
+                        @toggle-favorite="handleToggleFavorite"
                     />
 
                     <!-- ==================== CLOSED BOOK VIEW (Cover Centered) ==================== -->
