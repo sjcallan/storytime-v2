@@ -318,7 +318,7 @@ onUnmounted(() => {
             </div>
             
             <!-- Voice Recording Section -->
-            <div class="flex flex-col items-center gap-3">
+            <div class="hidden flex-col items-center gap-3">
                 <!-- Idle State: Speak Button -->
                 <button
                     v-if="!isRecording && !isTranscribing"

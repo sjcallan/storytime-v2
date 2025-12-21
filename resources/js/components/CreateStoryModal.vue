@@ -920,9 +920,9 @@ const transcribeAudio = async () => {
 const plotCharacterCount = computed(() => formData.value.plot.length);
 const plotCharacterCountClass = computed(() => {
     const ratio = plotCharacterCount.value / PLOT_MAX_LENGTH;
-    if (ratio >= 1) return 'text-destructive';
+    if (ratio >= 1) return 'text-red-500';
     if (ratio >= 0.9) return 'text-amber-500';
-    return 'text-muted-foreground';
+    return 'text-gray-500 dark:text-gray-400';
 });
 
 const nextStep = async () => {
@@ -1176,7 +1176,7 @@ watch(
 <template>
     <Dialog :open="isOpen" @update:open="handleOpenChange">
         <DialogContent
-            class="theme-reset max-w-2xl overflow-visible rounded-3xl border-2 bg-background p-0 sm:max-w-2xl [&>button[data-slot]]:hidden"
+            class="theme-reset max-w-2xl overflow-visible rounded-3xl border-2 border-gray-200 bg-white p-0 sm:max-w-2xl dark:border-gray-700 dark:bg-gray-900 [&>button[data-slot]]:hidden"
             :class="processing ? 'pointer-events-none' : ''"
         >
             <!-- Custom Close Button - Offset in corner with white circle -->
@@ -1237,7 +1237,7 @@ watch(
                                 type="button"
                                 variant="outline"
                                 @click="cancelClose"
-                                class="flex-1 cursor-pointer rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                                class="flex-1 cursor-pointer rounded-xl border-gray-200 text-gray-900 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] dark:border-gray-700 dark:text-white"
                             >
                                 Keep Creating! ✨
                             </Button>
@@ -1259,7 +1259,7 @@ watch(
             </Transition>
 
             <!-- Content wrapper with overflow hidden for rounded corners -->
-            <div class="overflow-hidden rounded-3xl bg-background">
+            <div class="overflow-hidden rounded-3xl bg-white dark:bg-gray-900">
                 <!-- Animated Header -->
                 <div
                     class="relative overflow-hidden bg-gradient-to-r px-6 py-8 text-white transition-all duration-500"
@@ -1318,7 +1318,7 @@ watch(
                 </div>
 
                 <!-- Form Content -->
-                <div class="max-h-[60vh] overflow-y-auto bg-background px-6 py-6">
+                <div class="max-h-[60vh] overflow-y-auto bg-white px-6 py-6 text-gray-900 dark:bg-gray-900 dark:text-white">
                     <form
                         @submit.prevent="
                             currentStep === totalSteps
@@ -1330,7 +1330,7 @@ watch(
                         <div v-show="currentStep === 1" class="space-y-6">
                             <!-- Book Type Selection -->
                             <div class="space-y-3">
-                                <Label class="text-lg font-semibold"
+                                <Label class="text-lg font-semibold text-gray-900 dark:text-white"
                                     >What kind of story?</Label
                                 >
                                 <div class="grid grid-cols-2 gap-3">
@@ -1344,14 +1344,14 @@ watch(
                                         :class="
                                             formData.type === bookType.value
                                                 ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 dark:bg-orange-950/30'
-                                                : 'border-border'
+                                                : 'border-gray-200 dark:border-gray-700'
                                         "
                                     >
-                                        <span class="text-lg font-semibold">{{
+                                        <span class="text-lg font-semibold text-gray-900 dark:text-white">{{
                                             bookType.label
                                         }}</span>
                                         <span
-                                            class="text-sm text-muted-foreground"
+                                            class="text-sm text-gray-500 dark:text-gray-400"
                                             >{{ bookType.description }}</span
                                         >
                                         <div
@@ -1369,7 +1369,7 @@ watch(
 
                             <!-- Age Level Selection -->
                             <div class="space-y-3">
-                                <Label class="text-lg font-semibold"
+                                <Label class="text-lg font-semibold text-gray-900 dark:text-white"
                                     >Who is this story for?</Label
                                 >
                                 <div
@@ -1398,18 +1398,18 @@ watch(
                                         class="relative flex flex-col items-center gap-1 rounded-2xl border-2 p-4 transition-all duration-200"
                                         :class="[
                                             !isAgeLevelAllowed(age.value)
-                                                ? 'cursor-not-allowed border-border/50 bg-muted/30 opacity-50'
+                                                ? 'cursor-not-allowed border-gray-200/50 bg-gray-100/30 opacity-50 dark:border-gray-700/50 dark:bg-gray-800/30'
                                                 : 'cursor-pointer hover:-translate-y-0.5 hover:border-orange-400/50 hover:bg-orange-50 hover:shadow-md active:scale-95 dark:hover:bg-orange-950/20',
                                             formData.age_level === age.value
                                                 ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 dark:bg-orange-950/30'
-                                                : 'border-border',
+                                                : 'border-gray-200 dark:border-gray-700',
                                         ]"
                                     >
-                                        <span class="text-sm font-bold">{{
+                                        <span class="text-sm font-bold text-gray-900 dark:text-white">{{
                                             age.label
                                         }}</span>
                                         <span
-                                            class="text-xs text-muted-foreground"
+                                            class="text-xs text-gray-500 dark:text-gray-400"
                                             >{{ age.range }}</span
                                         >
                                         <div
@@ -1427,7 +1427,7 @@ watch(
 
                             <!-- Genre Selection -->
                             <div class="space-y-3">
-                                <Label class="text-lg font-semibold"
+                                <Label class="text-lg font-semibold text-gray-900 dark:text-white"
                                     >Pick a genre!</Label
                                 >
                                 <div
@@ -1443,13 +1443,13 @@ watch(
                                         :class="
                                             formData.genre === genre.value
                                                 ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 dark:bg-orange-950/30'
-                                                : 'border-border'
+                                                : 'border-gray-200 dark:border-gray-700'
                                         "
                                     >
                                         <span class="text-2xl">{{
                                             genre.emoji
                                         }}</span>
-                                        <span class="text-xs font-bold">{{
+                                        <span class="text-xs font-bold text-gray-900 dark:text-white">{{
                                             genre.label.replace(
                                                 genre.emoji + ' ',
                                                 '',
@@ -1504,7 +1504,7 @@ watch(
                                             isRecording ||
                                             isTranscribing
                                         "
-                                        class="resize-none rounded-2xl border-2 pb-8 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
+                                        class="resize-none rounded-2xl border-2 border-gray-200 bg-white pb-8 text-base leading-relaxed text-gray-900 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                     />
                                     <div
                                         class="absolute right-3 bottom-3 text-xs"
@@ -1520,7 +1520,7 @@ watch(
 
                                 <!-- Microphone Button -->
                                 <div
-                                    class="mt-5 flex flex-col items-start gap-3"
+                                    class="mt-5 hidden flex-col items-start gap-3"
                                 >
                                     <button
                                         v-if="!isRecording && !isTranscribing"
@@ -1589,7 +1589,7 @@ watch(
                                                 />
                                             </button>
                                             <span
-                                                class="text-xs text-muted-foreground"
+                                                class="text-xs text-gray-500 dark:text-gray-400"
                                                 >Tap the square to stop</span
                                             >
                                         </div>
@@ -1614,11 +1614,11 @@ watch(
                             <div class="space-y-3">
                                 <Label
                                     for="first_chapter_prompt"
-                                    class="text-lg font-semibold"
+                                    class="text-lg font-semibold text-gray-900 dark:text-white"
                                 >
                                     How does your story begin? 🌟
                                 </Label>
-                                <p class="text-sm text-muted-foreground">
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
                                     Set the scene for your opening chapter.
                                     Where does it take place? What's happening?
                                 </p>
@@ -1628,7 +1628,7 @@ watch(
                                     placeholder="Example: The story begins on a stormy night when our hero finds a mysterious letter on their doorstep..."
                                     rows="5"
                                     :disabled="processing"
-                                    class="resize-none rounded-2xl border-2 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
+                                    class="resize-none rounded-2xl border-2 border-gray-200 bg-white text-base leading-relaxed text-gray-900 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                 />
                                 <InputError
                                     :message="errors.first_chapter_prompt"
@@ -1638,11 +1638,11 @@ watch(
                             <div class="space-y-3">
                                 <Label
                                     for="scene"
-                                    class="text-lg font-semibold"
+                                    class="text-lg font-semibold text-gray-900 dark:text-white"
                                 >
                                     Where does it happen? 🏔️
                                 </Label>
-                                <p class="text-sm text-muted-foreground">
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
                                     Describe the setting - is it a magical
                                     forest, a busy city, or somewhere else
                                     entirely?
@@ -1653,7 +1653,7 @@ watch(
                                     placeholder="Example: A cozy cottage at the edge of an enchanted forest, where fireflies dance at night..."
                                     rows="4"
                                     :disabled="processing"
-                                    class="resize-none rounded-2xl border-2 text-base leading-relaxed focus:ring-2 focus:ring-primary/20"
+                                    class="resize-none rounded-2xl border-2 border-gray-200 bg-white text-base leading-relaxed text-gray-900 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                 />
                                 <InputError :message="errors.scene" />
                             </div>
@@ -1692,7 +1692,7 @@ watch(
 
                             <!-- Character List with Accordion -->
                             <div v-if="characters.length > 0" class="space-y-3">
-                                <Label class="text-lg font-semibold"
+                                <Label class="text-lg font-semibold text-gray-900 dark:text-white"
                                     >Your Characters</Label
                                 >
                                 <div class="grid gap-3">
@@ -1703,7 +1703,7 @@ watch(
                                         :class="
                                             editingCharacterIndex === index
                                                 ? 'border-orange-400 bg-orange-50/50 shadow-lg shadow-orange-500/10 dark:bg-orange-950/20'
-                                                : 'border-border bg-card hover:border-primary/30'
+                                                : 'border-gray-200 bg-white hover:border-orange-400/30 dark:border-gray-700 dark:bg-gray-900'
                                         "
                                     >
                                         <!-- Character Header (Always Visible) -->
@@ -1758,14 +1758,14 @@ watch(
                                                     class="flex items-center gap-2"
                                                 >
                                                     <span
-                                                        class="text-lg font-semibold"
+                                                        class="text-lg font-semibold text-gray-900 dark:text-white"
                                                         >{{
                                                             character.name
                                                         }}</span
                                                     >
                                                     <span
                                                         v-if="character.age"
-                                                        class="text-sm text-muted-foreground"
+                                                        class="text-sm text-gray-500 dark:text-gray-400"
                                                     >
                                                         ({{
                                                             character.age
@@ -1779,7 +1779,7 @@ watch(
                                                         editingCharacterIndex !==
                                                             index
                                                     "
-                                                    class="line-clamp-1 text-sm text-muted-foreground"
+                                                    class="line-clamp-1 text-sm text-gray-500 dark:text-gray-400"
                                                 >
                                                     {{ character.description }}
                                                 </p>
@@ -1794,12 +1794,12 @@ watch(
                                                     @click.stop="
                                                         removeCharacter(index)
                                                     "
-                                                    class="h-9 w-9 cursor-pointer rounded-xl p-0 text-destructive transition-all duration-200 hover:scale-110 hover:bg-destructive/10 hover:text-destructive active:scale-95"
+                                                    class="h-9 w-9 cursor-pointer rounded-xl p-0 text-red-500 transition-all duration-200 hover:scale-110 hover:bg-red-500/10 hover:text-red-600 active:scale-95"
                                                 >
                                                     <Trash2 class="h-4 w-4" />
                                                 </Button>
                                                 <ChevronRight
-                                                    class="h-5 w-5 text-muted-foreground transition-transform duration-300"
+                                                    class="h-5 w-5 text-gray-500 transition-transform duration-300 dark:text-gray-400"
                                                     :class="
                                                         editingCharacterIndex ===
                                                         index
@@ -1838,7 +1838,7 @@ watch(
                                                                     'char_name_' +
                                                                     index
                                                                 "
-                                                                class="font-medium"
+                                                                class="font-medium text-gray-900 dark:text-white"
                                                                 >Name *</Label
                                                             >
                                                             <Input
@@ -1850,7 +1850,7 @@ watch(
                                                                     newCharacter.name
                                                                 "
                                                                 placeholder="What's their name?"
-                                                                class="h-12 rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                                class="h-12 rounded-xl border-2 border-gray-200 bg-white text-base text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                                             />
                                                             <InputError
                                                                 :message="
@@ -1865,7 +1865,7 @@ watch(
                                                                     'char_age_' +
                                                                     index
                                                                 "
-                                                                class="font-medium"
+                                                                class="font-medium text-gray-900 dark:text-white"
                                                                 >Age</Label
                                                             >
                                                             <Input
@@ -1877,14 +1877,14 @@ watch(
                                                                     newCharacter.age
                                                                 "
                                                                 placeholder="How old are they?"
-                                                                class="h-12 rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                                class="h-12 rounded-xl border-2 border-gray-200 bg-white text-base text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                                             />
                                                         </div>
                                                     </div>
 
                                                     <div class="space-y-2">
                                                         <Label
-                                                            class="font-medium"
+                                                            class="font-medium text-gray-900 dark:text-white"
                                                             >Gender</Label
                                                         >
                                                         <div
@@ -1905,7 +1905,7 @@ watch(
                                                                     newCharacter.gender ===
                                                                     gender.value
                                                                         ? 'border-orange-500 bg-orange-500 text-white'
-                                                                        : 'border-border bg-white hover:border-orange-400/50 hover:bg-orange-50 dark:bg-gray-950 dark:hover:bg-orange-950/20'
+                                                                        : 'border-gray-200 bg-white text-gray-900 hover:border-orange-400/50 hover:bg-orange-50 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:hover:bg-orange-950/20'
                                                                 "
                                                             >
                                                                 {{
@@ -1921,7 +1921,7 @@ watch(
                                                                 'char_description_' +
                                                                 index
                                                             "
-                                                            class="font-medium"
+                                                            class="font-medium text-gray-900 dark:text-white"
                                                             >What are they
                                                             like?</Label
                                                         >
@@ -1935,7 +1935,7 @@ watch(
                                                             "
                                                             placeholder="Describe their personality, appearance, or special abilities..."
                                                             rows="2"
-                                                            class="resize-none rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                            class="resize-none rounded-xl border-2 border-gray-200 bg-white text-base text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                                         />
                                                     </div>
 
@@ -1945,7 +1945,7 @@ watch(
                                                                 'char_backstory_' +
                                                                 index
                                                             "
-                                                            class="font-medium"
+                                                            class="font-medium text-gray-900 dark:text-white"
                                                             >Their story so
                                                             far</Label
                                                         >
@@ -1959,7 +1959,7 @@ watch(
                                                             "
                                                             placeholder="What's their background? Where do they come from?"
                                                             rows="2"
-                                                            class="resize-none rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                            class="resize-none rounded-xl border-2 border-gray-200 bg-white text-base text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                                         />
                                                     </div>
 
@@ -1971,7 +1971,7 @@ watch(
                                                                 cancelCharacterEdit
                                                             "
                                                             :disabled="isSaving"
-                                                            class="flex-1 cursor-pointer rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+                                                            class="flex-1 cursor-pointer rounded-xl border-gray-200 text-gray-900 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] dark:border-gray-700 dark:text-white"
                                                         >
                                                             Cancel
                                                         </Button>
@@ -2013,7 +2013,7 @@ watch(
                                 :class="
                                     isAddingNewCharacter
                                         ? 'border-orange-400 bg-orange-50/50 shadow-lg shadow-orange-500/10 dark:bg-orange-950/20'
-                                        : 'border-dashed border-border hover:border-orange-400/50 hover:bg-orange-50/30 dark:hover:bg-orange-950/10'
+                                        : 'border-dashed border-gray-200 hover:border-orange-400/50 hover:bg-orange-50/30 dark:border-gray-700 dark:hover:bg-orange-950/10'
                                 "
                             >
                                 <!-- Add New Character Header -->
@@ -2022,7 +2022,7 @@ watch(
                                     @click="startAddingCharacter"
                                 >
                                     <Plus class="h-6 w-6 text-orange-500" />
-                                    <span class="text-lg font-medium">
+                                    <span class="text-lg font-medium text-gray-900 dark:text-white">
                                         {{
                                             characters.length === 0
                                                 ? 'Add Your First Character'
@@ -2053,7 +2053,7 @@ watch(
                                                 <div class="space-y-2">
                                                     <Label
                                                         for="new_char_name"
-                                                        class="font-medium"
+                                                        class="font-medium text-gray-900 dark:text-white"
                                                         >Name *</Label
                                                     >
                                                     <Input
@@ -2062,7 +2062,7 @@ watch(
                                                             newCharacter.name
                                                         "
                                                         placeholder="What's their name?"
-                                                        class="h-12 rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                        class="h-12 rounded-xl border-2 border-gray-200 bg-white text-base text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                                     />
                                                     <InputError
                                                         :message="
@@ -2074,7 +2074,7 @@ watch(
                                                 <div class="space-y-2">
                                                     <Label
                                                         for="new_char_age"
-                                                        class="font-medium"
+                                                        class="font-medium text-gray-900 dark:text-white"
                                                         >Age</Label
                                                     >
                                                     <Input
@@ -2083,13 +2083,13 @@ watch(
                                                             newCharacter.age
                                                         "
                                                         placeholder="How old are they?"
-                                                        class="h-12 rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                        class="h-12 rounded-xl border-2 border-gray-200 bg-white text-base text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                                     />
                                                 </div>
                                             </div>
 
                                             <div class="space-y-2">
-                                                <Label class="font-medium"
+                                                <Label class="font-medium text-gray-900 dark:text-white"
                                                     >Gender</Label
                                                 >
                                                 <div
@@ -2108,7 +2108,7 @@ watch(
                                                             newCharacter.gender ===
                                                             gender.value
                                                                 ? 'border-orange-500 bg-orange-500 text-white'
-                                                                : 'border-border bg-white hover:border-orange-400/50 hover:bg-orange-50 dark:bg-gray-950 dark:hover:bg-orange-950/20'
+                                                                : 'border-gray-200 bg-white text-gray-900 hover:border-orange-400/50 hover:bg-orange-50 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:hover:bg-orange-950/20'
                                                         "
                                                     >
                                                         {{ gender.label }}
@@ -2119,7 +2119,7 @@ watch(
                                             <div class="space-y-2">
                                                 <Label
                                                     for="new_char_description"
-                                                    class="font-medium"
+                                                    class="font-medium text-gray-900 dark:text-white"
                                                     >What are they like?</Label
                                                 >
                                                 <Textarea
@@ -2129,14 +2129,14 @@ watch(
                                                     "
                                                     placeholder="Describe their personality, appearance, or special abilities..."
                                                     rows="2"
-                                                    class="resize-none rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                    class="resize-none rounded-xl border-2 border-gray-200 bg-white text-base text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                                 />
                                             </div>
 
                                             <div class="space-y-2">
                                                 <Label
                                                     for="new_char_backstory"
-                                                    class="font-medium"
+                                                    class="font-medium text-gray-900 dark:text-white"
                                                     >Their story so far</Label
                                                 >
                                                 <Textarea
@@ -2146,7 +2146,7 @@ watch(
                                                     "
                                                     placeholder="What's their background? Where do they come from?"
                                                     rows="2"
-                                                    class="resize-none rounded-xl border-2 bg-white text-base dark:bg-gray-950"
+                                                    class="resize-none rounded-xl border-2 border-gray-200 bg-white text-base text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                                 />
                                             </div>
 
@@ -2156,7 +2156,7 @@ watch(
                                                     variant="outline"
                                                     @click="cancelCharacterEdit"
                                                     :disabled="isSaving"
-                                                    class="flex-1 cursor-pointer rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+                                                    class="flex-1 cursor-pointer rounded-xl border-gray-200 text-gray-900 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] dark:border-gray-700 dark:text-white"
                                                 >
                                                     Cancel
                                                 </Button>
@@ -2191,7 +2191,7 @@ watch(
                                     characters.length === 0 &&
                                     !isAddingNewCharacter
                                 "
-                                class="text-center text-sm text-muted-foreground"
+                                class="text-center text-sm text-gray-500 dark:text-gray-400"
                             >
                                 Characters are optional - you can always add
                                 them later!
@@ -2208,7 +2208,7 @@ watch(
 
                 <!-- Footer Navigation -->
                 <div
-                    class="flex items-center justify-between border-t bg-muted/30 px-6 py-5"
+                    class="flex items-center justify-between border-t border-gray-200 bg-gray-100/30 px-6 py-5 dark:border-gray-700 dark:bg-gray-800/30"
                 >
                     <Button
                         v-if="currentStep > 1"
@@ -2216,7 +2216,7 @@ watch(
                         variant="ghost"
                         @click="prevStep"
                         :disabled="processing || isSaving"
-                        class="h-14 cursor-pointer gap-3 rounded-2xl px-6 text-lg font-semibold transition-all duration-200 hover:-translate-x-0.5 hover:bg-muted"
+                        class="h-14 cursor-pointer gap-3 rounded-2xl px-6 text-lg font-semibold text-gray-900 transition-all duration-200 hover:-translate-x-0.5 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-800"
                     >
                         <ChevronLeft class="h-6 w-6" />
                         Back
@@ -2229,7 +2229,7 @@ watch(
                             variant="outline"
                             @click="requestClose"
                             :disabled="processing || isSaving"
-                            class="h-14 cursor-pointer rounded-2xl px-8 text-lg font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                            class="h-14 cursor-pointer rounded-2xl border-gray-200 px-8 text-lg font-semibold text-gray-900 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] dark:border-gray-700 dark:text-white"
                         >
                             Cancel
                         </Button>

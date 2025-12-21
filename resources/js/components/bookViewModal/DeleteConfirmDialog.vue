@@ -41,7 +41,7 @@ const emit = defineEmits<{
                         type="button"
                         variant="outline"
                         @click="emit('cancel')"
-                        class="flex-1 cursor-pointer rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                        class="flex-1 cursor-pointer rounded-xl border-gray-200 text-gray-900 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] dark:border-gray-700 dark:text-white"
                     >
                         Keep It! 📚
                     </Button>
