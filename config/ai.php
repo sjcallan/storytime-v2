@@ -48,6 +48,7 @@ return [
             'temperature' => env('LLAMA_TEMPERATURE', 1),
             'cost_per_1k_tokens' => 0.0, // Local model, no cost
             'timeout' => env('LLAMA_TIMEOUT', 300),
+            'token' => env('LLAMA_TOKEN'),
         ],
 
     ],
