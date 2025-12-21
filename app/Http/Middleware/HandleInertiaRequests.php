@@ -71,6 +71,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user,
                 'profiles' => $profiles,
                 'currentProfile' => $currentProfile,
+                'hasPin' => $user?->hasPin() ?? false,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'config' => [

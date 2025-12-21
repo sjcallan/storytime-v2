@@ -256,7 +256,7 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
                         title="Manage Profiles"
                         description="Create and manage viewer profiles for personalized content"
                     />
-                    <Button @click="openCreateDialog" size="sm">
+                    <Button @click="openCreateDialog" size="sm" class="cursor-pointer">
                         <Plus class="mr-2 h-4 w-4" />
                         Add Profile
                     </Button>

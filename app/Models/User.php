@@ -26,6 +26,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'pin',
         'profile_photo_path',
     ];
 
@@ -36,6 +37,7 @@ class User extends Authenticatable
      */
     protected $hidden = [
         'password',
+        'pin',
         'two_factor_secret',
         'two_factor_recovery_codes',
         'remember_token',
@@ -60,8 +62,17 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'pin' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Check if the user has a PIN set.
+     */
+    public function hasPin(): bool
+    {
+        return ! is_null($this->pin);
     }
 
     /**

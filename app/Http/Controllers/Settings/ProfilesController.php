@@ -163,7 +163,12 @@ class ProfilesController extends Controller
             abort(403);
         }
 
+        $previousProfileId = $request->session()->get('current_profile_id');
         $request->session()->put('current_profile_id', $profile->id);
+
+        if ($previousProfileId !== $profile->id) {
+            $request->session()->forget('pin_verification');
+        }
 
         if ($request->wantsJson()) {
             return response()->json([

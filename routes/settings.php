@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Settings\PasswordController;
+use App\Http\Controllers\Settings\PinController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\ProfilesController;
 use App\Http\Controllers\Settings\ThemeController;
@@ -23,6 +24,12 @@ Route::middleware('auth')->group(function () {
     Route::put('settings/password', [PasswordController::class, 'update'])
         ->middleware('throttle:6,1')
         ->name('user-password.update');
+
+    // PIN routes
+    Route::post('settings/pin', [PinController::class, 'store'])->name('pin.store');
+    Route::delete('settings/pin', [PinController::class, 'destroy'])->name('pin.destroy');
+    Route::post('settings/pin/verify', [PinController::class, 'verify'])->name('pin.verify');
+    Route::get('settings/pin/status', [PinController::class, 'status'])->name('pin.status');
 
     Route::get('settings/appearance', function () {
         return Inertia::render('settings/Appearance');
