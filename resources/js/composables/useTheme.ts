@@ -143,7 +143,8 @@ export function useTheme() {
     const currentProfile = computed(() => page.props.auth?.currentProfile);
     const activeTheme = computed(() => currentProfile.value?.active_theme ?? null);
     const themes = computed(() => currentProfile.value?.themes ?? []);
-    const backgroundImage = computed(() => currentProfile.value?.background_image ?? null);
+    // Background image is now part of each theme, not a global profile setting
+    const backgroundImage = computed(() => activeTheme.value?.background_image ?? null);
 
     /**
      * Apply a theme by setting CSS custom properties on the document root.

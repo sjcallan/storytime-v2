@@ -16,6 +16,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
     Dialog,
     DialogContent,
     DialogDescription,
@@ -27,12 +32,11 @@ import { Palette, Check, Trash2, Plus, Edit2, X, Sparkles, Image, Wand2, Loader2
 import axios from 'axios';
 import { router } from '@inertiajs/vue3';
 
-const { activeTheme, themes, backgroundImage, previewTheme, previewBackgroundImage, clearPreview } = useTheme();
+const { activeTheme, themes, backgroundImage } = useTheme();
 
 const isDropdownOpen = ref(false);
 const isCreateDialogOpen = ref(false);
 const isEditDialogOpen = ref(false);
-const isBackgroundDialogOpen = ref(false);
 const editingTheme = ref<ProfileTheme | null>(null);
 const isSaving = ref(false);
 const isDeleting = ref(false);
@@ -45,6 +49,7 @@ const themeName = ref('');
 const backgroundColor = ref('#1a1a2e');
 const textColor = ref('#eaeaea');
 const backgroundDescription = ref('');
+const themeBackgroundImage = ref<string | null>(null);
 
 // Preset colors for quick selection
 const presetBackgrounds = [
@@ -77,24 +82,18 @@ const examplePrompts = [
     'Japanese cherry blossom trees along a peaceful river with traditional bridges',
 ];
 
-// Watch for color changes to preview
-watch([backgroundColor, textColor], ([bg, text]) => {
-    if (isCreateDialogOpen.value || isEditDialogOpen.value) {
-        previewTheme(bg, text);
-    }
-});
+// Note: Theme preview is handled via inline styles on the preview area only (contrastPreview computed)
+// We don't call previewTheme() here to avoid affecting the dialog itself
 
 const resetForm = () => {
     themeName.value = '';
     backgroundColor.value = '#1a1a2e';
     textColor.value = '#eaeaea';
-    editingTheme.value = null;
-};
-
-const resetBackgroundForm = () => {
+    themeBackgroundImage.value = null;
     backgroundDescription.value = '';
     generatedImageUrl.value = null;
     generationError.value = null;
+    editingTheme.value = null;
 };
 
 const openCreateDialog = () => {
@@ -107,21 +106,17 @@ const openEditDialog = (theme: ProfileTheme) => {
     themeName.value = theme.name;
     backgroundColor.value = theme.background_color;
     textColor.value = theme.text_color;
+    themeBackgroundImage.value = theme.background_image ?? null;
+    backgroundDescription.value = '';
+    generatedImageUrl.value = null;
+    generationError.value = null;
     isEditDialogOpen.value = true;
-};
-
-const openBackgroundDialog = () => {
-    resetBackgroundForm();
-    isBackgroundDialogOpen.value = true;
 };
 
 const closeDialogs = () => {
     isCreateDialogOpen.value = false;
     isEditDialogOpen.value = false;
-    isBackgroundDialogOpen.value = false;
-    clearPreview();
     resetForm();
-    resetBackgroundForm();
 };
 
 const handleSaveTheme = async () => {
@@ -129,20 +124,19 @@ const handleSaveTheme = async () => {
 
     isSaving.value = true;
     try {
+        const themeData = {
+            name: themeName.value,
+            background_color: backgroundColor.value,
+            text_color: textColor.value,
+            background_image: themeBackgroundImage.value,
+        };
+
         if (editingTheme.value) {
             // Update existing theme
-            await axios.patch(`/themes/${editingTheme.value.id}`, {
-                name: themeName.value,
-                background_color: backgroundColor.value,
-                text_color: textColor.value,
-            });
+            await axios.patch(`/themes/${editingTheme.value.id}`, themeData);
         } else {
             // Create new theme
-            await axios.post('/themes', {
-                name: themeName.value,
-                background_color: backgroundColor.value,
-                text_color: textColor.value,
-            });
+            await axios.post('/themes', themeData);
         }
         
         // Refresh the page to get updated profile data
@@ -193,8 +187,8 @@ const handleGenerateBackground = async () => {
 
         if (response.data.success) {
             generatedImageUrl.value = response.data.background_image;
-            // Preview the generated image
-            previewBackgroundImage(response.data.background_image);
+            // Set the theme background image to the generated one
+            themeBackgroundImage.value = response.data.background_image;
         } else {
             generationError.value = response.data.error || 'Failed to generate image.';
         }
@@ -206,37 +200,10 @@ const handleGenerateBackground = async () => {
     }
 };
 
-const handleSaveBackgroundImage = async () => {
-    if (!generatedImageUrl.value) return;
-
-    isSaving.value = true;
-    try {
-        await axios.post('/themes/background-image', {
-            background_image: generatedImageUrl.value,
-        });
-        
-        router.reload({ only: ['auth'] });
-        closeDialogs();
-    } catch (error) {
-        console.error('Failed to save background image:', error);
-    } finally {
-        isSaving.value = false;
-    }
-};
-
-const handleRemoveBackgroundImage = async () => {
-    isSaving.value = true;
-    try {
-        await axios.post('/themes/background-image', {
-            background_image: null,
-        });
-        
-        router.reload({ only: ['auth'] });
-    } catch (error) {
-        console.error('Failed to remove background image:', error);
-    } finally {
-        isSaving.value = false;
-    }
+const handleRemoveBackgroundImage = () => {
+    themeBackgroundImage.value = null;
+    generatedImageUrl.value = null;
+    backgroundDescription.value = '';
 };
 
 const useExamplePrompt = (prompt: string) => {
@@ -300,16 +267,6 @@ const contrastPreview = computed(() => {
             >
                 <X class="h-4 w-4" />
                 Reset to Default Theme
-            </DropdownMenuItem>
-
-            <!-- Remove Background Image -->
-            <DropdownMenuItem
-                v-if="backgroundImage"
-                class="cursor-pointer gap-2"
-                @click="handleRemoveBackgroundImage"
-            >
-                <X class="h-4 w-4" />
-                Remove Background Image
             </DropdownMenuItem>
 
             <DropdownMenuSeparator v-if="themes && themes.length > 0" />
@@ -376,29 +333,23 @@ const contrastPreview = computed(() => {
                 <Plus class="h-4 w-4" />
                 Create New Theme
             </DropdownMenuItem>
-
-            <!-- Generate Background Image -->
-            <DropdownMenuItem class="cursor-pointer gap-2" @click="openBackgroundDialog">
-                <Image class="h-4 w-4" />
-                Generate Background Image
-            </DropdownMenuItem>
         </DropdownMenuContent>
     </DropdownMenu>
 
     <!-- Create Theme Dialog -->
     <Dialog v-model:open="isCreateDialogOpen">
-        <DialogContent class="sm:max-w-md">
+        <DialogContent class="theme-reset sm:max-w-lg">
             <DialogHeader>
                 <DialogTitle class="flex items-center gap-2">
                     <Palette class="h-5 w-5 text-violet-500" />
                     Create New Theme
                 </DialogTitle>
                 <DialogDescription>
-                    Design your own custom color scheme for your reading experience.
+                    Design your own custom color scheme and background for your reading experience.
                 </DialogDescription>
             </DialogHeader>
 
-            <div class="grid gap-6 py-4">
+            <div class="grid gap-4 py-4">
                 <!-- Theme Name -->
                 <div class="grid gap-2">
                     <Label for="theme-name">Theme Name</Label>
@@ -414,73 +365,168 @@ const contrastPreview = computed(() => {
                 <div class="grid gap-2">
                     <Label>Preview</Label>
                     <div
-                        class="rounded-lg border p-4 transition-colors duration-200"
+                        class="relative overflow-hidden rounded-lg border p-4 transition-colors duration-200"
                         :style="contrastPreview"
                     >
-                        <p class="text-lg font-semibold">Sample Text</p>
-                        <p class="text-sm opacity-80">
-                            This is how your stories will look with this theme applied.
-                        </p>
+                        <!-- Background Image Preview -->
+                        <div
+                            v-if="themeBackgroundImage"
+                            class="absolute inset-0 bg-cover bg-center opacity-30"
+                            :style="{ backgroundImage: `url(${themeBackgroundImage})` }"
+                        />
+                        <div class="relative">
+                            <p class="text-lg font-semibold">Sample Text</p>
+                            <p class="text-sm opacity-80">
+                                This is how your stories will look with this theme applied.
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Background Color -->
-                <div class="grid gap-2">
-                    <Label>Background Color</Label>
-                    <div class="flex gap-2">
-                        <input
-                            type="color"
-                            v-model="backgroundColor"
-                            class="h-10 w-16 cursor-pointer rounded border border-border bg-transparent"
-                        />
-                        <Input
-                            v-model="backgroundColor"
-                            placeholder="#1a1a2e"
-                            class="flex-1 font-mono text-sm"
-                        />
+                <!-- Colors Section -->
+                <div class="space-y-3">
+                    <div class="flex items-center gap-2 text-sm font-medium">
+                        <Palette class="h-4 w-4 text-violet-500" />
+                        Colors
                     </div>
-                    <!-- Preset backgrounds -->
-                    <div class="flex flex-wrap gap-1.5">
-                        <button
-                            v-for="preset in presetBackgrounds"
-                            :key="preset.color"
-                            class="h-6 w-6 rounded-full border-2 transition-transform hover:scale-110"
-                            :class="backgroundColor === preset.color ? 'border-violet-500 ring-2 ring-violet-500/30' : 'border-transparent'"
-                            :style="{ backgroundColor: preset.color }"
-                            :title="preset.name"
-                            @click="backgroundColor = preset.color"
-                        />
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Background Color -->
+                        <div class="grid gap-2">
+                            <Label class="text-xs">Background</Label>
+                            <div class="flex gap-2">
+                                <input
+                                    type="color"
+                                    v-model="backgroundColor"
+                                    class="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+                                />
+                                <Input
+                                    v-model="backgroundColor"
+                                    placeholder="#1a1a2e"
+                                    class="flex-1 font-mono text-xs"
+                                />
+                            </div>
+                            <div class="flex flex-wrap gap-1">
+                                <button
+                                    v-for="preset in presetBackgrounds"
+                                    :key="preset.color"
+                                    class="h-5 w-5 rounded-full border-2 transition-transform hover:scale-110"
+                                    :class="backgroundColor === preset.color ? 'border-violet-500 ring-2 ring-violet-500/30' : 'border-transparent'"
+                                    :style="{ backgroundColor: preset.color }"
+                                    :title="preset.name"
+                                    @click="backgroundColor = preset.color"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Text Color -->
+                        <div class="grid gap-2">
+                            <Label class="text-xs">Text</Label>
+                            <div class="flex gap-2">
+                                <input
+                                    type="color"
+                                    v-model="textColor"
+                                    class="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+                                />
+                                <Input
+                                    v-model="textColor"
+                                    placeholder="#eaeaea"
+                                    class="flex-1 font-mono text-xs"
+                                />
+                            </div>
+                            <div class="flex flex-wrap gap-1">
+                                <button
+                                    v-for="preset in presetTextColors"
+                                    :key="preset.color"
+                                    class="h-5 w-5 rounded-full border-2 transition-transform hover:scale-110"
+                                    :class="textColor === preset.color ? 'border-violet-500 ring-2 ring-violet-500/30' : 'border-border'"
+                                    :style="{ backgroundColor: preset.color }"
+                                    :title="preset.name"
+                                    @click="textColor = preset.color"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Text Color -->
-                <div class="grid gap-2">
-                    <Label>Text Color</Label>
-                    <div class="flex gap-2">
-                        <input
-                            type="color"
-                            v-model="textColor"
-                            class="h-10 w-16 cursor-pointer rounded border border-border bg-transparent"
-                        />
-                        <Input
-                            v-model="textColor"
-                            placeholder="#eaeaea"
-                            class="flex-1 font-mono text-sm"
-                        />
-                    </div>
-                    <!-- Preset text colors -->
-                    <div class="flex flex-wrap gap-1.5">
-                        <button
-                            v-for="preset in presetTextColors"
-                            :key="preset.color"
-                            class="h-6 w-6 rounded-full border-2 transition-transform hover:scale-110"
-                            :class="textColor === preset.color ? 'border-violet-500 ring-2 ring-violet-500/30' : 'border-border'"
-                            :style="{ backgroundColor: preset.color }"
-                            :title="preset.name"
-                            @click="textColor = preset.color"
-                        />
-                    </div>
-                </div>
+                <!-- Background Image Section -->
+                <Collapsible class="space-y-2">
+                    <CollapsibleTrigger class="flex w-full items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm font-medium hover:bg-muted/50 transition-colors">
+                        <div class="flex items-center gap-2">
+                            <Image class="h-4 w-4 text-violet-500" />
+                            Background Image
+                            <span v-if="themeBackgroundImage" class="text-xs text-muted-foreground">(Active)</span>
+                        </div>
+                        <span class="text-xs text-muted-foreground">Optional</span>
+                    </CollapsibleTrigger>
+                    
+                    <CollapsibleContent class="space-y-3 pt-2">
+                        <!-- Current Background Image -->
+                        <div v-if="themeBackgroundImage" class="grid gap-2">
+                            <div class="relative aspect-video rounded-lg border overflow-hidden">
+                                <img
+                                    :src="themeBackgroundImage"
+                                    alt="Theme background"
+                                    class="w-full h-full object-cover"
+                                />
+                                <button
+                                    @click="handleRemoveBackgroundImage"
+                                    class="absolute top-2 right-2 rounded-full bg-background/80 p-1.5 text-destructive hover:bg-background"
+                                    title="Remove background image"
+                                >
+                                    <Trash2 class="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Generate Background -->
+                        <div class="grid gap-2">
+                            <Label for="bg-description" class="text-xs">
+                                {{ themeBackgroundImage ? 'Generate New Background' : 'Describe Your Background' }}
+                            </Label>
+                            <Textarea
+                                id="bg-description"
+                                v-model="backgroundDescription"
+                                placeholder="e.g., A peaceful mountain landscape at sunset..."
+                                rows="2"
+                                class="resize-none text-sm"
+                                :disabled="isGeneratingImage"
+                            />
+                        </div>
+
+                        <!-- Example Prompts -->
+                        <div class="flex flex-wrap gap-1.5">
+                            <button
+                                v-for="(prompt, index) in examplePrompts.slice(0, 3)"
+                                :key="index"
+                                class="text-xs px-2 py-0.5 rounded-full bg-accent/50 text-accent-foreground hover:bg-accent transition-colors truncate max-w-[150px]"
+                                @click="useExamplePrompt(prompt)"
+                                :disabled="isGeneratingImage"
+                                :title="prompt"
+                            >
+                                {{ prompt.slice(0, 30) }}...
+                            </button>
+                        </div>
+
+                        <!-- Generate Button -->
+                        <Button
+                            @click="handleGenerateBackground"
+                            :disabled="backgroundDescription.length < 10 || isGeneratingImage"
+                            variant="outline"
+                            size="sm"
+                            class="w-full"
+                        >
+                            <Wand2 v-if="!isGeneratingImage" class="h-4 w-4 mr-2" />
+                            <Loader2 v-else class="h-4 w-4 mr-2 animate-spin" />
+                            {{ isGeneratingImage ? 'Generating... (30-60s)' : 'Generate Background' }}
+                        </Button>
+
+                        <!-- Error Message -->
+                        <div v-if="generationError" class="rounded-lg bg-destructive/10 p-2 text-xs text-destructive">
+                            {{ generationError }}
+                        </div>
+                    </CollapsibleContent>
+                </Collapsible>
             </div>
 
             <DialogFooter class="gap-2">
@@ -500,18 +546,18 @@ const contrastPreview = computed(() => {
 
     <!-- Edit Theme Dialog -->
     <Dialog v-model:open="isEditDialogOpen">
-        <DialogContent class="sm:max-w-md">
+        <DialogContent class="theme-reset sm:max-w-lg">
             <DialogHeader>
                 <DialogTitle class="flex items-center gap-2">
                     <Edit2 class="h-5 w-5 text-violet-500" />
                     Edit Theme
                 </DialogTitle>
                 <DialogDescription>
-                    Update your custom theme settings.
+                    Update your custom theme colors and background.
                 </DialogDescription>
             </DialogHeader>
 
-            <div class="grid gap-6 py-4">
+            <div class="grid gap-4 py-4">
                 <!-- Theme Name -->
                 <div class="grid gap-2">
                     <Label for="edit-theme-name">Theme Name</Label>
@@ -527,71 +573,168 @@ const contrastPreview = computed(() => {
                 <div class="grid gap-2">
                     <Label>Preview</Label>
                     <div
-                        class="rounded-lg border p-4 transition-colors duration-200"
+                        class="relative overflow-hidden rounded-lg border p-4 transition-colors duration-200"
                         :style="contrastPreview"
                     >
-                        <p class="text-lg font-semibold">Sample Text</p>
-                        <p class="text-sm opacity-80">
-                            This is how your stories will look with this theme applied.
-                        </p>
+                        <!-- Background Image Preview -->
+                        <div
+                            v-if="themeBackgroundImage"
+                            class="absolute inset-0 bg-cover bg-center opacity-30"
+                            :style="{ backgroundImage: `url(${themeBackgroundImage})` }"
+                        />
+                        <div class="relative">
+                            <p class="text-lg font-semibold">Sample Text</p>
+                            <p class="text-sm opacity-80">
+                                This is how your stories will look with this theme applied.
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Background Color -->
-                <div class="grid gap-2">
-                    <Label>Background Color</Label>
-                    <div class="flex gap-2">
-                        <input
-                            type="color"
-                            v-model="backgroundColor"
-                            class="h-10 w-16 cursor-pointer rounded border border-border bg-transparent"
-                        />
-                        <Input
-                            v-model="backgroundColor"
-                            placeholder="#1a1a2e"
-                            class="flex-1 font-mono text-sm"
-                        />
+                <!-- Colors Section -->
+                <div class="space-y-3">
+                    <div class="flex items-center gap-2 text-sm font-medium">
+                        <Palette class="h-4 w-4 text-violet-500" />
+                        Colors
                     </div>
-                    <div class="flex flex-wrap gap-1.5">
-                        <button
-                            v-for="preset in presetBackgrounds"
-                            :key="preset.color"
-                            class="h-6 w-6 rounded-full border-2 transition-transform hover:scale-110"
-                            :class="backgroundColor === preset.color ? 'border-violet-500 ring-2 ring-violet-500/30' : 'border-transparent'"
-                            :style="{ backgroundColor: preset.color }"
-                            :title="preset.name"
-                            @click="backgroundColor = preset.color"
-                        />
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Background Color -->
+                        <div class="grid gap-2">
+                            <Label class="text-xs">Background</Label>
+                            <div class="flex gap-2">
+                                <input
+                                    type="color"
+                                    v-model="backgroundColor"
+                                    class="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+                                />
+                                <Input
+                                    v-model="backgroundColor"
+                                    placeholder="#1a1a2e"
+                                    class="flex-1 font-mono text-xs"
+                                />
+                            </div>
+                            <div class="flex flex-wrap gap-1">
+                                <button
+                                    v-for="preset in presetBackgrounds"
+                                    :key="preset.color"
+                                    class="h-5 w-5 rounded-full border-2 transition-transform hover:scale-110"
+                                    :class="backgroundColor === preset.color ? 'border-violet-500 ring-2 ring-violet-500/30' : 'border-transparent'"
+                                    :style="{ backgroundColor: preset.color }"
+                                    :title="preset.name"
+                                    @click="backgroundColor = preset.color"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Text Color -->
+                        <div class="grid gap-2">
+                            <Label class="text-xs">Text</Label>
+                            <div class="flex gap-2">
+                                <input
+                                    type="color"
+                                    v-model="textColor"
+                                    class="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+                                />
+                                <Input
+                                    v-model="textColor"
+                                    placeholder="#eaeaea"
+                                    class="flex-1 font-mono text-xs"
+                                />
+                            </div>
+                            <div class="flex flex-wrap gap-1">
+                                <button
+                                    v-for="preset in presetTextColors"
+                                    :key="preset.color"
+                                    class="h-5 w-5 rounded-full border-2 transition-transform hover:scale-110"
+                                    :class="textColor === preset.color ? 'border-violet-500 ring-2 ring-violet-500/30' : 'border-border'"
+                                    :style="{ backgroundColor: preset.color }"
+                                    :title="preset.name"
+                                    @click="textColor = preset.color"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Text Color -->
-                <div class="grid gap-2">
-                    <Label>Text Color</Label>
-                    <div class="flex gap-2">
-                        <input
-                            type="color"
-                            v-model="textColor"
-                            class="h-10 w-16 cursor-pointer rounded border border-border bg-transparent"
-                        />
-                        <Input
-                            v-model="textColor"
-                            placeholder="#eaeaea"
-                            class="flex-1 font-mono text-sm"
-                        />
-                    </div>
-                    <div class="flex flex-wrap gap-1.5">
-                        <button
-                            v-for="preset in presetTextColors"
-                            :key="preset.color"
-                            class="h-6 w-6 rounded-full border-2 transition-transform hover:scale-110"
-                            :class="textColor === preset.color ? 'border-violet-500 ring-2 ring-violet-500/30' : 'border-border'"
-                            :style="{ backgroundColor: preset.color }"
-                            :title="preset.name"
-                            @click="textColor = preset.color"
-                        />
-                    </div>
-                </div>
+                <!-- Background Image Section -->
+                <Collapsible class="space-y-2" :default-open="!!themeBackgroundImage">
+                    <CollapsibleTrigger class="flex w-full items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm font-medium hover:bg-muted/50 transition-colors">
+                        <div class="flex items-center gap-2">
+                            <Image class="h-4 w-4 text-violet-500" />
+                            Background Image
+                            <span v-if="themeBackgroundImage" class="text-xs text-muted-foreground">(Active)</span>
+                        </div>
+                        <span class="text-xs text-muted-foreground">Optional</span>
+                    </CollapsibleTrigger>
+                    
+                    <CollapsibleContent class="space-y-3 pt-2">
+                        <!-- Current Background Image -->
+                        <div v-if="themeBackgroundImage" class="grid gap-2">
+                            <div class="relative aspect-video rounded-lg border overflow-hidden">
+                                <img
+                                    :src="themeBackgroundImage"
+                                    alt="Theme background"
+                                    class="w-full h-full object-cover"
+                                />
+                                <button
+                                    @click="handleRemoveBackgroundImage"
+                                    class="absolute top-2 right-2 rounded-full bg-background/80 p-1.5 text-destructive hover:bg-background"
+                                    title="Remove background image"
+                                >
+                                    <Trash2 class="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Generate Background -->
+                        <div class="grid gap-2">
+                            <Label for="edit-bg-description" class="text-xs">
+                                {{ themeBackgroundImage ? 'Generate New Background' : 'Describe Your Background' }}
+                            </Label>
+                            <Textarea
+                                id="edit-bg-description"
+                                v-model="backgroundDescription"
+                                placeholder="e.g., A peaceful mountain landscape at sunset..."
+                                rows="2"
+                                class="resize-none text-sm"
+                                :disabled="isGeneratingImage"
+                            />
+                        </div>
+
+                        <!-- Example Prompts -->
+                        <div class="flex flex-wrap gap-1.5">
+                            <button
+                                v-for="(prompt, index) in examplePrompts.slice(0, 3)"
+                                :key="index"
+                                class="text-xs px-2 py-0.5 rounded-full bg-accent/50 text-accent-foreground hover:bg-accent transition-colors truncate max-w-[150px]"
+                                @click="useExamplePrompt(prompt)"
+                                :disabled="isGeneratingImage"
+                                :title="prompt"
+                            >
+                                {{ prompt.slice(0, 30) }}...
+                            </button>
+                        </div>
+
+                        <!-- Generate Button -->
+                        <Button
+                            @click="handleGenerateBackground"
+                            :disabled="backgroundDescription.length < 10 || isGeneratingImage"
+                            variant="outline"
+                            size="sm"
+                            class="w-full"
+                        >
+                            <Wand2 v-if="!isGeneratingImage" class="h-4 w-4 mr-2" />
+                            <Loader2 v-else class="h-4 w-4 mr-2 animate-spin" />
+                            {{ isGeneratingImage ? 'Generating... (30-60s)' : 'Generate Background' }}
+                        </Button>
+
+                        <!-- Error Message -->
+                        <div v-if="generationError" class="rounded-lg bg-destructive/10 p-2 text-xs text-destructive">
+                            {{ generationError }}
+                        </div>
+                    </CollapsibleContent>
+                </Collapsible>
             </div>
 
             <DialogFooter class="gap-2">
@@ -609,114 +752,6 @@ const contrastPreview = computed(() => {
         </DialogContent>
     </Dialog>
 
-    <!-- Generate Background Image Dialog -->
-    <Dialog v-model:open="isBackgroundDialogOpen">
-        <DialogContent class="sm:max-w-lg">
-            <DialogHeader>
-                <DialogTitle class="flex items-center gap-2">
-                    <Wand2 class="h-5 w-5 text-violet-500" />
-                    Generate Background Image
-                </DialogTitle>
-                <DialogDescription>
-                    Describe the background you'd like for your dashboard. Our AI will create a beautiful, subtle wallpaper that won't distract from your content.
-                </DialogDescription>
-            </DialogHeader>
-
-            <div class="grid gap-6 py-4">
-                <!-- Description Input -->
-                <div class="grid gap-2">
-                    <Label for="bg-description">Describe Your Background</Label>
-                    <Textarea
-                        id="bg-description"
-                        v-model="backgroundDescription"
-                        placeholder="e.g., A peaceful mountain landscape at sunset with soft purple and orange hues..."
-                        rows="3"
-                        class="resize-none"
-                        :disabled="isGeneratingImage"
-                    />
-                    <p class="text-xs text-muted-foreground">
-                        Minimum 10 characters. The AI will optimize your description for a wallpaper-style image.
-                    </p>
-                </div>
-
-                <!-- Example Prompts -->
-                <div class="grid gap-2">
-                    <Label class="text-xs text-muted-foreground">Try an example:</Label>
-                    <div class="flex flex-wrap gap-2">
-                        <button
-                            v-for="(prompt, index) in examplePrompts.slice(0, 3)"
-                            :key="index"
-                            class="text-xs px-2 py-1 rounded-full bg-accent text-accent-foreground hover:bg-accent/80 transition-colors truncate max-w-[200px]"
-                            @click="useExamplePrompt(prompt)"
-                            :disabled="isGeneratingImage"
-                            :title="prompt"
-                        >
-                            {{ prompt.slice(0, 40) }}...
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Generated Image Preview -->
-                <div v-if="generatedImageUrl || isGeneratingImage" class="grid gap-2">
-                    <Label>Generated Image</Label>
-                    <div class="relative aspect-video rounded-lg border overflow-hidden bg-muted">
-                        <div
-                            v-if="isGeneratingImage"
-                            class="absolute inset-0 flex flex-col items-center justify-center gap-3"
-                        >
-                            <Loader2 class="h-8 w-8 animate-spin text-violet-500" />
-                            <p class="text-sm text-muted-foreground">Generating your background...</p>
-                            <p class="text-xs text-muted-foreground">This may take 30-60 seconds</p>
-                        </div>
-                        <img
-                            v-else-if="generatedImageUrl"
-                            :src="generatedImageUrl"
-                            alt="Generated background"
-                            class="w-full h-full object-cover"
-                        />
-                    </div>
-                </div>
-
-                <!-- Error Message -->
-                <div v-if="generationError" class="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-                    {{ generationError }}
-                </div>
-            </div>
-
-            <DialogFooter class="gap-2 flex-col sm:flex-row">
-                <Button variant="outline" @click="closeDialogs" :disabled="isGeneratingImage">
-                    Cancel
-                </Button>
-                <Button
-                    v-if="!generatedImageUrl"
-                    @click="handleGenerateBackground"
-                    :disabled="backgroundDescription.length < 10 || isGeneratingImage"
-                    class="bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:from-violet-700 hover:to-fuchsia-700"
-                >
-                    <Wand2 v-if="!isGeneratingImage" class="h-4 w-4 mr-2" />
-                    <Loader2 v-else class="h-4 w-4 mr-2 animate-spin" />
-                    {{ isGeneratingImage ? 'Generating...' : 'Generate Image' }}
-                </Button>
-                <template v-else>
-                    <Button
-                        variant="outline"
-                        @click="handleGenerateBackground"
-                        :disabled="isGeneratingImage"
-                    >
-                        <Wand2 class="h-4 w-4 mr-2" />
-                        Regenerate
-                    </Button>
-                    <Button
-                        @click="handleSaveBackgroundImage"
-                        :disabled="isSaving"
-                        class="bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:from-violet-700 hover:to-fuchsia-700"
-                    >
-                        {{ isSaving ? 'Saving...' : 'Use This Background' }}
-                    </Button>
-                </template>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
 </template>
 
 <style scoped>

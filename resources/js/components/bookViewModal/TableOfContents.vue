@@ -39,7 +39,7 @@ const getChapterDisplayTitle = (chapter: ChapterSummary): string => {
         <slot name="trigger" />
         <DropdownMenuContent 
             align="start" 
-            class="z-10001 w-80 max-h-[500px] overflow-y-auto"
+            class="theme-reset z-10001 w-80 max-h-[500px] overflow-y-auto"
         >
             <DropdownMenuLabel class="font-serif text-base">
                 Table of Contents

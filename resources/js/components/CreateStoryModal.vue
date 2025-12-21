@@ -1176,9 +1176,8 @@ watch(
 <template>
     <Dialog :open="isOpen" @update:open="handleOpenChange">
         <DialogContent
-            class="max-w-2xl overflow-visible rounded-3xl border-2 bg-background p-0 sm:max-w-2xl [&>button[data-slot]]:hidden"
+            class="theme-reset max-w-2xl overflow-visible rounded-3xl border-2 bg-background p-0 sm:max-w-2xl [&>button[data-slot]]:hidden"
             :class="processing ? 'pointer-events-none' : ''"
-            style="background-image: none !important;"
         >
             <!-- Custom Close Button - Offset in corner with white circle -->
             <button
@@ -1260,7 +1259,7 @@ watch(
             </Transition>
 
             <!-- Content wrapper with overflow hidden for rounded corners -->
-            <div class="overflow-hidden rounded-3xl bg-background" style="background-image: none !important;">
+            <div class="overflow-hidden rounded-3xl bg-background">
                 <!-- Animated Header -->
                 <div
                     class="relative overflow-hidden bg-gradient-to-r px-6 py-8 text-white transition-all duration-500"
@@ -1319,7 +1318,7 @@ watch(
                 </div>
 
                 <!-- Form Content -->
-                <div class="max-h-[60vh] overflow-y-auto bg-background px-6 py-6" style="background-image: none !important;">
+                <div class="max-h-[60vh] overflow-y-auto bg-background px-6 py-6">
                     <form
                         @submit.prevent="
                             currentStep === totalSteps
@@ -2210,7 +2209,6 @@ watch(
                 <!-- Footer Navigation -->
                 <div
                     class="flex items-center justify-between border-t bg-muted/30 px-6 py-5"
-                    style="background-image: none !important;"
                 >
                     <Button
                         v-if="currentStep > 1"

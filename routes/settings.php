@@ -31,6 +31,9 @@ Route::middleware('auth')->group(function () {
     Route::get('settings/two-factor', [TwoFactorAuthenticationController::class, 'show'])
         ->name('two-factor.show');
 
+    // Profile selection page
+    Route::get('profiles/select', [ProfilesController::class, 'select'])->name('profiles.select');
+
     // Profiles management
     Route::get('settings/profiles', [ProfilesController::class, 'index'])->name('profiles.index');
     Route::post('settings/profiles', [ProfilesController::class, 'store'])->name('profiles.store');

@@ -665,7 +665,7 @@ onBeforeUnmount(() => {
             v-if="animation.isRendered.value"
             ref="modalElement"
             :style="animation.cardStyle.value"
-            class="book-modal-container rounded-2xl overflow-hidden shadow-2xl"
+            class="book-modal-container theme-reset rounded-2xl overflow-hidden shadow-2xl"
         >
             <!-- Card Front Face (shown during shrink-back close animation) -->
             <div

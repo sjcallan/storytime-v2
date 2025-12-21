@@ -78,7 +78,7 @@ const emit = defineEmits<{
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal>
-                    <DropdownMenuContent align="start" class="z-10001 w-48">
+                    <DropdownMenuContent align="start" class="theme-reset z-10001 w-48">
                         <DropdownMenuItem
                             @select="emit('toggleFavorite')"
                             :disabled="isTogglingFavorite || isSaving || isDeleting"

@@ -222,3 +222,61 @@
     position: relative;
     z-index: 1;
 }
+
+/* Reset theme for modals that should not inherit custom theme */
+/* Uses !important to override the root-level !important on .custom-theme-active */
+.theme-reset {
+    /* Light mode defaults */
+    --background: hsl(0 0% 100%) !important;
+    --foreground: hsl(0 0% 3.9%) !important;
+    --card: hsl(0 0% 100%) !important;
+    --card-foreground: hsl(0 0% 3.9%) !important;
+    --popover: hsl(0 0% 100%) !important;
+    --popover-foreground: hsl(0 0% 3.9%) !important;
+    --primary: hsl(0 0% 9%) !important;
+    --primary-foreground: hsl(0 0% 98%) !important;
+    --secondary: hsl(0 0% 92.1%) !important;
+    --secondary-foreground: hsl(0 0% 9%) !important;
+    --muted: hsl(0 0% 96.1%) !important;
+    --muted-foreground: hsl(0 0% 45.1%) !important;
+    --accent: hsl(0 0% 96.1%) !important;
+    --accent-foreground: hsl(0 0% 9%) !important;
+    --destructive: hsl(0 84.2% 60.2%) !important;
+    --destructive-foreground: hsl(0 0% 98%) !important;
+    --border: hsl(0 0% 92.8%) !important;
+    --input: hsl(0 0% 89.8%) !important;
+    --ring: hsl(0 0% 3.9%) !important;
+    --sidebar-background: hsl(0 0% 98%) !important;
+    --sidebar-foreground: hsl(240 5.3% 26.1%) !important;
+    --sidebar-border: hsl(0 0% 91%) !important;
+    --sidebar-accent: hsl(0 0% 94%) !important;
+    --sidebar-accent-foreground: hsl(0 0% 30%) !important;
+}
+
+/* Dark mode reset for theme-reset */
+.dark .theme-reset {
+    --background: hsl(0 0% 3.9%) !important;
+    --foreground: hsl(0 0% 98%) !important;
+    --card: hsl(0 0% 3.9%) !important;
+    --card-foreground: hsl(0 0% 98%) !important;
+    --popover: hsl(0 0% 3.9%) !important;
+    --popover-foreground: hsl(0 0% 98%) !important;
+    --primary: hsl(0 0% 98%) !important;
+    --primary-foreground: hsl(0 0% 9%) !important;
+    --secondary: hsl(0 0% 14.9%) !important;
+    --secondary-foreground: hsl(0 0% 98%) !important;
+    --muted: hsl(0 0% 16.08%) !important;
+    --muted-foreground: hsl(0 0% 63.9%) !important;
+    --accent: hsl(0 0% 14.9%) !important;
+    --accent-foreground: hsl(0 0% 98%) !important;
+    --destructive: hsl(0 84% 60%) !important;
+    --destructive-foreground: hsl(0 0% 98%) !important;
+    --border: hsl(0 0% 14.9%) !important;
+    --input: hsl(0 0% 14.9%) !important;
+    --ring: hsl(0 0% 83.1%) !important;
+    --sidebar-background: hsl(0 0% 7%) !important;
+    --sidebar-foreground: hsl(0 0% 95.9%) !important;
+    --sidebar-border: hsl(0 0% 15.9%) !important;
+    --sidebar-accent: hsl(0 0% 15.9%) !important;
+    --sidebar-accent-foreground: hsl(240 4.8% 95.9%) !important;
+}

@@ -12,10 +12,10 @@ import {
 import { useInitials } from '@/composables/useInitials';
 import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
-import { switchMethod as switchProfile, index as manageProfiles } from '@/routes/profiles';
+import { select as selectProfile, index as manageProfiles } from '@/routes/profiles';
 import type { Profile } from '@/types';
 import { Link, router } from '@inertiajs/vue3';
-import { ChevronDown, Check, Settings, LogOut, Users } from 'lucide-vue-next';
+import { ChevronDown, Settings, LogOut, Users, UserCircle } from 'lucide-vue-next';
 
 interface Props {
     profiles: Profile[];
@@ -26,27 +26,8 @@ const props = defineProps<Props>();
 
 const { getInitials } = useInitials();
 
-const handleSwitchProfile = (profile: Profile) => {
-    if (profile.id === props.currentProfile?.id) return;
-    
-    router.post(switchProfile.url(profile.id), {}, {
-        preserveScroll: true,
-        preserveState: false,
-    });
-};
-
 const handleLogout = () => {
     router.flushAll();
-};
-
-const getAgeGroupEmoji = (ageGroup: string): string => {
-    const emojis: Record<string, string> = {
-        '8': '👶',
-        '12': '🧒',
-        '16': '🧑',
-        '18': '🧑‍🦱',
-    };
-    return emojis[ageGroup] || '👤';
 };
 </script>
 
@@ -99,42 +80,19 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
 
             <DropdownMenuSeparator />
 
-            <!-- Switch Profile Section -->
-            <DropdownMenuLabel class="text-xs font-normal text-muted-foreground px-2 py-1.5">
-                Switch Profile
-            </DropdownMenuLabel>
-
+            <!-- Profile Actions -->
             <DropdownMenuGroup>
-                <DropdownMenuItem
-                    v-for="profile in profiles"
-                    :key="profile.id"
-                    class="cursor-pointer gap-3 py-2"
-                    @click="handleSwitchProfile(profile)"
-                >
-                    <Avatar 
-                        class="h-8 w-8 ring-2"
-                        :class="currentProfile?.id === profile.id ? 'ring-orange-500' : 'ring-border'"
-                    >
-                        <AvatarImage
-                            v-if="profile.avatar"
-                            :src="profile.avatar"
-                            :alt="profile.name"
-                            class="object-cover"
-                        />
-                        <AvatarFallback class="text-xs font-medium bg-gradient-to-br from-violet-500 to-purple-600 text-white">
-                            {{ getInitials(profile.name) }}
-                        </AvatarFallback>
-                    </Avatar>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium truncate">{{ profile.name }}</p>
-                        <p class="text-xs text-muted-foreground">
-                            {{ profile.age_group_label }}
-                        </p>
-                    </div>
-                    <Check
-                        v-if="currentProfile?.id === profile.id"
-                        class="h-4 w-4 text-primary shrink-0"
-                    />
+                <DropdownMenuItem as-child>
+                    <Link :href="selectProfile()" class="cursor-pointer gap-3">
+                        <UserCircle class="h-4 w-4" />
+                        Switch Profile
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem as-child>
+                    <Link :href="manageProfiles()" class="cursor-pointer gap-3">
+                        <Users class="h-4 w-4" />
+                        Manage Profiles
+                    </Link>
                 </DropdownMenuItem>
             </DropdownMenuGroup>
 
@@ -142,12 +100,6 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
 
             <!-- Account Actions -->
             <DropdownMenuGroup>
-                <DropdownMenuItem as-child>
-                    <Link :href="manageProfiles.url()" class="cursor-pointer gap-3">
-                        <Users class="h-4 w-4" />
-                        Manage Profiles
-                    </Link>
-                </DropdownMenuItem>
                 <DropdownMenuItem as-child>
                     <Link :href="editProfile()" class="cursor-pointer gap-3" prefetch>
                         <Settings class="h-4 w-4" />

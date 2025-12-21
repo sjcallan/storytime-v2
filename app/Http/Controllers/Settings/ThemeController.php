@@ -24,6 +24,7 @@ class ThemeController extends Controller
             'name' => ['required', 'string', 'max:50'],
             'background_color' => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'text_color' => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'background_image' => ['nullable', 'string', 'max:500'],
         ]);
 
         $profile = $this->getCurrentProfile($request);
@@ -37,6 +38,7 @@ class ThemeController extends Controller
             'name' => $validated['name'],
             'background_color' => $validated['background_color'],
             'text_color' => $validated['text_color'],
+            'background_image' => $validated['background_image'] ?? null,
         ];
 
         $profile->addTheme($theme);
@@ -57,6 +59,7 @@ class ThemeController extends Controller
             'name' => ['required', 'string', 'max:50'],
             'background_color' => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'text_color' => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'background_image' => ['nullable', 'string', 'max:500'],
         ]);
 
         $profile = $this->getCurrentProfile($request);
@@ -70,6 +73,7 @@ class ThemeController extends Controller
             'name' => $validated['name'],
             'background_color' => $validated['background_color'],
             'text_color' => $validated['text_color'],
+            'background_image' => $validated['background_image'] ?? null,
         ];
 
         $profile->updateTheme($theme);

@@ -17,6 +17,23 @@ use Inertia\Response;
 class ProfilesController extends Controller
 {
     /**
+     * Display the profile selection page.
+     */
+    public function select(Request $request): Response
+    {
+        $profiles = $request->user()
+            ->profiles()
+            ->orderByDesc('is_default')
+            ->orderBy('created_at')
+            ->get();
+
+        return Inertia::render('ProfileSelect', [
+            'profiles' => $profiles,
+            'currentProfileId' => $request->session()->get('current_profile_id'),
+        ]);
+    }
+
+    /**
      * Display the profiles management page.
      */
     public function index(Request $request): Response
