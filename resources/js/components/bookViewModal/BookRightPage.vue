@@ -22,7 +22,6 @@ interface Props {
     createdAt: string | null;
     isTitlePageFading: boolean;
     isLoadingChapter: boolean;
-    isAwaitingChapterGeneration?: boolean;
     isEditing: boolean;
     editForm: BookEditFormData;
     editErrors: Record<string, string>;
@@ -32,8 +31,6 @@ interface Props {
     chapterError: string | null;
     currentChapterNumber: number;
     nextChapterPrompt: string;
-    suggestedPlaceholder?: string | null;
-    isLoadingPlaceholder?: boolean;
     isFinalChapter: boolean;
     isGeneratingChapter: boolean;
     selectedCharacter?: Character | null;
@@ -43,7 +40,6 @@ interface Props {
     shouldShowNextChapterOnRight?: boolean;
     nextChapterData?: Chapter | null;
     nextChapterFirstPage?: PageContentItem[] | null;
-    savedChapterNumber?: number | null;
 }
 
 // Book type is derived from the book prop
@@ -61,7 +57,6 @@ const emit = defineEmits<{
     (e: 'generateChapter'): void;
     (e: 'goBack'): void;
     (e: 'clearSelectedCharacter'): void;
-    (e: 'textareaFocused', value: boolean): void;
 }>();
 
 // Show create form on right when in create-chapter view and chapter ended on left
@@ -139,8 +134,6 @@ const showInlineCreateForm = computed(() => {
             :created-at="createdAt"
             :is-fading="isTitlePageFading"
             :is-loading="isLoadingChapter"
-            :is-awaiting-chapter-generation="isAwaitingChapterGeneration"
-            :saved-chapter-number="savedChapterNumber"
             @continue="emit('continueToChapter1')"
         />
 
@@ -158,15 +151,12 @@ const showInlineCreateForm = computed(() => {
                 v-else-if="showInlineCreateForm"
                 :chapter-number="currentChapterNumber + 1"
                 :prompt="nextChapterPrompt"
-                :suggested-placeholder="suggestedPlaceholder"
-                :is-loading-placeholder="isLoadingPlaceholder"
                 :is-final-chapter="isFinalChapter"
                 :is-generating="isGeneratingChapter"
                 :book-type="bookType"
                 @update:prompt="emit('update:nextChapterPrompt', $event)"
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
-                @textarea-focused="emit('textareaFocused', $event)"
             />
             <!-- Otherwise show chapter content -->
             <BookChapterContent
@@ -185,15 +175,12 @@ const showInlineCreateForm = computed(() => {
                 v-if="showCreateFormOnRight"
                 :chapter-number="currentChapterNumber"
                 :prompt="nextChapterPrompt"
-                :suggested-placeholder="suggestedPlaceholder"
-                :is-loading-placeholder="isLoadingPlaceholder"
                 :is-final-chapter="isFinalChapter"
                 :is-generating="isGeneratingChapter"
                 :book-type="bookType"
                 @update:prompt="emit('update:nextChapterPrompt', $event)"
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
-                @textarea-focused="emit('textareaFocused', $event)"
             />
             <!-- Show decorative on right when chapter ended on right (form is on left) -->
             <BookPageDecorative v-else-if="showDecorativeOnRight" variant="wand" />
@@ -202,15 +189,12 @@ const showInlineCreateForm = computed(() => {
                 v-else
                 :chapter-number="currentChapterNumber"
                 :prompt="nextChapterPrompt"
-                :suggested-placeholder="suggestedPlaceholder"
-                :is-loading-placeholder="isLoadingPlaceholder"
                 :is-final-chapter="isFinalChapter"
                 :is-generating="isGeneratingChapter"
                 :book-type="bookType"
                 @update:prompt="emit('update:nextChapterPrompt', $event)"
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
-                @textarea-focused="emit('textareaFocused', $event)"
             />
         </template>
 
