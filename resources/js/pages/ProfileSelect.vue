@@ -1,17 +1,45 @@
 <script setup lang="ts">
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import InputError from '@/components/InputError.vue';
+import PinVerificationModal from '@/components/PinVerificationModal.vue';
 import StorytimeIcon from '@/components/StorytimeIcon.vue';
 import { useInitials } from '@/composables/useInitials';
 import { switchMethod as switchProfile } from '@/routes/profiles';
+import ProfilesController from '@/actions/App/Http/Controllers/Settings/ProfilesController';
 import { logout, dashboard } from '@/routes';
 import type { Profile } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { LogOut, Plus, Settings } from 'lucide-vue-next';
-import { ref, onMounted } from 'vue';
+import { LogOut, Plus, Settings, Loader2 } from 'lucide-vue-next';
+import { ref, onMounted, computed } from 'vue';
+
+interface AgeGroup {
+    label: string;
+    range: string;
+    emoji: string;
+}
 
 interface Props {
     profiles: Profile[];
     currentProfileId: string | null;
+    ageGroups: Record<string, AgeGroup>;
 }
 
 const props = defineProps<Props>();
@@ -19,6 +47,23 @@ const props = defineProps<Props>();
 const page = usePage();
 const { getInitials } = useInitials();
 const isVisible = ref(false);
+
+const hasPin = computed(() => page.props.auth.hasPin);
+
+const showPinModal = ref(false);
+const isCreateDialogOpen = ref(false);
+const newProfileName = ref('');
+const newProfileAgeGroup = ref('8');
+const createErrors = ref<Record<string, string>>({});
+const isCreating = ref(false);
+
+const ageGroupOptions = computed(() => {
+    return Object.entries(props.ageGroups).map(([value, data]) => ({
+        value,
+        label: `${data.emoji} ${data.label}`,
+        range: data.range,
+    }));
+});
 
 onMounted(() => {
     setTimeout(() => {
@@ -38,6 +83,57 @@ const handleSelectProfile = (profile: Profile) => {
 
 const handleLogout = () => {
     router.flushAll();
+};
+
+const handleAddProfileClick = () => {
+    if (hasPin.value) {
+        showPinModal.value = true;
+    } else {
+        openCreateDialog();
+    }
+};
+
+const handlePinVerified = () => {
+    showPinModal.value = false;
+    openCreateDialog();
+};
+
+const handlePinCancelled = () => {
+    showPinModal.value = false;
+};
+
+const openCreateDialog = () => {
+    newProfileName.value = '';
+    newProfileAgeGroup.value = '8';
+    createErrors.value = {};
+    isCreateDialogOpen.value = true;
+};
+
+const createProfile = () => {
+    isCreating.value = true;
+    createErrors.value = {};
+
+    router.post(
+        ProfilesController.store.url(),
+        {
+            name: newProfileName.value,
+            age_group: newProfileAgeGroup.value,
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                isCreateDialogOpen.value = false;
+                newProfileName.value = '';
+                newProfileAgeGroup.value = '8';
+            },
+            onError: (errors) => {
+                createErrors.value = errors;
+            },
+            onFinish: () => {
+                isCreating.value = false;
+            },
+        },
+    );
 };
 
 const getProfileGradient = (index: number): string => {
@@ -121,7 +217,7 @@ const getProfileGradient = (index: number): string => {
                     :key="profile.id"
                     @click="handleSelectProfile(profile)"
                     :style="{ animationDelay: `${index * 100 + 300}ms` }"
-                    class="group relative flex flex-col items-center gap-4 rounded-3xl p-6 transition-all duration-300 hover:scale-110 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#F8B803]/50"
+                    class="group relative flex flex-col items-center gap-4 rounded-3xl p-6 transition-all duration-300 hover:scale-110 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#F8B803]/50 cursor-pointer"
                 >
                     <!-- Glow effect on hover -->
                     <div 
@@ -180,9 +276,9 @@ const getProfileGradient = (index: number): string => {
                 </button>
                 
                 <!-- Add Profile Button -->
-                <Link
-                    href="/settings/profiles"
-                    class="group relative flex flex-col items-center gap-4 rounded-3xl p-6 transition-all duration-300 hover:scale-110 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/20"
+                <button
+                    @click="handleAddProfileClick"
+                    class="group relative flex flex-col items-center gap-4 rounded-3xl p-6 transition-all duration-300 hover:scale-110 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/20 cursor-pointer"
                 >
                     <!-- Avatar placeholder -->
                     <div class="relative flex h-32 w-32 items-center justify-center rounded-full border-4 border-dashed border-white/20 transition-all duration-300 group-hover:border-[#F8B803]/50 sm:h-36 sm:w-36 lg:h-40 lg:w-40">
@@ -195,7 +291,7 @@ const getProfileGradient = (index: number): string => {
                             Add Profile
                         </p>
                     </div>
-                </Link>
+                </button>
             </div>
             
             <!-- Manage Profiles Link -->
@@ -210,6 +306,77 @@ const getProfileGradient = (index: number): string => {
                 Manage Profiles
             </Link>
         </main>
+        
+        <!-- PIN Verification Modal -->
+        <PinVerificationModal
+            v-model:is-open="showPinModal"
+            @verified="handlePinVerified"
+            @cancelled="handlePinCancelled"
+        />
+        
+        <!-- Create Profile Dialog -->
+        <Dialog v-model:open="isCreateDialogOpen">
+            <DialogContent class="sm:max-w-md border-white/10 bg-[#1a1a1a]">
+                <DialogHeader>
+                    <DialogTitle class="text-white">Create Profile</DialogTitle>
+                    <DialogDescription class="text-white/60">
+                        Add a new viewer profile with age-appropriate content settings
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div class="space-y-4 py-4">
+                    <div class="space-y-2">
+                        <Label for="create-name" class="text-white/80">Profile Name</Label>
+                        <Input
+                            id="create-name"
+                            v-model="newProfileName"
+                            placeholder="e.g., Kids, Teens, Family"
+                            class="border-white/10 bg-white/5 text-white placeholder:text-white/40 focus:border-[#F8B803]/50 focus:ring-[#F8B803]/20"
+                            @keyup.enter="createProfile"
+                        />
+                        <InputError :message="createErrors.name" />
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="create-age-group" class="text-white/80">Age Group</Label>
+                        <Select v-model="newProfileAgeGroup">
+                            <SelectTrigger class="border-white/10 bg-white/5 text-white focus:border-[#F8B803]/50 focus:ring-[#F8B803]/20">
+                                <SelectValue placeholder="Select age group" />
+                            </SelectTrigger>
+                            <SelectContent class="border-white/10 bg-[#1a1a1a]">
+                                <SelectItem
+                                    v-for="option in ageGroupOptions"
+                                    :key="option.value"
+                                    :value="option.value"
+                                    class="text-white/80 focus:bg-white/10 focus:text-white"
+                                >
+                                    {{ option.label }} ({{ option.range }})
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <InputError :message="createErrors.age_group" />
+                    </div>
+                </div>
+
+                <DialogFooter class="gap-2 sm:gap-0">
+                    <Button 
+                        variant="outline" 
+                        @click="isCreateDialogOpen = false"
+                        class="border-white/10 bg-transparent text-white/70 hover:bg-white/5 hover:text-white"
+                    >
+                        Cancel
+                    </Button>
+                    <Button 
+                        @click="createProfile" 
+                        :disabled="isCreating || !newProfileName"
+                        class="bg-gradient-to-r from-[#f53003] to-[#F8B803] text-white hover:opacity-90"
+                    >
+                        <Loader2 v-if="isCreating" class="mr-2 h-4 w-4 animate-spin" />
+                        Create Profile
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>
 

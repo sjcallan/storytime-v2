@@ -30,6 +30,7 @@ class ProfilesController extends Controller
         return Inertia::render('ProfileSelect', [
             'profiles' => $profiles,
             'currentProfileId' => $request->session()->get('current_profile_id'),
+            'ageGroups' => Profile::AGE_GROUPS,
         ]);
     }
 

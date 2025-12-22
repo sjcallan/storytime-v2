@@ -1068,7 +1068,7 @@ const formatGenreName = (genre: string) => {
                 class="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-sidebar-border/70 p-12 dark:border-sidebar-border"
             >
                 <div class="text-center text-muted-foreground">
-                    <h3 class="mb-2 text-lg font-semibold">No Books Yet</h3>
+                    <h3 class="mb-2 text-lg font-semibold">No Stories Yet</h3>
                     <p class="mb-4">
                         Start creating your first story to see it here!
                     </p>

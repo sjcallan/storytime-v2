@@ -34,14 +34,14 @@ onMounted(() => {
             class="fixed top-0 z-50 w-full border-b border-[#19140010] bg-white/80 backdrop-blur-md dark:border-[#3E3E3A20] dark:bg-[#161615]/80"
         >
             <nav
-                class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8"
+                class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4 lg:px-8"
             >
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 sm:gap-3">
                     <div
-                        class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#f53003] to-[#F8B803]"
+                        class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#f53003] to-[#F8B803] sm:h-10 sm:w-10 sm:rounded-xl"
                     >
                         <svg
-                            class="h-6 w-6 text-white"
+                            class="h-5 w-5 text-white sm:h-6 sm:w-6"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -55,30 +55,30 @@ onMounted(() => {
                         </svg>
                     </div>
                     <span
-                        class="text-2xl font-bold bg-gradient-to-r from-[#f53003] to-[#F8B803] bg-clip-text text-transparent"
+                        class="text-xl font-bold bg-gradient-to-r from-[#f53003] to-[#F8B803] bg-clip-text text-transparent sm:text-2xl"
                     >
                         Storytime
                     </span>
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 sm:gap-3">
                     <Link
                         v-if="$page.props.auth.user"
                         :href="dashboard()"
-                        class="rounded-lg border border-[#19140020] px-6 py-2 font-medium text-[#1b1b18] transition-all hover:border-[#19140040] hover:bg-[#FDFDFC] dark:border-[#3E3E3A] dark:text-[#EDEDEC] dark:hover:border-[#62605b] dark:hover:bg-[#161615]"
+                        class="rounded-lg border border-[#19140020] px-3 py-1.5 text-sm font-medium text-[#1b1b18] transition-all hover:border-[#19140040] hover:bg-[#FDFDFC] sm:px-6 sm:py-2 sm:text-base dark:border-[#3E3E3A] dark:text-[#EDEDEC] dark:hover:border-[#62605b] dark:hover:bg-[#161615]"
                     >
                         Dashboard
                     </Link>
                     <template v-else>
                         <Link
                             :href="login()"
-                            class="rounded-lg px-6 py-2 font-medium text-[#1b1b18] transition-all hover:bg-[#19140010] dark:text-[#EDEDEC] dark:hover:bg-[#3E3E3A20]"
+                            class="rounded-lg px-3 py-1.5 text-sm font-medium text-[#1b1b18] transition-all hover:bg-[#19140010] sm:px-6 sm:py-2 sm:text-base dark:text-[#EDEDEC] dark:hover:bg-[#3E3E3A20]"
                         >
                             Log in
                         </Link>
                         <Link
                             v-if="canRegister"
                             :href="register()"
-                            class="rounded-lg bg-gradient-to-r from-[#f53003] to-[#F8B803] px-6 py-2 font-medium text-white shadow-lg transition-all hover:shadow-xl hover:scale-105"
+                            class="rounded-lg bg-gradient-to-r from-[#f53003] to-[#F8B803] px-3 py-1.5 text-sm font-medium text-white shadow-lg transition-all hover:shadow-xl hover:scale-105 sm:px-6 sm:py-2 sm:text-base"
                         >
                             Get Started
                         </Link>
@@ -446,7 +446,7 @@ onMounted(() => {
                         <h2
                             class="mb-4 text-4xl font-bold text-white lg:text-5xl"
                         >
-                            Ready to Start Your Adventure?
+                            Ready to Tell a Story?
                         </h2>
                         <p class="mb-8 text-xl text-white/90">
                             Join thousands of young storytellers bringing their
