@@ -46,6 +46,7 @@ export interface ProfileTheme {
     background_color: string;
     text_color: string;
     background_image?: string | null;
+    background_description?: string | null;
 }
 
 export interface Profile {

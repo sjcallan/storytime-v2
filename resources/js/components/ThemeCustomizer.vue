@@ -107,7 +107,7 @@ const openEditDialog = (theme: ProfileTheme) => {
     backgroundColor.value = theme.background_color;
     textColor.value = theme.text_color;
     themeBackgroundImage.value = theme.background_image ?? null;
-    backgroundDescription.value = '';
+    backgroundDescription.value = theme.background_description ?? '';
     generatedImageUrl.value = null;
     generationError.value = null;
     isEditDialogOpen.value = true;
@@ -129,6 +129,7 @@ const handleSaveTheme = async () => {
             background_color: backgroundColor.value,
             text_color: textColor.value,
             background_image: themeBackgroundImage.value,
+            background_description: backgroundDescription.value || null,
         };
 
         if (editingTheme.value) {

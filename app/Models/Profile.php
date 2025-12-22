@@ -81,7 +81,7 @@ class Profile extends Model
     /**
      * Get the active theme for this profile.
      *
-     * @return array{id: string, name: string, background_color: string, text_color: string, background_image: string|null}|null
+     * @return array{id: string, name: string, background_color: string, text_color: string, background_image: string|null, background_description: string|null}|null
      */
     protected function activeTheme(): Attribute
     {
@@ -99,7 +99,7 @@ class Profile extends Model
     /**
      * Add a new theme to the profile's themes.
      *
-     * @param  array{id: string, name: string, background_color: string, text_color: string, background_image: string|null}  $theme
+     * @param  array{id: string, name: string, background_color: string, text_color: string, background_image: string|null, background_description: string|null}  $theme
      */
     public function addTheme(array $theme): void
     {
@@ -112,7 +112,7 @@ class Profile extends Model
     /**
      * Update an existing theme.
      *
-     * @param  array{id: string, name: string, background_color: string, text_color: string, background_image: string|null}  $theme
+     * @param  array{id: string, name: string, background_color: string, text_color: string, background_image: string|null, background_description: string|null}  $theme
      */
     public function updateTheme(array $theme): void
     {
