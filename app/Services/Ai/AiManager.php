@@ -48,6 +48,14 @@ class AiManager extends Manager
     }
 
     /**
+     * Create the Nemotron3 driver.
+     */
+    public function createNemotron3Driver(): AiChatServiceInterface
+    {
+        return $this->container->make(Nemotron3\ChatService::class);
+    }
+
+    /**
      * Get the chat service for the current provider.
      */
     public function chat(): AiChatServiceInterface
@@ -64,6 +72,7 @@ class AiManager extends Manager
 
         return match ($provider) {
             'llama' => $this->container->make(Llama\ApiService::class),
+            'nemotron3' => $this->container->make(Nemotron3\ApiService::class),
             default => $this->container->make(OpenAi\ApiService::class),
         };
     }

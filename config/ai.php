@@ -51,6 +51,17 @@ return [
             'token' => env('LLAMA_TOKEN'),
         ],
 
+        'nemotron3' => [
+            'driver' => 'nemotron3',
+            'api_key' => env('NEMOTRON3_API_KEY', 'sk-no-key-required'),
+            'base_url' => env('NEMOTRON3_BASE_URL', 'http://127.0.0.1:8001/v1'),
+            'model' => env('NEMOTRON3_MODEL', 'unsloth/Nemotron-3-Nano-30B-A3B'),
+            'max_tokens' => env('NEMOTRON3_MAX_TOKENS', 4000),
+            'temperature' => env('NEMOTRON3_TEMPERATURE', 0.8),
+            'cost_per_1k_tokens' => 0.0, // Local model, no cost
+            'timeout' => env('NEMOTRON3_TIMEOUT', 360),
+        ],
+
     ],
 
 ];
