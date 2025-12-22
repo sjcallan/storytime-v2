@@ -1057,7 +1057,17 @@ const formatGenreName = (genre: string) => {
     <Head title="Dashboard" />
 
     <AppLayout>
-        <div class="flex h-full flex-1 flex-col gap-12 overflow-x-auto p-6">
+        <div class="relative min-h-full flex-1 overflow-hidden -mx-4 -my-6 sm:-mx-6">
+            <!-- Background gradient matching ProfileSelect -->
+            <div class="absolute inset-0 bg-linear-to-br from-rose-50/80 via-white to-amber-50/60 dark:from-[#1D0002] dark:via-[#0a0a0a] dark:to-[#1a0f00]">
+                <!-- Animated background elements -->
+                <div class="absolute -top-40 -left-40 h-96 w-96 animate-blob rounded-full bg-[#f53003]/5 blur-3xl dark:bg-[#f53003]/20"></div>
+                <div class="absolute top-1/4 -right-20 h-72 w-72 animate-blob animation-delay-2000 rounded-full bg-[#F8B803]/5 blur-3xl dark:bg-[#F8B803]/20"></div>
+                <div class="absolute bottom-20 left-1/3 h-80 w-80 animate-blob animation-delay-4000 rounded-full bg-[#F0ACB8]/5 blur-3xl dark:bg-[#F0ACB8]/20"></div>
+            </div>
+
+            <!-- Main content -->
+            <div class="relative z-10 flex h-full flex-1 flex-col gap-12 overflow-x-auto px-4 py-6 sm:px-6">
             <!-- Header -->
             <div>
                 <h1 class="text-3xl font-bold tracking-tight">My Stories</h1>
@@ -1415,11 +1425,11 @@ const formatGenreName = (genre: string) => {
                             class="group relative w-[200px] shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card transition-all duration-300 hover:-translate-y-1 hover:[box-shadow:0_24px_48px_-18px_var(--card-shadow-color)] dark:border-sidebar-border"
                         >
                             <!-- Book Cover -->
-                            <div class="relative aspect-[3/4] overflow-hidden">
+                            <div class="relative aspect-3/4 overflow-hidden">
                                 <!-- Cover Image (if exists) -->
                                 <template v-if="book.cover_image">
                                     <div
-                                        class="absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-background"
+                                        class="absolute inset-0 bg-linear-to-br from-primary/10 via-primary/5 to-background"
                                     >
                                         <img
                                             :src="book.cover_image"
@@ -1451,7 +1461,7 @@ const formatGenreName = (genre: string) => {
 
                                 <!-- Magical Shine Effect on Hover -->
                                 <div
-                                    class="absolute inset-0 -translate-x-full bg-gradient-to-tr from-transparent via-white/20 to-transparent opacity-0 transition-all duration-1000 group-hover:translate-x-full group-hover:opacity-100"
+                                    class="absolute inset-0 -translate-x-full bg-linear-to-tr from-transparent via-white/20 to-transparent opacity-0 transition-all duration-1000 group-hover:translate-x-full group-hover:opacity-100"
                                 />
 
                                 <!-- Overlay on Hover -->
@@ -1502,11 +1512,11 @@ const formatGenreName = (genre: string) => {
                     <!-- Edge fade gradients -->
                     <div
                         v-show="scrollStates[genre]?.canScrollLeft"
-                        class="pointer-events-none absolute top-0 bottom-4 left-0 w-12 bg-gradient-to-r from-background to-transparent"
+                        class="pointer-events-none absolute top-0 bottom-4 left-0 w-12 bg-linear-to-r from-background to-transparent"
                     />
                     <div
                         v-show="scrollStates[genre]?.canScrollRight"
-                        class="pointer-events-none absolute top-0 right-0 bottom-4 w-12 bg-gradient-to-l from-background to-transparent"
+                        class="pointer-events-none absolute top-0 right-0 bottom-4 w-12 bg-linear-to-l from-background to-transparent"
                     />
                 </div>
             </div>
@@ -1525,5 +1535,35 @@ const formatGenreName = (genre: string) => {
             @reading-history-updated="handleReadingHistoryUpdated"
             @favorite-toggled="handleFavoriteToggled"
         />
+        </div>
     </AppLayout>
 </template>
+
+<style scoped>
+@keyframes blob {
+    0%, 100% {
+        transform: translate(0, 0) scale(1);
+    }
+    25% {
+        transform: translate(20px, -30px) scale(1.1);
+    }
+    50% {
+        transform: translate(-20px, 20px) scale(0.9);
+    }
+    75% {
+        transform: translate(30px, 10px) scale(1.05);
+    }
+}
+
+.animate-blob {
+    animation: blob 12s ease-in-out infinite;
+}
+
+.animation-delay-2000 {
+    animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+    animation-delay: 4s;
+}
+</style>
