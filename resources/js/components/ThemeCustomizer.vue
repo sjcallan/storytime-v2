@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useTheme } from '@/composables/useTheme';
+import { useAppearance } from '@/composables/useAppearance';
 import type { ProfileTheme } from '@/types';
 import {
     DropdownMenu,
@@ -28,11 +29,18 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Palette, Check, Trash2, Plus, Edit2, X, Sparkles, Image, Wand2, Loader2 } from 'lucide-vue-next';
+import { Palette, Check, Trash2, Plus, Edit2, X, Sparkles, Image, Wand2, Loader2, Sun, Moon, Monitor } from 'lucide-vue-next';
 import axios from 'axios';
 import { router } from '@inertiajs/vue3';
 
 const { activeTheme, themes, backgroundImage } = useTheme();
+const { appearance, updateAppearance } = useAppearance();
+
+const appearanceModes = [
+    { value: 'light', Icon: Sun, label: 'Light' },
+    { value: 'dark', Icon: Moon, label: 'Dark' },
+    { value: 'system', Icon: Monitor, label: 'System' },
+] as const;
 
 const isDropdownOpen = ref(false);
 const isCreateDialogOpen = ref(false);
@@ -245,9 +253,32 @@ const contrastPreview = computed(() => {
             <!-- Header -->
             <DropdownMenuLabel class="flex items-center gap-2 font-semibold">
                 <Sparkles class="h-4 w-4 text-violet-500" />
-                Theme Customizer
+                Appearance
             </DropdownMenuLabel>
             
+            <DropdownMenuSeparator />
+
+            <!-- Appearance Mode Toggle -->
+            <div class="px-2 py-2">
+                <p class="mb-2 text-xs font-medium text-muted-foreground">Mode</p>
+                <div class="inline-flex w-full gap-1 rounded-lg bg-neutral-100 p-1 dark:bg-neutral-800">
+                    <button
+                        v-for="{ value, Icon, label } in appearanceModes"
+                        :key="value"
+                        @click.stop="updateAppearance(value)"
+                        :class="[
+                            'flex flex-1 items-center justify-center rounded-md px-2 py-1.5 transition-colors',
+                            appearance === value
+                                ? 'bg-white shadow-xs dark:bg-neutral-700 dark:text-neutral-100'
+                                : 'text-neutral-500 hover:bg-neutral-200/60 hover:text-black dark:text-neutral-400 dark:hover:bg-neutral-700/60',
+                        ]"
+                    >
+                        <component :is="Icon" class="h-4 w-4" />
+                        <span class="ml-1.5 text-xs">{{ label }}</span>
+                    </button>
+                </div>
+            </div>
+
             <DropdownMenuSeparator />
 
             <!-- Current Theme Status -->
@@ -284,15 +315,23 @@ const contrastPreview = computed(() => {
                     class="group/item cursor-pointer gap-3 py-2"
                     @click="handleSetActiveTheme(theme.id)"
                 >
-                    <!-- Color preview swatch -->
+                    <!-- Color/Image preview swatch -->
                     <div
-                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border shadow-sm"
+                        class="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border shadow-sm"
                         :style="{
                             backgroundColor: theme.background_color,
                             color: theme.text_color,
                         }"
                     >
-                        <span class="text-xs font-bold">Aa</span>
+                        <!-- Background image if exists -->
+                        <img
+                            v-if="theme.background_image"
+                            :src="theme.background_image"
+                            alt=""
+                            class="absolute inset-0 h-full w-full object-cover"
+                        />
+                        <!-- Fallback Aa text when no background image -->
+                        <span v-else class="text-xs font-bold">Aa</span>
                     </div>
                     
                     <div class="flex-1 min-w-0">

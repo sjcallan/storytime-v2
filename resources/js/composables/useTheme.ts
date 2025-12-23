@@ -155,6 +155,7 @@ export function useTheme() {
         if (!theme) {
             // Remove custom theme styles
             root.style.removeProperty('--custom-background');
+            root.style.removeProperty('--custom-background-rgb');
             root.style.removeProperty('--custom-foreground');
             root.style.removeProperty('--custom-card');
             root.style.removeProperty('--custom-accent');
@@ -165,9 +166,11 @@ export function useTheme() {
             root.classList.remove('custom-theme-active');
         } else {
             const colors = generateThemeColors(theme.background_color, theme.text_color);
+            const bgRgb = hexToRgb(theme.background_color);
 
             // Set custom properties for the theme
             root.style.setProperty('--custom-background', colors.background);
+            root.style.setProperty('--custom-background-rgb', `${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}`);
             root.style.setProperty('--custom-foreground', colors.foreground);
             root.style.setProperty('--custom-card', colors.card);
             root.style.setProperty('--custom-accent', colors.accent);

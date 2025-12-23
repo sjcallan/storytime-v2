@@ -203,15 +203,46 @@
 }
 
 /* Ensure content is readable over background image - only on main layout */
-.custom-background-image-active .bg-background.min-h-screen.flex-col::before {
+/* When a custom theme is active, use the theme's background color for the gradient */
+.custom-theme-active.custom-background-image-active .bg-background.min-h-screen.flex-col::before {
     content: '';
     position: fixed;
     inset: 0;
     background: linear-gradient(
         to bottom,
-        rgba(0, 0, 0, 0.3) 0%,
-        rgba(0, 0, 0, 0.1) 50%,
-        rgba(0, 0, 0, 0.4) 100%
+        rgba(var(--custom-background-rgb), 0.7) 0%,
+        rgba(var(--custom-background-rgb), 0.5) 50%,
+        rgba(var(--custom-background-rgb), 0.8) 100%
+    );
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Fallback for background image without custom theme (light mode) */
+.custom-background-image-active:not(.custom-theme-active) .bg-background.min-h-screen.flex-col::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.6) 0%,
+        rgba(255, 255, 255, 0.4) 50%,
+        rgba(255, 255, 255, 0.7) 100%
+    );
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Fallback for background image without custom theme (dark mode) */
+.dark.custom-background-image-active:not(.custom-theme-active) .bg-background.min-h-screen.flex-col::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.6) 0%,
+        rgba(0, 0, 0, 0.4) 50%,
+        rgba(0, 0, 0, 0.7) 100%
     );
     pointer-events: none;
     z-index: 0;
