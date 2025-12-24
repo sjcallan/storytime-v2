@@ -9,7 +9,7 @@ class CreateDefaultProfileListener
     /**
      * Handle the event.
      */
-    public function handle(UserCreatedEvent $event): void
+    public function handle(object $event): void
     {
         $user = $event->user;
 
