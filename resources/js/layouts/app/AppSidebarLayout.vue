@@ -1,14 +1,38 @@
 <script setup lang="ts">
-import { provide, computed } from 'vue';
+import { provide, computed, ref } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import CreateStoryModal from '@/components/CreateStoryModal.vue';
 import ProfileSwitcher from '@/components/ProfileSwitcher.vue';
 import ThemeCustomizer from '@/components/ThemeCustomizer.vue';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import {
+    Sheet,
+    SheetClose,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+} from '@/components/ui/sheet';
 import { useCreateStoryModal } from '@/composables/useCreateStoryModal';
+import { getInitials } from '@/composables/useInitials';
 import { useTheme } from '@/composables/useTheme';
 import { dashboard } from '@/routes';
-import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Wand2, Sparkles } from 'lucide-vue-next';
+import { Link, router, usePage } from '@inertiajs/vue3';
+import {
+    ChevronRight,
+    LayoutGrid,
+    LogOut,
+    Menu,
+    Settings,
+    Sparkles,
+    UserCircle,
+    Wand2,
+} from 'lucide-vue-next';
+import { logout } from '@/routes';
+import { edit as editProfile } from '@/routes/profile';
+import { select as selectProfile } from '@/routes/profiles';
 
 // Initialize theme system
 useTheme();
@@ -16,18 +40,33 @@ useTheme();
 const page = usePage();
 const profiles = computed(() => page.props.auth.profiles || []);
 const currentProfile = computed(() => page.props.auth.currentProfile);
+const auth = computed(() => page.props.auth);
+const mobileMenuOpen = ref(false);
 
 // Use shared composable for modal state
 const { isOpen: isCreateModalOpen, open: openCreateStoryModal } = useCreateStoryModal();
 
 provide('currentProfile', currentProfile);
+
+const openCreateStoryFromMobile = () => {
+    mobileMenuOpen.value = false;
+    // Small delay to let the sheet close animation start
+    setTimeout(() => {
+        isCreateModalOpen.value = true;
+    }, 150);
+};
+
+const handleLogout = () => {
+    mobileMenuOpen.value = false;
+    router.flushAll();
+};
 </script>
 
 <template>
     <div class="flex min-h-screen w-full flex-col bg-background">
         <!-- Top Navigation Header -->
         <header
-            class="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+            class="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60"
         >
             <div class="flex h-16 w-full items-center justify-between px-4 sm:px-6">
                 <!-- Left: Logo & Navigation -->
@@ -37,8 +76,8 @@ provide('currentProfile', currentProfile);
                         <AppLogo />
                     </Link>
 
-                    <!-- Navigation -->
-                    <nav class="flex items-center gap-1">
+                    <!-- Navigation (Desktop only) -->
+                    <nav class="hidden items-center gap-1 md:flex">
                         <Link
                             :href="dashboard()"
                             class="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
@@ -48,21 +87,21 @@ provide('currentProfile', currentProfile);
                     </nav>
                 </div>
 
-                <!-- Right: Theme, Create Story Button & Profile Menu -->
-                <div class="flex items-center gap-3">
+                <!-- Right: Desktop items -->
+                <div class="hidden items-center gap-3 md:flex">
                     <!-- Theme Customizer -->
                     <ThemeCustomizer />
 
                     <!-- Start a New Story Button -->
                     <button
                         @click="isCreateModalOpen = true"
-                        class="magic-button group relative cursor-pointer overflow-hidden rounded-full bg-gradient-to-r from-violet-600 via-fuchsia-500 to-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-[0_0_40px_rgba(167,139,250,0.5)] active:scale-95 sm:px-6 sm:text-base"
+                        class="magic-button group relative cursor-pointer overflow-hidden rounded-full bg-linear-to-r from-violet-600 via-fuchsia-500 to-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-[0_0_40px_rgba(167,139,250,0.5)] active:scale-95 sm:px-6 sm:text-base"
                     >
                         <!-- Animated gradient overlay -->
-                        <span class="absolute inset-0 bg-gradient-to-r from-amber-500 via-fuchsia-500 to-violet-600 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                        <span class="absolute inset-0 bg-linear-to-r from-amber-500 via-fuchsia-500 to-violet-600 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                         
                         <!-- Shimmer effect -->
-                        <span class="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
+                        <span class="absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/30 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
                         
                         <!-- Sparkle particles -->
                         <span class="sparkle sparkle-1" />
@@ -73,8 +112,7 @@ provide('currentProfile', currentProfile);
                         <!-- Button content -->
                         <span class="relative flex items-center gap-2">
                             <Wand2 class="h-4 w-4 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110 sm:h-5 sm:w-5" />
-                            <span class="hidden sm:inline">Start a New Story</span>
-                            <span class="sm:hidden">New Story</span>
+                            <span>New Story</span>
                             <Sparkles class="h-3 w-3 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:animate-pulse sm:h-4 sm:w-4" />
                         </span>
                     </button>
@@ -85,6 +123,133 @@ provide('currentProfile', currentProfile);
                         :profiles="profiles" 
                         :current-profile="currentProfile" 
                     />
+                </div>
+
+                <!-- Mobile: Hamburger Menu -->
+                <div class="flex items-center md:hidden">
+                    <Sheet v-model:open="mobileMenuOpen">
+                        <SheetTrigger :as-child="true">
+                            <Button variant="ghost" size="icon" class="h-10 w-10">
+                                <Menu class="h-5 w-5" />
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent side="right" class="w-[300px] overflow-hidden p-0">
+                            <SheetTitle class="sr-only">Menu</SheetTitle>
+
+                            <!-- Profile Section -->
+                            <SheetHeader class="border-b border-border p-4">
+                                <div class="flex items-center gap-3">
+                                    <Avatar class="size-10 ring-2 ring-border">
+                                        <AvatarImage
+                                            v-if="currentProfile?.avatar"
+                                            :src="currentProfile.avatar"
+                                            :alt="currentProfile?.name"
+                                            class="object-cover"
+                                        />
+                                        <AvatarFallback class="bg-linear-to-br from-violet-500 to-purple-600 text-sm font-medium text-white">
+                                            {{ getInitials(currentProfile?.name || 'P') }}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="truncate text-sm font-semibold">
+                                            {{ currentProfile?.name || 'No Profile' }}
+                                        </p>
+                                        <p class="text-xs text-muted-foreground">
+                                            {{ currentProfile?.age_group_label || 'Adult' }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </SheetHeader>
+
+                            <!-- Menu Content -->
+                            <div class="flex flex-col p-4">
+                                <!-- Create Story CTA -->
+                                <button
+                                    @click="openCreateStoryFromMobile"
+                                    class="magic-button group relative w-full cursor-pointer overflow-hidden rounded-xl bg-linear-to-r from-violet-600 via-fuchsia-500 to-amber-500 px-5 py-3 text-base font-semibold text-white shadow-lg transition-all duration-300 hover:shadow-[0_0_40px_rgba(167,139,250,0.5)] active:scale-[0.98]"
+                                >
+                                    <!-- Animated gradient overlay -->
+                                    <span class="absolute inset-0 bg-linear-to-r from-amber-500 via-fuchsia-500 to-violet-600 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                                    
+                                    <!-- Shimmer effect -->
+                                    <span class="absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/30 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
+                                    
+                                    <!-- Button content -->
+                                    <span class="relative flex items-center justify-center gap-2">
+                                        <Wand2 class="h-5 w-5" />
+                                        <span>Start a New Story</span>
+                                        <Sparkles class="h-4 w-4 animate-pulse" />
+                                    </span>
+                                </button>
+
+                                <Separator class="my-4" />
+
+                                <!-- Navigation Section -->
+                                <p class="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                    Navigation
+                                </p>
+                                <nav class="space-y-1">
+                                    <SheetClose :as-child="true">
+                                        <Link
+                                            :href="dashboard()"
+                                            class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
+                                        >
+                                            <LayoutGrid class="h-5 w-5" />
+                                            My Stories
+                                        </Link>
+                                    </SheetClose>
+                                </nav>
+
+                                <Separator class="my-4" />
+
+                                <!-- Appearance Section -->
+                                <p class="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                    Appearance
+                                </p>
+                                <div class="rounded-lg border border-border p-3">
+                                    <ThemeCustomizer />
+                                </div>
+
+                                <Separator class="my-4" />
+
+                                <!-- Account Section -->
+                                <p class="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                    Account
+                                </p>
+                                <nav class="space-y-1">
+                                    <SheetClose :as-child="true">
+                                        <Link
+                                            :href="selectProfile()"
+                                            class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
+                                        >
+                                            <UserCircle class="h-5 w-5" />
+                                            Switch Profile
+                                        </Link>
+                                    </SheetClose>
+                                    <SheetClose :as-child="true">
+                                        <Link
+                                            :href="editProfile()"
+                                            class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
+                                        >
+                                            <Settings class="h-5 w-5" />
+                                            Settings
+                                        </Link>
+                                    </SheetClose>
+                                    <SheetClose :as-child="true">
+                                        <Link
+                                            :href="logout()"
+                                            as="button"
+                                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+                                            @click="handleLogout"
+                                        >
+                                            <LogOut class="h-5 w-5" />
+                                            Log out
+                                        </Link>
+                                    </SheetClose>
+                                </nav>
+                            </div>
+                        </SheetContent>
+                    </Sheet>
                 </div>
             </div>
         </header>
