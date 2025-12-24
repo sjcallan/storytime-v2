@@ -22,6 +22,7 @@ class StoreConversationRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'profile_id' => ['nullable', 'string', 'exists:profiles,id'],
             'character_id' => ['nullable', 'string', 'exists:characters,id'],
             'type' => ['nullable', 'string', 'max:255'],
             'character_name' => ['nullable', 'string', 'max:255'],

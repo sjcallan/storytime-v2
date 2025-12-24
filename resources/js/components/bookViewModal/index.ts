@@ -25,3 +25,4 @@ export { default as NextChapterPreview } from './NextChapterPreview.vue';
 export { default as DeleteConfirmDialog } from './DeleteConfirmDialog.vue';
 export { default as CharacterGrid } from './CharacterGrid.vue';
 export { default as CharacterDetail } from './CharacterDetail.vue';
+export { default as CharacterChatModal } from './CharacterChatModal.vue';

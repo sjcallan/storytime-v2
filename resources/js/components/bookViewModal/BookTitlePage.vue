@@ -76,7 +76,7 @@ const emit = defineEmits<{
             <button
                 @click.stop="emit('regenerateCover')"
                 :disabled="coverImageStatus === 'pending'"
-                class="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/cover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+                class="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/cover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                 title="Generate new cover"
             >
                 <RefreshCw 

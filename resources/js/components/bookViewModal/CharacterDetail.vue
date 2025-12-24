@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ArrowLeft, User, Calendar, MapPin, Sparkles } from 'lucide-vue-next';
+import { ref } from 'vue';
+import { ArrowLeft, User, Calendar, MapPin, Sparkles, MessageCircle } from 'lucide-vue-next';
 import type { Character } from './types';
+import CharacterChatModal from './CharacterChatModal.vue';
 
 interface Props {
     character: Character;
@@ -12,6 +14,16 @@ defineProps<Props>();
 const emit = defineEmits<{
     (e: 'back'): void;
 }>();
+
+const showChatModal = ref(false);
+
+const openChat = () => {
+    showChatModal.value = true;
+};
+
+const closeChat = () => {
+    showChatModal.value = false;
+};
 
 const getAvatarGradient = (characterId: string): string => {
     const gradients = [
@@ -149,8 +161,26 @@ const formatGender = (gender: string | null): string => {
                     This character's story is yet to be told...
                 </p>
             </div>
+
+            <!-- Chat Button -->
+            <div class="mt-6 pt-4 border-t border-amber-200/50 dark:border-amber-700/30">
+                <button
+                    @click="openChat"
+                    class="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 font-medium text-white shadow-md transition-all hover:from-amber-600 hover:to-orange-600 hover:shadow-lg active:scale-[0.98]"
+                >
+                    <MessageCircle class="h-5 w-5" />
+                    <span>Chat with {{ character.name }}</span>
+                </button>
+            </div>
         </div>
     </div>
+
+    <!-- Chat Modal -->
+    <CharacterChatModal
+        :visible="showChatModal"
+        :character="character"
+        @close="closeChat"
+    />
 </template>
 
 

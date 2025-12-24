@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\BookController;
 use App\Http\Controllers\Api\ChapterController;
+use App\Http\Controllers\Api\CharacterChatController;
 use App\Http\Controllers\Api\CharacterController;
 use App\Http\Controllers\Api\CharacterExtractController;
 use App\Http\Controllers\Api\ConversationController;
@@ -56,4 +57,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('books/{book}/favorite', [FavoriteController::class, 'check'])->name('api.books.favorite.check');
     Route::post('books/{book}/favorite', [FavoriteController::class, 'store'])->name('api.books.favorite.store');
     Route::delete('books/{book}/favorite', [FavoriteController::class, 'destroy'])->name('api.books.favorite.destroy');
+
+    // Character chat endpoints
+    Route::get('characters/{character}/chat', [CharacterChatController::class, 'getOrCreateConversation'])->name('api.characters.chat.conversation');
+    Route::post('conversations/{conversation}/chat', [CharacterChatController::class, 'sendMessage'])->name('api.conversations.chat.send');
+    Route::get('conversations/{conversation}/history', [CharacterChatController::class, 'getHistory'])->name('api.conversations.chat.history');
 });

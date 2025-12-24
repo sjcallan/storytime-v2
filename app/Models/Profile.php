@@ -173,6 +173,14 @@ class Profile extends Model
     }
 
     /**
+     * Get all conversations for this profile.
+     */
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class);
+    }
+
+    /**
      * Delete the profile's photo.
      */
     public function deleteProfileImage(): void

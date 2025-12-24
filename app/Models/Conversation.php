@@ -15,6 +15,7 @@ class Conversation extends Model
 
     protected $fillable = [
         'user_id',
+        'profile_id',
         'character_id',
         'type',
         'character_name',
@@ -28,6 +29,11 @@ class Conversation extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function profile(): BelongsTo
+    {
+        return $this->belongsTo(Profile::class);
     }
 
     public function character(): BelongsTo

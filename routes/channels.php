@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Book;
+use App\Models\Conversation;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -20,4 +21,10 @@ Broadcast::channel('book.{bookId}', function (User $user, string $bookId) {
 
 Broadcast::channel('user.{userId}.books', function (User $user, string $userId) {
     return $user->id === $userId;
+});
+
+Broadcast::channel('conversation.{conversationId}', function (User $user, string $conversationId) {
+    $conversation = Conversation::find($conversationId);
+
+    return $conversation && $conversation->user_id === $user->id;
 });
