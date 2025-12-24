@@ -40,6 +40,7 @@ interface Props {
     shouldShowNextChapterOnRight?: boolean;
     nextChapterData?: Chapter | null;
     nextChapterFirstPage?: PageContentItem[] | null;
+    isSinglePageMode?: boolean;
 }
 
 // Book type is derived from the book prop
@@ -87,7 +88,10 @@ const showInlineCreateForm = computed(() => {
 </script>
 
 <template>
-    <div class="relative w-1/2 h-full bg-amber-50 dark:bg-amber-100 overflow-hidden">
+    <div :class="[
+        'relative h-full bg-amber-50 dark:bg-amber-100 overflow-hidden',
+        isSinglePageMode ? 'w-full' : 'w-1/2'
+    ]">
         <!-- Paper texture -->
         <BookPageTexture />
         
@@ -95,8 +99,8 @@ const showInlineCreateForm = computed(() => {
         <div class="absolute inset-y-0 right-4 w-px bg-amber-300/60 dark:bg-amber-400/50" />
         <div class="absolute inset-y-0 right-8 w-px bg-amber-300/40 dark:bg-amber-400/30" />
         
-        <!-- Left shadow from spine -->
-        <div class="absolute inset-y-0 left-0 w-6 bg-linear-to-r from-amber-900/10 to-transparent pointer-events-none" />
+        <!-- Left shadow from spine (hidden in single-page mode) -->
+        <div v-if="!isSinglePageMode" class="absolute inset-y-0 left-0 w-6 bg-linear-to-r from-amber-900/10 to-transparent pointer-events-none" />
 
         <!-- Action/Chapter Error -->
         <div

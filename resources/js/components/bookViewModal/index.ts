@@ -4,6 +4,7 @@ export * from './types';
 // Composables
 export { useBookAnimation } from './composables/useBookAnimation';
 export { useChapterPagination } from './composables/useChapterPagination';
+export { useResponsiveBook } from './composables/useResponsiveBook';
 export type { ChapterCreatedPayload, ChapterUpdatedPayload, ReadingHistoryCallback } from './composables/useChapterPagination';
 
 // Components

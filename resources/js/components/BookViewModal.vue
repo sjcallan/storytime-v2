@@ -8,6 +8,7 @@ import { MagicalSparklesLoader } from '@/components/ui/magical-book-loader';
 import {
     useBookAnimation,
     useChapterPagination,
+    useResponsiveBook,
     BookCover,
     BookSpine,
     BookLeftPage,
@@ -51,6 +52,9 @@ const requestApiFetch = apiFetch as ApiFetchFn;
 // Animation composable
 const animation = useBookAnimation();
 
+// Responsive book composable (single-page mode for smaller screens)
+const responsive = useResponsiveBook();
+
 // Handle reading history updates by emitting to parent
 const handleReadingHistoryUpdate = (history: ReadingHistory) => {
     emit('readingHistoryUpdated', history);
@@ -82,6 +86,7 @@ const editForm = ref<BookEditFormData>({
 
 // Character selection state
 const selectedCharacter = ref<Character | null>(null);
+const isViewingCharacters = ref(false);
 
 // Textarea focus state (for disabling keyboard navigation)
 const isTextareaFocused = ref(false);
@@ -268,6 +273,51 @@ const displayCreatedAt = computed(() => {
         month: 'long', 
         day: 'numeric' 
     });
+});
+
+// Navigation availability computeds (accounting for single-page mode)
+const canNavigateBack = computed(() => {
+    // Can navigate back if:
+    // 1. We have a previous spread, or
+    // 2. We're past the first chapter, or
+    // 3. In single-page mode on right side of spread (can go to left)
+    if (responsive.isSinglePageMode.value) {
+        // In single-page mode, check if we can go back within the current spread
+        const currentSpread = chapters.currentSpread.value;
+        const isFirstSpread = chapters.currentSpreadIndex.value === 0;
+        
+        // If on right side and not first spread, can go to left
+        if (responsive.singlePageSide.value === 'right' && !isFirstSpread && currentSpread?.leftContent) {
+            return true;
+        }
+    }
+    return chapters.hasPrevSpread.value || chapters.currentChapterNumber.value >= 1;
+});
+
+const canNavigateForward = computed(() => {
+    // Cannot navigate forward from create-chapter view (end of book)
+    if (chapters.readingView.value === 'create-chapter') {
+        return false;
+    }
+    
+    // Can always navigate forward from title page (either from characters to title, or title to chapter 1)
+    if (chapters.readingView.value === 'title') {
+        return true;
+    }
+    
+    // In single-page mode, check if we can navigate within spread
+    if (responsive.isSinglePageMode.value) {
+        const currentSpread = chapters.currentSpread.value;
+        // If on left side and there's right content, can go to right
+        if (responsive.singlePageSide.value === 'left' && currentSpread?.rightContent) {
+            return true;
+        }
+    }
+    
+    // Can navigate if there's a next spread or we're in chapter view
+    return chapters.hasNextSpread.value || 
+           chapters.readingView.value === 'chapter-image' || 
+           chapters.readingView.value === 'chapter-content';
 });
 
 // Helper functions
@@ -518,17 +568,10 @@ const handleKeydown = (event: KeyboardEvent) => {
             return;
         }
         
-        // From title page, start reading
-        if (chapters.readingView.value === 'title') {
+        // Use the smart right edge handler for all forward navigation
+        if (canNavigateForward.value) {
             event.preventDefault();
-            handleContinueToChapter1();
-        }
-        // Otherwise navigate forward if we have a next spread or we're in a chapter view
-        else if (chapters.hasNextSpread.value || 
-                 chapters.readingView.value === 'chapter-image' || 
-                 chapters.readingView.value === 'chapter-content') {
-            event.preventDefault();
-            handleGoToNextChapter();
+            handleRightEdgeClick();
         }
     }
 };
@@ -536,18 +579,69 @@ const handleKeydown = (event: KeyboardEvent) => {
 // Chapter navigation handlers
 const handleContinueToChapter1 = () => {
     if (props.bookId) {
+        // Reset to right side for title/start of chapter in single-page mode
+        responsive.resetSinglePageSide();
+        isViewingCharacters.value = false;
+        selectedCharacter.value = null;
         chapters.goToChapter1(props.bookId, animation.scheduleTimeout);
     }
 };
 
 const handleGoToNextChapter = () => {
-    if (props.bookId) {
+    if (!props.bookId) {
+        return;
+    }
+    
+    if (responsive.isSinglePageMode.value) {
+        // In single-page mode, handle page-by-page navigation
+        const currentSpread = chapters.currentSpread.value;
+        
+        // If we're on the left side of a spread
+        if (responsive.singlePageSide.value === 'left') {
+            // Check if there's content on the right side to show
+            if (currentSpread?.rightContent) {
+                responsive.setSinglePageToRight();
+                return;
+            }
+            // No right content - advance to next spread
+            responsive.setSinglePageToLeft();
+            chapters.goToNextChapter(props.bookId);
+        } else {
+            // We're on the right side - go to next spread's left page
+            responsive.setSinglePageToLeft();
+            chapters.goToNextChapter(props.bookId);
+        }
+    } else {
         chapters.goToNextChapter(props.bookId);
     }
 };
 
 const handleGoToPreviousChapter = () => {
-    if (props.bookId) {
+    if (!props.bookId) {
+        return;
+    }
+    
+    if (responsive.isSinglePageMode.value) {
+        // In single-page mode, handle page-by-page navigation
+        const currentSpread = chapters.currentSpread.value;
+        
+        // If we're on the right side of a spread
+        if (responsive.singlePageSide.value === 'right') {
+            // Check if there's content on the left side to show (skip first spread which has image on left)
+            const isFirstSpread = chapters.currentSpreadIndex.value === 0;
+            if (!isFirstSpread && currentSpread?.leftContent) {
+                responsive.setSinglePageToLeft();
+                return;
+            }
+            // First spread or no left content - go to previous spread's right page
+            responsive.setSinglePageToRight();
+            chapters.goToPreviousChapter(props.bookId);
+        } else {
+            // We're on the left side - go to previous spread's right page
+            responsive.setSinglePageToRight();
+            chapters.goToPreviousChapter(props.bookId);
+        }
+    } else {
         chapters.goToPreviousChapter(props.bookId);
     }
 };
@@ -555,6 +649,22 @@ const handleGoToPreviousChapter = () => {
 const handleGenerateChapter = () => {
     if (props.bookId) {
         chapters.generateNextChapter(props.bookId);
+    }
+};
+
+// Handle right edge click - smarter navigation for title page in single-page mode
+const handleRightEdgeClick = () => {
+    if (chapters.readingView.value === 'title') {
+        // In single-page mode viewing characters (left page), first show title (right page)
+        if (responsive.isSinglePageMode.value && responsive.singlePageSide.value === 'left') {
+            responsive.setSinglePageToRight();
+            isViewingCharacters.value = false;
+            return;
+        }
+        // Otherwise, go to chapter 1
+        handleContinueToChapter1();
+    } else {
+        handleGoToNextChapter();
     }
 };
 
@@ -598,18 +708,42 @@ const completedChapters = computed((): ChapterSummary[] => {
 
 const handleTocSelectChapter = (chapterNumber: number) => {
     if (props.bookId) {
+        // Reset to right side (title/first content) when jumping to a chapter
+        responsive.resetSinglePageSide();
+        isViewingCharacters.value = false;
+        selectedCharacter.value = null;
         chapters.jumpToChapter(props.bookId, chapterNumber);
     }
 };
 
 const handleTocGoToTitle = () => {
+    responsive.resetSinglePageSide();
+    isViewingCharacters.value = false;
+    selectedCharacter.value = null;
     chapters.goBackToTitlePage();
 };
+
+const handleTocGoToCharacters = () => {
+    // Go to characters view (which is on the left side of title page)
+    chapters.goBackToTitlePage();
+    isViewingCharacters.value = true;
+    selectedCharacter.value = null;
+    // In single-page mode, show the left page (characters)
+    if (responsive.isSinglePageMode.value) {
+        responsive.setSinglePageToLeft();
+    }
+};
+
+// Computed for whether book has characters
+const hasCharacters = computed(() => {
+    return book.value?.characters && book.value.characters.length > 0;
+});
 
 // Reset all state
 const resetAllState = () => {
     animation.resetState();
     chapters.resetChapterState();
+    responsive.resetSinglePageSide();
     unsubscribeFromBookChannel();
     book.value = null;
     loading.value = false;
@@ -618,6 +752,7 @@ const resetAllState = () => {
     isDeleting.value = false;
     showDeleteConfirm.value = false;
     selectedCharacter.value = null;
+    isViewingCharacters.value = false;
     savedChapterNumber.value = null;
     isFavorite.value = false;
     isTogglingFavorite.value = false;
@@ -634,6 +769,10 @@ watch(book, newBook => {
 // Watch for modal open/close
 watch(isOpen, async (open) => {
     if (open) {
+        // Reset responsive state to start on the right side (title page) in single-page mode
+        responsive.resetSinglePageSide();
+        isViewingCharacters.value = false;
+        
         animation.isRendered.value = true;
         await nextTick();
         // Subscribe to real-time updates for this book
@@ -771,11 +910,14 @@ onBeforeUnmount(() => {
                         :book-type="book?.type"
                         :is-favorite="isFavorite"
                         :is-toggling-favorite="isTogglingFavorite"
+                        :has-characters="hasCharacters"
+                        :is-viewing-characters="isViewingCharacters"
                         @edit="startEditing"
                         @delete="requestDelete"
                         @close="closeModal"
                         @toc-select-chapter="handleTocSelectChapter"
                         @toc-go-to-title="handleTocGoToTitle"
+                        @toc-go-to-characters="handleTocGoToCharacters"
                         @toggle-favorite="handleToggleFavorite"
                     />
 
@@ -789,10 +931,11 @@ onBeforeUnmount(() => {
                         :is-page-turning="animation.isPageTurning.value"
                         :is-cover-fading="animation.isCoverFading.value"
                         :loading="loading"
+                        :is-single-page-mode="responsive.isSinglePageMode.value"
                         @open="animation.openBook"
                     />
 
-                    <!-- ==================== OPENED BOOK VIEW (Two Pages) ==================== -->
+                    <!-- ==================== OPENED BOOK VIEW (Two Pages / Single Page Responsive) ==================== -->
                     <div 
                         v-else 
                         class="book-opened-view relative flex h-full w-full"
@@ -811,7 +954,7 @@ onBeforeUnmount(() => {
 
                         <!-- Left Edge Click Zone (Go Back) -->
                         <button
-                            v-if="(chapters.hasPrevSpread.value || chapters.currentChapterNumber.value >= 1) && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
+                            v-if="canNavigateBack && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
                             class="edge-nav-zone edge-nav-left group absolute left-0 inset-y-0 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none"
                             @click="handleGoToPreviousChapter"
                             aria-label="Previous page"
@@ -823,8 +966,10 @@ onBeforeUnmount(() => {
                             </div>
                         </button>
 
-                        <!-- Left Page -->
+                        <!-- Left Page (hidden in single-page mode when showing right) -->
                         <BookLeftPage
+                            v-show="responsive.showLeftPage.value"
+                            :class="{ 'w-full': responsive.isSinglePageMode.value }"
                             :reading-view="chapters.readingView.value"
                             :chapter="chapters.currentChapter.value"
                             :spread="chapters.currentSpread.value"
@@ -841,6 +986,7 @@ onBeforeUnmount(() => {
                             :is-final-chapter="chapters.isFinalChapter.value"
                             :is-generating-chapter="chapters.isGeneratingChapter.value || chapters.isAwaitingChapterGeneration.value"
                             :book-type="book?.type"
+                            :is-single-page-mode="responsive.isSinglePageMode.value"
                             @select-character="handleSelectCharacter"
                             @update:next-chapter-prompt="chapters.nextChapterPrompt.value = $event"
                             @update:is-final-chapter="chapters.isFinalChapter.value = $event"
@@ -848,11 +994,13 @@ onBeforeUnmount(() => {
                             @textarea-focused="isTextareaFocused = $event"
                         />
 
-                        <!-- Book Spine -->
-                        <BookSpine />
+                        <!-- Book Spine (hidden in single-page mode) -->
+                        <BookSpine v-show="!responsive.isSinglePageMode.value" />
 
-                        <!-- Right Page -->
+                        <!-- Right Page (hidden in single-page mode when showing left) -->
                         <BookRightPage
+                            v-show="responsive.showRightPage.value"
+                            :class="{ 'w-full': responsive.isSinglePageMode.value }"
                             :book="book"
                             :reading-view="chapters.readingView.value"
                             :chapter="chapters.currentChapter.value"
@@ -886,6 +1034,7 @@ onBeforeUnmount(() => {
                             :next-chapter-data="chapters.nextChapterData.value"
                             :next-chapter-first-page="chapters.nextChapterFirstPage.value"
                             :saved-chapter-number="savedChapterNumber"
+                            :is-single-page-mode="responsive.isSinglePageMode.value"
                             @continue-to-chapter1="handleContinueToChapter1"
                             @update:edit-form="editForm = $event"
                             @submit-edit="submitEdit"
@@ -901,9 +1050,9 @@ onBeforeUnmount(() => {
 
                         <!-- Right Edge Click Zone (Go Forward / Start Reading) -->
                         <button
-                            v-if="chapters.readingView.value !== 'create-chapter' && (chapters.readingView.value === 'title' || chapters.hasNextSpread.value || chapters.readingView.value === 'chapter-image' || chapters.readingView.value === 'chapter-content') && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
+                            v-if="canNavigateForward && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
                             class="edge-nav-zone edge-nav-right group absolute right-0 inset-y-0 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none"
-                            @click="chapters.readingView.value === 'title' ? handleContinueToChapter1() : handleGoToNextChapter()"
+                            @click="handleRightEdgeClick"
                             :aria-label="chapters.readingView.value === 'title' ? 'Start reading' : 'Next page'"
                         >
                             <div class="absolute inset-y-0 right-0 w-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -943,3 +1092,4 @@ onBeforeUnmount(() => {
     }
 }
 </style>
+

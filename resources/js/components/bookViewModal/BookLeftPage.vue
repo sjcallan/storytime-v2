@@ -25,6 +25,7 @@ interface Props {
     isFinalChapter?: boolean;
     isGeneratingChapter?: boolean;
     bookType?: BookType;
+    isSinglePageMode?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -75,7 +76,10 @@ const isValidImageUrl = (url: string | null | undefined): boolean => {
 </script>
 
 <template>
-    <div class="relative w-1/2 h-full bg-amber-50 dark:bg-amber-100 overflow-hidden">
+    <div :class="[
+        'relative h-full bg-amber-50 dark:bg-amber-100 overflow-hidden',
+        isSinglePageMode ? 'w-full' : 'w-1/2'
+    ]">
         <!-- Paper texture -->
         <BookPageTexture />
         

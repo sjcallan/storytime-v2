@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Sparkles, Crown } from 'lucide-vue-next';
+import { Sparkles, Crown, Users } from 'lucide-vue-next';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -15,6 +15,8 @@ interface Props {
     chapters: ChapterSummary[];
     currentChapterNumber: number;
     bookType?: BookType;
+    hasCharacters?: boolean;
+    isViewingCharacters?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -22,6 +24,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
     (e: 'selectChapter', chapterNumber: number): void;
     (e: 'goToTitle'): void;
+    (e: 'goToCharacters'): void;
 }>();
 
 const chapterLabel = computed(() => getChapterLabel(props.bookType));
@@ -50,11 +53,24 @@ const getChapterDisplayTitle = (chapter: ChapterSummary): string => {
             <DropdownMenuItem
                 @select="emit('goToTitle')"
                 class="cursor-pointer font-serif"
-                :class="currentChapterNumber === 0 ? 'bg-accent' : ''"
+                :class="currentChapterNumber === 0 && !isViewingCharacters ? 'bg-accent' : ''"
             >
                 <div class="flex items-center gap-3 w-full">
                     <Sparkles class="h-4 w-4 shrink-0" />
                     <span class="flex-1">Title Page</span>
+                </div>
+            </DropdownMenuItem>
+            
+            <!-- Characters Entry -->
+            <DropdownMenuItem
+                v-if="hasCharacters"
+                @select="emit('goToCharacters')"
+                class="cursor-pointer font-serif"
+                :class="isViewingCharacters ? 'bg-accent' : ''"
+            >
+                <div class="flex items-center gap-3 w-full">
+                    <Users class="h-4 w-4 shrink-0" />
+                    <span class="flex-1">Characters</span>
                 </div>
             </DropdownMenuItem>
             

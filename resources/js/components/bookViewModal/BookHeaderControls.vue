@@ -24,6 +24,8 @@ interface Props {
     bookType?: BookType;
     isFavorite?: boolean;
     isTogglingFavorite?: boolean;
+    hasCharacters?: boolean;
+    isViewingCharacters?: boolean;
 }
 
 defineProps<Props>();
@@ -34,6 +36,7 @@ const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'tocSelectChapter', chapterNumber: number): void;
     (e: 'tocGoToTitle'): void;
+    (e: 'tocGoToCharacters'): void;
     (e: 'toggleFavorite'): void;
 }>();
 </script>
@@ -43,12 +46,15 @@ const emit = defineEmits<{
         <!-- Left side: Table of Contents and Actions -->
         <div class="pointer-events-auto flex items-center gap-2">
             <TableOfContents
-                v-if="hasBook && hasChapters"
+                v-if="hasBook && (hasChapters || hasCharacters)"
                 :chapters="chapters || []"
                 :current-chapter-number="currentChapterNumber || 0"
                 :book-type="bookType"
+                :has-characters="hasCharacters"
+                :is-viewing-characters="isViewingCharacters"
                 @select-chapter="emit('tocSelectChapter', $event)"
                 @go-to-title="emit('tocGoToTitle')"
+                @go-to-characters="emit('tocGoToCharacters')"
             >
                 <template #trigger>
                     <DropdownMenuTrigger :as-child="true">
