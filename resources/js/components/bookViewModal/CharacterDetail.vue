@@ -4,6 +4,7 @@ import type { Character } from './types';
 
 interface Props {
     character: Character;
+    isSinglePageMode?: boolean;
 }
 
 defineProps<Props>();
@@ -45,10 +46,13 @@ const formatGender = (gender: string | null): string => {
 
 <template>
     <div class="relative z-10 flex h-full flex-col overflow-hidden">
-        <!-- Back Button -->
+        <!-- Back Button - positioned below header controls in single-page mode to avoid overlap -->
         <button
             @click="emit('back')"
-            class="absolute top-6 left-6 z-20 flex items-center gap-1.5 rounded-full bg-amber-100/80 dark:bg-amber-200/80 px-3 py-1.5 text-sm font-medium text-amber-800 shadow-sm backdrop-blur-sm transition-all hover:bg-amber-200 hover:scale-105 active:scale-95"
+            :class="[
+                'absolute z-20 flex items-center gap-1.5 rounded-full bg-amber-100/80 dark:bg-amber-200/80 px-3 py-1.5 text-sm font-medium text-amber-800 shadow-sm backdrop-blur-sm transition-all hover:bg-amber-200 hover:scale-105 active:scale-95',
+                isSinglePageMode ? 'top-16 left-6' : 'top-6 left-6'
+            ]"
         >
             <ArrowLeft class="h-4 w-4" />
             <span>Back</span>

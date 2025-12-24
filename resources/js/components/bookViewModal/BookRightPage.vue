@@ -126,6 +126,7 @@ const showInlineCreateForm = computed(() => {
         <CharacterDetail
             v-else-if="readingView === 'title' && selectedCharacter"
             :character="selectedCharacter"
+            :is-single-page-mode="isSinglePageMode"
             @back="emit('clearSelectedCharacter')"
         />
 

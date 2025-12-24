@@ -671,10 +671,18 @@ const handleRightEdgeClick = () => {
 // Character selection handlers
 const handleSelectCharacter = (character: Character) => {
     selectedCharacter.value = character;
+    // In single-page mode, switch to right page to show character details
+    if (responsive.isSinglePageMode.value) {
+        responsive.setSinglePageToRight();
+    }
 };
 
 const handleClearSelectedCharacter = () => {
     selectedCharacter.value = null;
+    // In single-page mode, switch back to left page to show character grid
+    if (responsive.isSinglePageMode.value) {
+        responsive.setSinglePageToLeft();
+    }
 };
 
 // Cover regeneration handler
