@@ -256,7 +256,8 @@
 
 /* Reset theme for modals that should not inherit custom theme */
 /* Uses !important to override the root-level !important on .custom-theme-active */
-.theme-reset {
+.theme-reset,
+.theme-reset * {
     /* Light mode defaults */
     --background: hsl(0 0% 100%) !important;
     --foreground: hsl(0 0% 3.9%) !important;
@@ -284,8 +285,15 @@
     --sidebar-accent-foreground: hsl(0 0% 30%) !important;
 }
 
+/* Explicit color properties for theme-reset to ensure override */
+.theme-reset {
+    background-color: hsl(0 0% 100%) !important;
+    color: hsl(0 0% 3.9%) !important;
+}
+
 /* Dark mode reset for theme-reset */
-.dark .theme-reset {
+.dark .theme-reset,
+.dark .theme-reset * {
     --background: hsl(0 0% 3.9%) !important;
     --foreground: hsl(0 0% 98%) !important;
     --card: hsl(0 0% 3.9%) !important;
@@ -310,4 +318,10 @@
     --sidebar-border: hsl(0 0% 15.9%) !important;
     --sidebar-accent: hsl(0 0% 15.9%) !important;
     --sidebar-accent-foreground: hsl(240 4.8% 95.9%) !important;
+}
+
+/* Explicit color properties for dark mode theme-reset */
+.dark .theme-reset {
+    background-color: hsl(0 0% 3.9%) !important;
+    color: hsl(0 0% 98%) !important;
 }
