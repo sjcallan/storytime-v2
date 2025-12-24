@@ -2,6 +2,7 @@
 import BookViewModal from '@/components/BookViewModal.vue';
 import { Button } from '@/components/ui/button';
 import { useCreateStoryModal } from '@/composables/useCreateStoryModal';
+import { useTheme } from '@/composables/useTheme';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { User } from '@/types';
 import { Head, usePage } from '@inertiajs/vue3';
@@ -362,6 +363,9 @@ const {
     createdBookId,
     setCreatedBook,
 } = useCreateStoryModal();
+
+// Get background image from theme to conditionally hide default overlay
+const { backgroundImage: themeBackgroundImage } = useTheme();
 
 // Echo channel subscriptions for real-time book updates
  
@@ -1058,8 +1062,8 @@ const formatGenreName = (genre: string) => {
 
     <AppLayout>
         <div class="relative min-h-full flex-1 overflow-hidden -mx-4 -my-6 sm:-mx-6">
-            <!-- Background gradient matching ProfileSelect -->
-            <div class="absolute inset-0 bg-linear-to-br from-rose-50/80 via-white to-amber-50/60 dark:from-[#1D0002] dark:via-[#0a0a0a] dark:to-[#1a0f00]">
+            <!-- Background gradient matching ProfileSelect - hidden when custom background image is active -->
+            <div v-if="!themeBackgroundImage" class="absolute inset-0 bg-linear-to-br from-rose-50/80 via-white to-amber-50/60 dark:from-[#1D0002] dark:via-[#0a0a0a] dark:to-[#1a0f00]">
                 <!-- Animated background elements -->
                 <div class="absolute -top-40 -left-40 h-96 w-96 animate-blob rounded-full bg-[#f53003]/5 blur-3xl dark:bg-[#f53003]/20"></div>
                 <div class="absolute top-1/4 -right-20 h-72 w-72 animate-blob animation-delay-2000 rounded-full bg-[#F8B803]/5 blur-3xl dark:bg-[#F8B803]/20"></div>
