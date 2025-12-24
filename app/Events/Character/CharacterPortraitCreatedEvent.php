@@ -24,12 +24,12 @@ class CharacterPortraitCreatedEvent implements ShouldBroadcast
     /**
      * Get the channels the event should broadcast on.
      *
-     * @return \Illuminate\Broadcasting\Channel|array
+     * @return array<int, \Illuminate\Broadcasting\Channel>
      */
-    public function broadcastOn()
+    public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('characters'),
+            new PrivateChannel('book.'.$this->character->book_id),
         ];
     }
 
@@ -38,16 +38,19 @@ class CharacterPortraitCreatedEvent implements ShouldBroadcast
      */
     public function broadcastAs(): string
     {
-        return 'character.'.$this->character->id.'.portrait-created';
+        return 'character.portrait.updated';
     }
 
     /**
      * Get the data to broadcast.
+     *
+     * @return array<string, mixed>
      */
     public function broadcastWith(): array
     {
         return [
             'id' => $this->character->id,
+            'book_id' => $this->character->book_id,
             'portrait_image' => $this->character->portrait_image,
         ];
     }

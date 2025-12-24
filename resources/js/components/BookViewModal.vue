@@ -123,6 +123,30 @@ type ChapterInlineImagesPayload = {
     }>;
 };
 
+type CharacterPortraitPayload = {
+    id: string;
+    book_id: string;
+    portrait_image: string;
+};
+
+// Handle real-time character portrait updated events
+const handleCharacterPortraitEvent = (payload: CharacterPortraitPayload) => {
+    if (!book.value || !payload.id || !payload.portrait_image) {
+        return;
+    }
+    
+    // Update the character's portrait image in the book's characters array
+    const character = book.value.characters?.find(c => c.id === payload.id);
+    if (character) {
+        character.portrait_image = payload.portrait_image;
+    }
+    
+    // Also update selected character if it's the same one
+    if (selectedCharacter.value?.id === payload.id) {
+        selectedCharacter.value.portrait_image = payload.portrait_image;
+    }
+};
+
 // Handle real-time chapter inline images created events
 const handleChapterInlineImagesEvent = (payload: ChapterInlineImagesPayload) => {
     if (!payload.chapter_id || !payload.inline_images) {
@@ -209,6 +233,7 @@ const subscribeToBookChannel = (bookId: string) => {
         channel.listen('.chapter.created', handleChapterCreatedEvent);
         channel.listen('.chapter.updated', handleChapterUpdatedEvent);
         channel.listen('.chapter.inline-images.created', handleChapterInlineImagesEvent);
+        channel.listen('.character.portrait.updated', handleCharacterPortraitEvent);
         bookChannel.value = channel;
     } catch (err) {
         console.error(`[Echo] Failed to subscribe to book.${bookId}:`, err);
@@ -226,6 +251,7 @@ const unsubscribeFromBookChannel = () => {
         bookChannel.value.stopListening('.chapter.created');
         bookChannel.value.stopListening('.chapter.updated');
         bookChannel.value.stopListening('.chapter.inline-images.created');
+        bookChannel.value.stopListening('.character.portrait.updated');
         echo().leave(`book.${props.bookId}`);
     } catch {
         // Ignore cleanup errors

@@ -75,11 +75,13 @@ type BookSummary = {
     age_level: number | null;
     status: string;
     cover_image?: string | null;
+    cover_image_status?: string | null;
     created_at?: string;
 };
 
 type BookDetails = BookSummary & {
     plot: string | null;
+    cover_image_status?: string | null;
     created_at: string;
 };
 
@@ -91,6 +93,7 @@ type BookUpdatedPayload = {
     age_level: number | null;
     status: string;
     cover_image: string | null;
+    cover_image_status: string | null;
     plot: string | null;
     is_published: boolean;
     updated_at: string;
@@ -432,6 +435,7 @@ const handleBookUpdatedEvent = (payload: BookUpdatedPayload) => {
                 age_level: payload.age_level,
                 status: payload.status,
                 cover_image: payload.cover_image ?? undefined,
+                cover_image_status: payload.cover_image_status ?? undefined,
             });
         } else {
             // Update in place
@@ -443,6 +447,7 @@ const handleBookUpdatedEvent = (payload: BookUpdatedPayload) => {
                 age_level: payload.age_level,
                 status: payload.status,
                 cover_image: payload.cover_image ?? undefined,
+                cover_image_status: payload.cover_image_status ?? undefined,
             };
         }
 
@@ -813,6 +818,7 @@ const upsertBookSummary = (updatedBook: BookDetails) => {
         age_level: updatedBook.age_level,
         status: updatedBook.status,
         cover_image: updatedBook.cover_image ?? null,
+        cover_image_status: updatedBook.cover_image_status ?? null,
     };
 
     const targetGenre = summary.genre;
