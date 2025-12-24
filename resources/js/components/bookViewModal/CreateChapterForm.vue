@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, onUnmounted } from 'vue';
+import { computed, ref, onUnmounted, watch } from 'vue';
 import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
-import { Wand2, Sparkles, BookOpen, Check, Mic, Square } from 'lucide-vue-next';
+import { Wand2, Sparkles, Lightbulb, Check, Mic, Square } from 'lucide-vue-next';
 import { apiFetch } from '@/composables/ApiFetch';
 import type { BookType } from './types';
 import { getChapterLabel, isSceneBasedBook } from './types';
@@ -13,8 +13,8 @@ interface Props {
     isFinalChapter: boolean;
     isGenerating: boolean;
     bookType?: BookType;
-    suggestedPlaceholder?: string | null;
-    isLoadingPlaceholder?: boolean;
+    suggestedIdea?: string | null;
+    isLoadingIdea?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -24,23 +24,40 @@ const emit = defineEmits<{
     (e: 'update:isFinalChapter', value: boolean): void;
     (e: 'generate'): void;
     (e: 'textareaFocused', value: boolean): void;
+    (e: 'requestIdea'): void;
 }>();
 
 const chapterLabel = computed(() => getChapterLabel(props.bookType));
 const isScript = computed(() => isSceneBasedBook(props.bookType));
 
-// Computed placeholder - use AI suggestion or fall back to default
+// Simple static placeholder
 const placeholderText = computed(() => {
-    if (props.isLoadingPlaceholder) {
-        return 'Thinking of ideas...';
-    }
-    if (props.suggestedPlaceholder) {
-        return props.suggestedPlaceholder;
-    }
-    // Default placeholder
     return isScript.value 
         ? 'The tension rises as the door slowly creaks open...'
         : 'The hero discovers a hidden door behind the waterfall...';
+});
+
+// Track if user has received an idea before
+const hasReceivedIdea = ref(false);
+
+// Computed text for the idea button
+const ideaButtonText = computed(() => {
+    if (props.isLoadingIdea) {
+        return 'hmmm.... thinking... yes... that\'s it!';
+    }
+    if (hasReceivedIdea.value) {
+        return 'Give me a different idea';
+    }
+    return 'Give me an idea';
+});
+
+// Watch for suggested idea and populate the prompt
+watch(() => props.suggestedIdea, (newIdea) => {
+    if (newIdea) {
+        hasReceivedIdea.value = true;
+        // Always populate - user explicitly requested an idea
+        emit('update:prompt', newIdea);
+    }
 });
 
 // Voice recording state
@@ -305,16 +322,25 @@ onUnmounted(() => {
                     @blur="emit('textareaFocused', false)"
                     :placeholder="placeholderText"
                     rows="4"
-                    :disabled="isGenerating || isRecording || isTranscribing"
-                    :class="[
-                        'w-full resize-none border-stone-300 bg-white font-serif text-lg text-stone-800 focus:border-amber-600 focus:ring-amber-600/30 dark:border-stone-400 dark:bg-white/90 dark:text-stone-900',
-                        props.isLoadingPlaceholder 
-                            ? 'placeholder:text-amber-500 placeholder:animate-pulse placeholder:italic' 
-                            : props.suggestedPlaceholder 
-                                ? 'placeholder:text-amber-700 placeholder:italic dark:placeholder:text-amber-600' 
-                                : 'placeholder:text-stone-400 dark:placeholder:text-stone-500'
-                    ]"
+                    :disabled="isGenerating || isRecording || isTranscribing || isLoadingIdea"
+                    class="w-full resize-none border-stone-300 bg-white font-serif text-lg text-stone-800 placeholder:text-stone-400 focus:border-amber-600 focus:ring-amber-600/30 dark:border-stone-400 dark:bg-white/90 dark:text-stone-900 dark:placeholder:text-stone-500"
                 />
+                
+                <!-- Give me an idea button -->
+                <button
+                    type="button"
+                    @click="emit('requestIdea')"
+                    :disabled="isGenerating || isRecording || isTranscribing || isLoadingIdea"
+                    class="group flex cursor-pointer items-center gap-1.5 text-sm font-medium text-amber-700 transition-all duration-200 hover:text-amber-800 disabled:cursor-not-allowed disabled:opacity-40 dark:text-amber-600 dark:hover:text-amber-700"
+                >
+                    <Lightbulb 
+                        :class="[
+                            'h-4 w-4 transition-all duration-300',
+                            isLoadingIdea ? 'animate-pulse text-amber-500' : 'group-hover:scale-110'
+                        ]" 
+                    />
+                    <span :class="isLoadingIdea ? 'animate-pulse' : ''">{{ ideaButtonText }}</span>
+                </button>
             </div>
             
             <!-- Voice Recording Section -->
@@ -373,44 +399,52 @@ onUnmounted(() => {
                 </div>
             </div>
             
-            <!-- Final chapter question -->
-            <div class="rounded-xl border border-stone-200 bg-stone-50 p-5 dark:border-stone-300 dark:bg-stone-100">
-                <p class="mb-4 text-center text-base font-medium text-stone-700 dark:text-stone-800">
-                    Will this be the final {{ chapterLabel.toLowerCase() }}?
-                </p>
-                <div class="flex items-center justify-center gap-4">
-                    <button 
-                        type="button"
-                        @click="emit('update:isFinalChapter', true)"
-                        :disabled="isGenerating"
-                        :class="[
-                            'group relative flex items-center gap-2 rounded-full px-6 py-2.5 text-base font-medium transition-all duration-200',
-                            isFinalChapter 
-                                ? 'bg-amber-800 text-white shadow-md' 
-                                : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-300 dark:bg-white dark:text-stone-800 dark:border-stone-400 dark:hover:bg-stone-50',
-                            'disabled:opacity-50 disabled:cursor-not-allowed'
-                        ]"
+            <!-- Final chapter toggle -->
+            <button 
+                type="button"
+                @click="emit('update:isFinalChapter', !isFinalChapter)"
+                :disabled="isGenerating"
+                class="group flex w-full cursor-pointer items-center justify-center gap-3 py-2 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+                <!-- Hand-drawn checkbox -->
+                <div 
+                    :class="[
+                        'relative flex h-7 w-7 shrink-0 items-center justify-center rounded transition-all duration-200',
+                        'border-2 border-dashed',
+                        isFinalChapter 
+                            ? 'border-amber-700 bg-amber-50 dark:border-amber-600 dark:bg-amber-100/50' 
+                            : 'border-stone-400 bg-white/50 group-hover:border-stone-500 dark:border-stone-500 dark:bg-white/30'
+                    ]"
+                    style="border-radius: 4px 6px 5px 7px;"
+                >
+                    <!-- Hand-drawn X mark -->
+                    <svg 
+                        v-if="isFinalChapter"
+                        viewBox="0 0 24 24" 
+                        class="h-5 w-5 text-amber-800 dark:text-amber-700"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
                     >
-                        <Check v-if="isFinalChapter" class="h-4 w-4" />
-                        <span>Yes</span>
-                    </button>
-                    <button 
-                        type="button"
-                        @click="emit('update:isFinalChapter', false)"
-                        :disabled="isGenerating"
-                        :class="[
-                            'group relative flex items-center gap-2 rounded-full px-6 py-2.5 text-base font-medium transition-all duration-200',
-                            !isFinalChapter 
-                                ? 'bg-amber-800 text-white shadow-md' 
-                                : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-300 dark:bg-white dark:text-stone-800 dark:border-stone-400 dark:hover:bg-stone-50',
-                            'disabled:opacity-50 disabled:cursor-not-allowed'
-                        ]"
-                    >
-                        <Check v-if="!isFinalChapter" class="h-4 w-4" />
-                        <span>No</span>
-                    </button>
+                        <!-- Hand-drawn style X with slightly imperfect lines -->
+                        <path d="M5 5.5 L18.5 19" class="origin-center" style="transform: rotate(-1deg);" />
+                        <path d="M18 5 L5.5 18.5" class="origin-center" style="transform: rotate(1deg);" />
+                    </svg>
                 </div>
-            </div>
+                
+                <!-- Label -->
+                <span 
+                    :class="[
+                        'font-serif text-sm transition-colors duration-200',
+                        isFinalChapter 
+                            ? 'text-amber-800 dark:text-amber-700' 
+                            : 'text-stone-500 group-hover:text-stone-600 dark:text-stone-600 dark:group-hover:text-stone-700'
+                    ]"
+                >
+                    Make it the last {{ chapterLabel.toLowerCase() }}
+                </span>
+            </button>
             
             <!-- Generate button -->
             <button 

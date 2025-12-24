@@ -31,6 +31,8 @@ interface Props {
     chapterError: string | null;
     currentChapterNumber: number;
     nextChapterPrompt: string;
+    suggestedIdea?: string | null;
+    isLoadingIdea?: boolean;
     isFinalChapter: boolean;
     isGeneratingChapter: boolean;
     selectedCharacter?: Character | null;
@@ -59,6 +61,7 @@ const emit = defineEmits<{
     (e: 'goBack'): void;
     (e: 'clearSelectedCharacter'): void;
     (e: 'regenerateCover'): void;
+    (e: 'requestIdea'): void;
 }>();
 
 // Show create form on right when in create-chapter view and chapter ended on left
@@ -158,12 +161,15 @@ const showInlineCreateForm = computed(() => {
                 v-else-if="showInlineCreateForm"
                 :chapter-number="currentChapterNumber + 1"
                 :prompt="nextChapterPrompt"
+                :suggested-idea="suggestedIdea"
+                :is-loading-idea="isLoadingIdea"
                 :is-final-chapter="isFinalChapter"
                 :is-generating="isGeneratingChapter"
                 :book-type="bookType"
                 @update:prompt="emit('update:nextChapterPrompt', $event)"
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
+                @request-idea="emit('requestIdea')"
             />
             <!-- Otherwise show chapter content -->
             <BookChapterContent
@@ -182,12 +188,15 @@ const showInlineCreateForm = computed(() => {
                 v-if="showCreateFormOnRight"
                 :chapter-number="currentChapterNumber"
                 :prompt="nextChapterPrompt"
+                :suggested-idea="suggestedIdea"
+                :is-loading-idea="isLoadingIdea"
                 :is-final-chapter="isFinalChapter"
                 :is-generating="isGeneratingChapter"
                 :book-type="bookType"
                 @update:prompt="emit('update:nextChapterPrompt', $event)"
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
+                @request-idea="emit('requestIdea')"
             />
             <!-- Show decorative on right when chapter ended on right (form is on left) -->
             <BookPageDecorative v-else-if="showDecorativeOnRight" variant="wand" />
@@ -196,12 +205,15 @@ const showInlineCreateForm = computed(() => {
                 v-else
                 :chapter-number="currentChapterNumber"
                 :prompt="nextChapterPrompt"
+                :suggested-idea="suggestedIdea"
+                :is-loading-idea="isLoadingIdea"
                 :is-final-chapter="isFinalChapter"
                 :is-generating="isGeneratingChapter"
                 :book-type="bookType"
                 @update:prompt="emit('update:nextChapterPrompt', $event)"
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
+                @request-idea="emit('requestIdea')"
             />
         </template>
 

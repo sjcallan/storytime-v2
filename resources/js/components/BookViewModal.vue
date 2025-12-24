@@ -678,6 +678,12 @@ const handleGenerateChapter = () => {
     }
 };
 
+const handleRequestIdea = () => {
+    if (props.bookId) {
+        chapters.requestIdea(props.bookId);
+    }
+};
+
 // Handle right edge click - smarter navigation for title page in single-page mode
 const handleRightEdgeClick = () => {
     if (chapters.readingView.value === 'title') {
@@ -1015,8 +1021,8 @@ onBeforeUnmount(() => {
                             :is-on-last-spread="chapters.isOnLastSpread.value"
                             :current-chapter-number="chapters.currentChapterNumber.value"
                             :next-chapter-prompt="chapters.nextChapterPrompt.value"
-                            :suggested-placeholder="chapters.suggestedPlaceholder.value"
-                            :is-loading-placeholder="chapters.isLoadingPlaceholder.value"
+                            :suggested-idea="chapters.suggestedIdea.value"
+                            :is-loading-idea="chapters.isLoadingIdea.value"
                             :is-final-chapter="chapters.isFinalChapter.value"
                             :is-generating-chapter="chapters.isGeneratingChapter.value || chapters.isAwaitingChapterGeneration.value"
                             :book-type="book?.type"
@@ -1026,6 +1032,7 @@ onBeforeUnmount(() => {
                             @update:is-final-chapter="chapters.isFinalChapter.value = $event"
                             @generate-chapter="handleGenerateChapter"
                             @textarea-focused="isTextareaFocused = $event"
+                            @request-idea="handleRequestIdea"
                         />
 
                         <!-- Book Spine (hidden in single-page mode) -->
@@ -1056,8 +1063,8 @@ onBeforeUnmount(() => {
                             :chapter-error="chapters.chapterError.value"
                             :current-chapter-number="chapters.currentChapterNumber.value"
                             :next-chapter-prompt="chapters.nextChapterPrompt.value"
-                            :suggested-placeholder="chapters.suggestedPlaceholder.value"
-                            :is-loading-placeholder="chapters.isLoadingPlaceholder.value"
+                            :suggested-idea="chapters.suggestedIdea.value"
+                            :is-loading-idea="chapters.isLoadingIdea.value"
                             :is-final-chapter="chapters.isFinalChapter.value"
                             :is-generating-chapter="chapters.isGeneratingChapter.value || chapters.isAwaitingChapterGeneration.value"
                             :selected-character="selectedCharacter"
@@ -1080,6 +1087,7 @@ onBeforeUnmount(() => {
                             @clear-selected-character="handleClearSelectedCharacter"
                             @textarea-focused="isTextareaFocused = $event"
                             @regenerate-cover="handleRegenerateCover"
+                            @request-idea="handleRequestIdea"
                         />
 
                         <!-- Right Edge Click Zone (Go Forward / Start Reading) -->

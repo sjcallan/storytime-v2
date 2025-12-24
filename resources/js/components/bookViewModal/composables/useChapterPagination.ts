@@ -49,8 +49,8 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
     const pendingChapterId = ref<string | null>(null);
     const chapterError = ref<string | null>(null);
     const nextChapterPrompt = ref('');
-    const suggestedPlaceholder = ref<string | null>(null);
-    const isLoadingPlaceholder = ref(false);
+    const suggestedIdea = ref<string | null>(null);
+    const isLoadingIdea = ref(false);
     const isFinalChapter = ref(false);
     const readingView = ref<ReadingView>('title');
     const isPageFlipping = ref(false);
@@ -246,13 +246,12 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         }
     };
 
-    const fetchSuggestedPlaceholder = async (bookId: string): Promise<void> => {
-        if (isLoadingPlaceholder.value) {
+    const requestIdea = async (bookId: string): Promise<void> => {
+        if (isLoadingIdea.value) {
             return;
         }
 
-        isLoadingPlaceholder.value = true;
-        suggestedPlaceholder.value = null;
+        isLoadingIdea.value = true;
 
         try {
             const { data, error } = await requestApiFetch(
@@ -262,13 +261,13 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
 
             if (!error && data) {
                 const response = data as { placeholder: string | null };
-                suggestedPlaceholder.value = response.placeholder;
+                suggestedIdea.value = response.placeholder;
             }
         } catch {
-            // Silently fail - we'll just use the default placeholder
-            suggestedPlaceholder.value = null;
+            // Silently fail
+            suggestedIdea.value = null;
         } finally {
-            isLoadingPlaceholder.value = false;
+            isLoadingIdea.value = false;
         }
     };
 
@@ -309,9 +308,8 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
                 currentChapter.value = null;
                 currentChapterNumber.value = chapterNumber;
                 readingView.value = 'create-chapter';
-                
-                // Fetch AI-generated placeholder for the prompt
-                fetchSuggestedPlaceholder(bookId);
+                // Clear any previous idea when entering create-chapter view
+                suggestedIdea.value = null;
             }
         } catch (err) {
             chapterError.value = extractErrorMessage(err) ?? 'An error occurred loading the chapter.';
@@ -427,9 +425,8 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
                 currentChapterNumber.value = nextNumber;
                 currentSpreadIndex.value = 0;
                 readingView.value = 'create-chapter';
-                
-                // Fetch AI-generated placeholder for the prompt
-                fetchSuggestedPlaceholder(bookId);
+                // Clear any previous idea when entering create-chapter view
+                suggestedIdea.value = null;
             }
         }
     };
@@ -541,8 +538,8 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         pendingChapterId.value = null;
         chapterError.value = null;
         nextChapterPrompt.value = '';
-        suggestedPlaceholder.value = null;
-        isLoadingPlaceholder.value = false;
+        suggestedIdea.value = null;
+        isLoadingIdea.value = false;
         isFinalChapter.value = false;
         currentSpreadIndex.value = 0;
         readingView.value = 'title';
@@ -757,8 +754,8 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         pendingChapterId,
         chapterError,
         nextChapterPrompt,
-        suggestedPlaceholder,
-        isLoadingPlaceholder,
+        suggestedIdea,
+        isLoadingIdea,
         isFinalChapter,
         readingView,
         isPageFlipping,
@@ -790,6 +787,7 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         setAwaitingChapterGeneration,
         recordBookOpened,
         recordChapterAdvancement,
+        requestIdea,
     };
 }
 

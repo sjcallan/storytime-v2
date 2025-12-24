@@ -57,9 +57,10 @@ class BookCreatedEvent implements ShouldBroadcast
             'age_level' => $this->book->age_level,
             'status' => $this->book->status,
             'cover_image' => $this->book->cover_image,
+            'cover_image_status' => $this->book->cover_image_status,
             'plot' => $this->book->plot,
             'user_id' => $this->book->user_id,
-            'created_at' => $this->book->created_at,
+            'created_at' => $this->book->created_at?->toIso8601String(),
         ];
     }
 }

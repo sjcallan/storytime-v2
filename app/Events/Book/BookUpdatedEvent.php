@@ -60,7 +60,7 @@ class BookUpdatedEvent implements ShouldBroadcast
             'cover_image_status' => $this->book->cover_image_status,
             'plot' => $this->book->plot,
             'is_published' => $this->book->is_published,
-            'updated_at' => $this->book->updated_at,
+            'updated_at' => $this->book->updated_at?->toIso8601String(),
         ];
     }
 }

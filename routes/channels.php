@@ -20,7 +20,7 @@ Broadcast::channel('book.{bookId}', function (User $user, string $bookId) {
 });
 
 Broadcast::channel('user.{userId}.books', function (User $user, string $userId) {
-    return $user->id === $userId;
+    return (string) $user->id === $userId;
 });
 
 Broadcast::channel('conversation.{conversationId}', function (User $user, string $conversationId) {

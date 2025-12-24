@@ -20,8 +20,8 @@ interface Props {
     isOnLastSpread?: boolean;
     currentChapterNumber?: number;
     nextChapterPrompt?: string;
-    suggestedPlaceholder?: string | null;
-    isLoadingPlaceholder?: boolean;
+    suggestedIdea?: string | null;
+    isLoadingIdea?: boolean;
     isFinalChapter?: boolean;
     isGeneratingChapter?: boolean;
     bookType?: BookType;
@@ -36,6 +36,7 @@ const emit = defineEmits<{
     (e: 'update:isFinalChapter', value: boolean): void;
     (e: 'generateChapter'): void;
     (e: 'textareaFocused', value: boolean): void;
+    (e: 'requestIdea'): void;
 }>();
 
 // Calculate left page number
@@ -181,8 +182,8 @@ const isValidImageUrl = (url: string | null | undefined): boolean => {
                 v-if="showCreateFormOnLeft"
                 :chapter-number="currentChapterNumber ?? 1"
                 :prompt="nextChapterPrompt ?? ''"
-                :suggested-placeholder="suggestedPlaceholder"
-                :is-loading-placeholder="isLoadingPlaceholder"
+                :suggested-idea="suggestedIdea"
+                :is-loading-idea="isLoadingIdea"
                 :is-final-chapter="isFinalChapter ?? false"
                 :is-generating="isGeneratingChapter ?? false"
                 :book-type="bookType"
@@ -190,6 +191,7 @@ const isValidImageUrl = (url: string | null | undefined): boolean => {
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
                 @textarea-focused="emit('textareaFocused', $event)"
+                @request-idea="emit('requestIdea')"
             />
             <!-- Otherwise show decorative -->
             <BookPageDecorative v-else variant="wand" />

@@ -107,6 +107,7 @@ type BookCreatedPayload = {
     age_level: number | null;
     status: string;
     cover_image: string | null;
+    cover_image_status: string | null;
     plot: string | null;
     user_id: string;
     created_at: string;
@@ -378,9 +379,12 @@ const userBooksChannel = ref<any>(null);
 
 // Handle book created events from user channel
 const handleBookCreatedEvent = (payload: BookCreatedPayload) => {
+    console.log('[Echo] Received book.created event:', payload);
+
     // Check if book already exists in state (avoid duplicates)
     const existingLocation = findBookLocation(payload.id);
     if (existingLocation) {
+        console.log('[Echo] Book already exists in state, skipping:', payload.id);
         return;
     }
 
@@ -390,6 +394,7 @@ const handleBookCreatedEvent = (payload: BookCreatedPayload) => {
         booksByGenreState.value[targetGenre] = [];
     }
 
+    console.log('[Echo] Adding book to genre:', targetGenre);
     booksByGenreState.value[targetGenre].unshift({
         id: payload.id,
         title: payload.title ?? 'Untitled Story',
@@ -398,6 +403,7 @@ const handleBookCreatedEvent = (payload: BookCreatedPayload) => {
         age_level: payload.age_level,
         status: payload.status,
         cover_image: payload.cover_image ?? undefined,
+        cover_image_status: payload.cover_image_status ?? undefined,
         created_at: payload.created_at,
     });
 
@@ -494,11 +500,20 @@ const subscribeToAllBooks = () => {
 // Subscribe to user's books channel for new book notifications
 const subscribeToUserBooksChannel = () => {
     const userId = currentUser.value?.id;
-    if (!userId || userBooksChannel.value) {
+    console.log('[Echo] subscribeToUserBooksChannel called, userId:', userId);
+
+    if (!userId) {
+        console.warn('[Echo] No user ID available, cannot subscribe to books channel');
+        return;
+    }
+
+    if (userBooksChannel.value) {
+        console.log('[Echo] Already subscribed to user books channel');
         return;
     }
 
     try {
+        console.log('[Echo] Subscribing to channel: user.' + userId + '.books');
         const channel = echo().private(`user.${userId}.books`);
 
         // Listen for new books created
@@ -506,6 +521,7 @@ const subscribeToUserBooksChannel = () => {
 
         // Also listen for updates on the user channel (for books not yet subscribed individually)
         channel.listen('.book.updated', (payload: BookUpdatedPayload) => {
+            console.log('[Echo] Received book.updated event on user channel:', payload);
             // Check if book exists, if not add it, otherwise update it
             const location = findBookLocation(payload.id);
             if (!location) {
@@ -518,6 +534,7 @@ const subscribeToUserBooksChannel = () => {
                     age_level: payload.age_level,
                     status: payload.status,
                     cover_image: payload.cover_image,
+                    cover_image_status: payload.cover_image_status,
                     plot: payload.plot,
                     user_id: '', // Not needed for adding
                     created_at: payload.updated_at,
@@ -529,6 +546,7 @@ const subscribeToUserBooksChannel = () => {
         });
 
         userBooksChannel.value = channel;
+        console.log('[Echo] Successfully set up user books channel listeners');
     } catch (err) {
         console.error('[Echo] Failed to subscribe to user books channel:', err);
     }
