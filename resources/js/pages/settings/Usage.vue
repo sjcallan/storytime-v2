@@ -191,7 +191,7 @@ function goToPage(url: string | null): void {
                 <!-- Stats Cards -->
                 <div class="grid gap-4 sm:grid-cols-2">
                     <!-- Last 30 Days Card -->
-                    <Card class="overflow-hidden">
+                    <Card class="overflow-hidden pt-0">
                         <CardHeader class="border-b border-border/50 bg-gradient-to-br from-violet-500/10 to-transparent p-4">
                             <div class="flex items-center gap-2">
                                 <div class="rounded-lg bg-violet-500/20 p-2">
@@ -243,7 +243,7 @@ function goToPage(url: string | null): void {
                     </Card>
 
                     <!-- All Time Card -->
-                    <Card class="overflow-hidden">
+                    <Card class="overflow-hidden pt-0">
                         <CardHeader class="border-b border-border/50 bg-gradient-to-br from-amber-500/10 to-transparent p-4">
                             <div class="flex items-center gap-2">
                                 <div class="rounded-lg bg-amber-500/20 p-2">

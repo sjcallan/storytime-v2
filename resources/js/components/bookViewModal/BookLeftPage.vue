@@ -122,7 +122,7 @@ const isValidImageUrl = (url: string | null | undefined): boolean => {
                 </template>
                 <!-- Subsequent spreads: show content continuation on left page (full height) -->
                 <template v-else-if="spread.leftContent">
-                    <div class="relative h-full px-16 pt-24 pb-8">
+                    <div class="relative h-full px-16 pt-24 pb-12 overflow-y-auto">
                         <div class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
                             <template v-for="(item, idx) in spread.leftContent" :key="idx">
                                 <p 

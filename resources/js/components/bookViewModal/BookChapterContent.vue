@@ -78,7 +78,7 @@ const rightPageNumber = computed(() => {
                 </div>
                 
                 <!-- Remaining ~60% for content -->
-                <div class="flex-1 overflow-hidden">
+                <div class="flex-1 overflow-y-auto">
                     <div v-if="spread.rightContent" class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
                         <template v-for="(item, idx) in spread.rightContent" :key="idx">
                             <p 
@@ -131,7 +131,7 @@ const rightPageNumber = computed(() => {
         
         <!-- Subsequent spreads: Content continuation on right page (full height) -->
         <template v-else>
-            <div class="h-full px-16 pt-24 pb-8">
+            <div class="h-full px-16 pt-24 pb-12 overflow-y-auto">
                 <div v-if="spread.rightContent" class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
                     <template v-for="(item, idx) in spread.rightContent" :key="idx">
                         <p 

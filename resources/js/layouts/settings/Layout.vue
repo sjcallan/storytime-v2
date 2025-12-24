@@ -37,10 +37,6 @@ const sidebarNavItems: NavItem[] = [
         href: show(),
     },
     {
-        title: 'Appearance',
-        href: editAppearance(),
-    },
-    {
         title: 'Usage',
         href: usageIndex(),
     },
