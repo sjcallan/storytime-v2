@@ -25,6 +25,7 @@ import {
     LayoutGrid,
     LogOut,
     Menu,
+    Palette,
     Settings,
     Sparkles,
     UserCircle,
@@ -34,8 +35,8 @@ import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
 import { select as selectProfile } from '@/routes/profiles';
 
-// Initialize theme system
-useTheme();
+// Initialize theme system and get active theme
+const { activeTheme } = useTheme();
 
 const page = usePage();
 const profiles = computed(() => page.props.auth.profiles || []);
@@ -206,7 +207,44 @@ const handleLogout = () => {
                                 <p class="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                                     Appearance
                                 </p>
-                                <div class="rounded-lg border border-border p-3">
+                                <div class="flex items-center gap-3 rounded-lg border border-border p-3">
+                                    <!-- Theme preview card -->
+                                    <div
+                                        v-if="activeTheme"
+                                        class="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border shadow-sm"
+                                        :style="{
+                                            backgroundColor: activeTheme.background_color,
+                                            color: activeTheme.text_color,
+                                        }"
+                                    >
+                                        <img
+                                            v-if="activeTheme.background_image"
+                                            :src="activeTheme.background_image"
+                                            alt=""
+                                            class="absolute inset-0 h-full w-full object-cover"
+                                        />
+                                        <span v-else class="text-xs font-bold">Aa</span>
+                                    </div>
+                                    <!-- Default theme icon -->
+                                    <div
+                                        v-else
+                                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted"
+                                    >
+                                        <Palette class="h-5 w-5 text-muted-foreground" />
+                                    </div>
+                                    <!-- Theme name -->
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm font-medium">
+                                            {{ activeTheme?.name || 'Default Theme' }}
+                                        </p>
+                                        <p v-if="activeTheme" class="text-xs text-muted-foreground">
+                                            Custom theme
+                                        </p>
+                                        <p v-else class="text-xs text-muted-foreground">
+                                            System colors
+                                        </p>
+                                    </div>
+                                    <!-- Theme customizer trigger -->
                                     <ThemeCustomizer />
                                 </div>
 
