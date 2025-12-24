@@ -535,7 +535,7 @@ class ChapterBuilderService extends BuilderService
     protected function getSceneImageStylePrefix(Book $book): string
     {
         // CRITICAL: No text, letters, words, or writing on the image
-        $style = 'NO TEXT, NO LETTERS, NO WORDS, NO WRITING, NO TITLES on the image. ';
+        $style = '';
 
         // Age-based style: cartoon for kids/pre-teens, realistic for teens/adults
         if ($book->age_level <= 13) {
@@ -543,8 +543,7 @@ class ChapterBuilderService extends BuilderService
             $style .= 'whimsical yet slightly dark, hand-drawn aesthetic, rich textures, ';
             $style .= 'imaginative and dreamlike, vibrant colors with moody undertones, ';
         } else {
-            $style .= 'Photorealistic digital art, cinematic lighting, ';
-            $style .= 'highly detailed, professional quality, dramatic composition, ';
+            $style .= 'Realsitic photograph, professional quality, dramatic composition, ';
         }
 
         // Genre-specific mood additions

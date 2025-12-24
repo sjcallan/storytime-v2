@@ -536,12 +536,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 // Chapter navigation handlers
 const handleContinueToChapter1 = () => {
     if (props.bookId) {
-        // If we have a saved reading position greater than 1, jump to that chapter instead
-        if (savedChapterNumber.value && savedChapterNumber.value > 1) {
-            chapters.jumpToChapter(props.bookId, savedChapterNumber.value);
-        } else {
-            chapters.goToChapter1(props.bookId, animation.scheduleTimeout);
-        }
+        chapters.goToChapter1(props.bookId, animation.scheduleTimeout);
     }
 };
 

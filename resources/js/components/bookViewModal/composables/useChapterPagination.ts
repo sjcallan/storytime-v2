@@ -372,6 +372,7 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
 
         scheduleTimeout(() => {
             loadChapter(bookId, 1);
+            recordChapterAdvancement(bookId, 1);
             isTitlePageFading.value = false;
         }, 500);
     };

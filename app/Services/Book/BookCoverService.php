@@ -118,20 +118,20 @@ class BookCoverService
         $systemPrompt .= "- Briefly describe each character's appearance\n";
         $systemPrompt .= "\nRespond with ONLY the visual prompt text. Be concise. Do NOT use JSON format.";
 
-        $userMessage = "Story Details:\n";
-        $userMessage .= "Genre: {$book->genre}\n";
-        $userMessage .= "Type: {$book->type}\n";
-        $userMessage .= "Age Level: {$book->age_level} years old\n";
-        $userMessage .= "Plot: {$book->plot}\n";
-        $userMessage .= "Scene: {$book->scene}\n";
+        $systemPrompt .= "Story Details:\n";
+        $systemPrompt .= "Genre: {$book->genre}\n";
+        $systemPrompt .= "Type: {$book->type}\n";
+        $systemPrompt .= "Age Level: {$book->age_level} years old\n";
+        $systemPrompt .= "Plot: {$book->plot}\n";
+        $systemPrompt .= "Scene: {$book->scene}\n";
 
         if ($book->scene) {
-            $userMessage .= "Scene: {$book->scene}\n";
+            $systemPrompt .= "Scene: {$book->scene}\n";
         }
 
         $characters = $book->characters()->get();
         if ($characters->count() > 0) {
-            $userMessage .= "Characters:\n";
+            $systemPrompt .= "Characters:\n";
             $genderCounts = ['male' => 0, 'female' => 0];
 
             foreach ($characters as $character) {
@@ -143,25 +143,24 @@ class BookCoverService
                     $genderLabel = 'Character';
                 }
 
-                $userMessage .= "- {$genderLabel}";
+                $systemPrompt .= "- {$genderLabel}";
                 if ($character->age) {
-                    $userMessage .= " ({$character->age} years old)";
+                    $systemPrompt .= " ({$character->age} years old)";
                 }
                 if ($character->description) {
-                    $userMessage .= ": {$character->description}";
+                    $systemPrompt .= ": {$character->description}";
                 }
-                $userMessage .= "\n";
             }
         }
 
-        $userMessage .= "\nGenerate a concise visual prompt for this scene.";
+        $userMessage = "Generate a concise visual prompt for this scene.";
 
         Log::info('BookCoverService: Making AI request for cover image prompt');
 
         $this->chatService->resetMessages();
         $this->chatService->setModel('gpt-4.1');
         $this->chatService->setTemperature(0.5);
-        $this->chatService->setMaxTokens(1000);
+        $this->chatService->setResponseFormat('text');
         $this->chatService->addSystemMessage($systemPrompt);
         $this->chatService->addUserMessage($userMessage);
 
@@ -176,6 +175,7 @@ class BookCoverService
         }
 
         Log::info('BookCoverService: Cover image prompt generated');
+        Log::info('BookCoverService: Cover image prompt', ['prompt' => $result['completion']]);
 
         return trim($result['completion']);
     }
