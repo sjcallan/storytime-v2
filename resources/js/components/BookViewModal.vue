@@ -102,6 +102,7 @@ type BookUpdatedPayload = {
     age_level: number | null;
     status: string;
     cover_image: string | null;
+    cover_image_status: string | null;
     plot: string | null;
     is_published: boolean;
     updated_at: string;
@@ -183,6 +184,7 @@ const handleBookUpdatedEvent = (payload: BookUpdatedPayload) => {
         age_level: payload.age_level,
         status: payload.status,
         cover_image: payload.cover_image,
+        cover_image_status: payload.cover_image_status,
         plot: payload.plot,
     };
     
@@ -570,6 +572,25 @@ const handleClearSelectedCharacter = () => {
     selectedCharacter.value = null;
 };
 
+// Cover regeneration handler
+const handleRegenerateCover = async () => {
+    if (!props.bookId || !book.value) {
+        return;
+    }
+    
+    // Optimistically update local state to show pending
+    book.value.cover_image_status = 'pending';
+    
+    const { error } = await requestApiFetch(`/api/books/${props.bookId}/regenerate-cover`, 'POST');
+    
+    if (error) {
+        // Reset status on error
+        book.value.cover_image_status = 'error';
+        actionError.value = 'Failed to start cover generation. Please try again.';
+    }
+    // On success, the websocket will update the cover_image when complete
+};
+
 // Table of Contents handlers
 const completedChapters = computed((): ChapterSummary[] => {
     if (!book.value?.chapters) {
@@ -880,6 +901,7 @@ onBeforeUnmount(() => {
                             @go-back="handleGoToPreviousChapter"
                             @clear-selected-character="handleClearSelectedCharacter"
                             @textarea-focused="isTextareaFocused = $event"
+                            @regenerate-cover="handleRegenerateCover"
                         />
 
                         <!-- Right Edge Click Zone (Go Forward / Start Reading) -->

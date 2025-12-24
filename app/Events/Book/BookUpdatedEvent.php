@@ -57,6 +57,7 @@ class BookUpdatedEvent implements ShouldBroadcast
             'age_level' => $this->book->age_level,
             'status' => $this->book->status,
             'cover_image' => $this->book->cover_image,
+            'cover_image_status' => $this->book->cover_image_status,
             'plot' => $this->book->plot,
             'is_published' => $this->book->is_published,
             'updated_at' => $this->book->updated_at,

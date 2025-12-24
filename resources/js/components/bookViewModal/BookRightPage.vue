@@ -57,6 +57,7 @@ const emit = defineEmits<{
     (e: 'generateChapter'): void;
     (e: 'goBack'): void;
     (e: 'clearSelectedCharacter'): void;
+    (e: 'regenerateCover'): void;
 }>();
 
 // Show create form on right when in create-chapter view and chapter ended on left
@@ -135,6 +136,7 @@ const showInlineCreateForm = computed(() => {
             :is-fading="isTitlePageFading"
             :is-loading="isLoadingChapter"
             @continue="emit('continueToChapter1')"
+            @regenerate-cover="emit('regenerateCover')"
         />
 
         <!-- Chapter Content View -->

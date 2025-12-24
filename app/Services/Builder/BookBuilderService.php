@@ -84,7 +84,7 @@ class BookBuilderService extends BuilderService
             ],
         ];
 
-        $characterPrompt = 'Who are the characters? Create a valid json array of no more than 4 primary characters, one object per character each formatted like: {name:"",description:"",gender:"",age:"",nationality:"",thoughts:"",motivations:"",goals:"",experience:""}'
+        $characterPrompt = 'Who are the characters? Create a valid json array of no more than 4 primary characters, one object per character.'
             .' replace name with the character\'s name.'
             .' for description: a physical description of this character'
             .' for gender: the sex of this character, choose: male or female'

@@ -38,6 +38,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Book metadata generation
     Route::post('books/{book}/generate-metadata', [BookController::class, 'generateMetadata'])->name('api.books.generate-metadata');
 
+    // Book cover regeneration
+    Route::post('books/{book}/regenerate-cover', [BookController::class, 'regenerateCover'])->name('api.books.regenerate-cover');
+
     // Chapter endpoints
     Route::get('books/{book}/chapters/{chapterNumber}', [ChapterController::class, 'getByBookAndSort'])
         ->whereNumber('chapterNumber')

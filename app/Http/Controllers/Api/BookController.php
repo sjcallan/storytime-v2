@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreBookRequest;
 use App\Http\Requests\UpdateBookRequest;
+use App\Jobs\Book\GenerateBookCoverJob;
 use App\Models\Book;
 use App\Services\Book\BookService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -109,6 +110,23 @@ class BookController extends Controller
         return response()->json([
             'title' => $metaData['title'] ?? $book->title,
             'characters' => $book->characters,
+        ]);
+    }
+
+    /**
+     * Regenerate the book cover image.
+     */
+    public function regenerateCover(Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $book->update(['cover_image_status' => 'pending']);
+
+        GenerateBookCoverJob::dispatch($book->id);
+
+        return response()->json([
+            'message' => 'Cover generation started',
+            'cover_image_status' => 'pending',
         ]);
     }
 

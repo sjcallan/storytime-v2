@@ -23,12 +23,7 @@ const mainNavItems: NavItem[] = [
         title: 'My Stories',
         href: dashboard(),
         icon: BookOpen,
-    },
-    {
-        title: 'New Releases',
-        href: dashboard(),
-        icon: BookOpen,
-    },
+    }
 ];
 
 const footerNavItems: NavItem[] = [];

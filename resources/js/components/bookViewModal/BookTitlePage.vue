@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Sparkles, ChevronRight, Loader2 } from 'lucide-vue-next';
+import { Sparkles, ChevronRight, Loader2, RefreshCw, Image } from 'lucide-vue-next';
 
 interface Props {
     coverImage: string | null;
@@ -15,6 +15,7 @@ defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'continue'): void;
+    (e: 'regenerateCover'): void;
 }>();
 </script>
 
@@ -41,16 +42,51 @@ const emit = defineEmits<{
             </div>
         </div>
 
+        <!-- No Cover Placeholder (failed or missing) -->
+        <div 
+            v-else-if="!coverImage"
+            class="group/cover mb-6 w-full overflow-hidden rounded-lg shadow-lg bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 h-48 flex flex-col items-center justify-center gap-4 p-8"
+        >
+            <Image class="h-12 w-12 text-amber-500 dark:text-amber-400" />
+            <div class="text-center">
+                <p class="text-sm text-amber-600 dark:text-amber-500 mb-4">
+                    No cover image yet
+                </p>
+                <button
+                    @click.stop="emit('regenerateCover')"
+                    class="mx-auto flex items-center gap-1.5 rounded-full bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-all duration-300 hover:bg-amber-700 hover:scale-105 active:scale-95"
+                >
+                    <RefreshCw class="h-4 w-4" />
+                    <span>Generate cover</span>
+                </button>
+            </div>
+        </div>
+
         <!-- Cover Image (2/3 page height, center-cropped) -->
         <div 
-            v-else-if="coverImage"
-            class="mb-6 w-full h-[66vh] overflow-hidden rounded-lg shadow-lg"
+            v-else
+            class="group/cover relative mb-6 w-full h-[66vh] overflow-hidden rounded-lg shadow-lg"
         >
             <img
                 :src="coverImage"
                 :alt="title"
                 class="h-full w-full object-cover object-center"
             />
+            <!-- Regenerate Cover Button -->
+            <button
+                @click.stop="emit('regenerateCover')"
+                :disabled="coverImageStatus === 'pending'"
+                class="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/cover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Generate new cover"
+            >
+                <RefreshCw 
+                    :class="[
+                        'h-3.5 w-3.5',
+                        coverImageStatus === 'pending' ? 'animate-spin' : ''
+                    ]" 
+                />
+                <span>New cover</span>
+            </button>
         </div>
 
         <!-- Decorative Border -->

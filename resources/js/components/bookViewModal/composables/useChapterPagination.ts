@@ -581,8 +581,12 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
     const handleChapterUpdated = (payload: ChapterUpdatedPayload, bookId: string): void => {
         // If this chapter just became complete, update state and load it
         if (payload.status === 'complete') {
-            // Clear the awaiting state if this was the pending chapter
-            if (pendingChapterId.value === payload.id) {
+            // Clear the awaiting state if:
+            // 1. This was the specific pending chapter we were waiting for, OR
+            // 2. We're awaiting chapter generation and this is the first chapter (sort === 1)
+            //    (handles case where pendingChapterId wasn't set, e.g., from book open)
+            if (pendingChapterId.value === payload.id || 
+                (isAwaitingChapterGeneration.value && payload.sort === 1)) {
                 isAwaitingChapterGeneration.value = false;
                 pendingChapterId.value = null;
             }
