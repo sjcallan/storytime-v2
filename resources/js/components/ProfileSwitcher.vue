@@ -88,12 +88,7 @@ const handleLogout = () => {
                         Switch Profile
                     </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem as-child>
-                    <Link :href="manageProfiles()" class="cursor-pointer gap-3">
-                        <Users class="h-4 w-4" />
-                        Manage Profiles
-                    </Link>
-                </DropdownMenuItem>
+                
             </DropdownMenuGroup>
 
             <DropdownMenuSeparator />

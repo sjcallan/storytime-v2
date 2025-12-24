@@ -103,31 +103,20 @@ class BookCoverService
             default => 'adult',
         };
 
-        $systemPrompt = "You are a creative assistant helping to create a detailed visual description for generating a {$ageGroup} {$book->genre} {$book->type} story cover image. ";
-        $systemPrompt .= 'Based on the story details provided, generate a highly detailed visual description that includes: scene composition, camera specifications, lighting setup, and technical camera settings. ';
+        $systemPrompt = "You are a creative assistant helping to create a concise visual description for generating a {$ageGroup} {$book->genre} {$book->type} story cover image. ";
         $systemPrompt .= "\n\nIMPORTANT RULES:\n";
         $systemPrompt .= "- Describe a visually striking SCENE from the story, NOT a book cover\n";
         $systemPrompt .= "- DO NOT mention 'book cover', 'title', 'text', 'letters', or any written words\n";
-        $systemPrompt .= "- Focus on: characters, setting, mood, lighting, colors, action, and atmosphere\n";
-        $systemPrompt .= "- Describe what you SEE in the scene, as if describing a painting or photograph\n";
-        $systemPrompt .= "- Include specific visual details about character appearances and environment\n";
-        $systemPrompt .= "- If the age level is teen or adult ensure the image is realistic, gritty and not cartoonish or manufactured.\n";
-        $systemPrompt .= "- If the age level is pre-teen make sure the image is a gritty graphic novel style.\n";
-        $systemPrompt .= "- If the age level is kids make sure the image is a bright, friendly cartoon style.\n";
-        $systemPrompt .= "\nCHARACTER IDENTIFICATION RULES (CRITICAL):\n";
-        $systemPrompt .= "- DO NOT use character names in the prompt\n";
-        $systemPrompt .= "- Identify each character as '[Gender] [Number]' (e.g., 'Male 1', 'Female 2', 'Male 2')\n";
-        $systemPrompt .= "- Number characters of the same gender sequentially (Male 1, Male 2, Female 1, etc.)\n";
-        $systemPrompt .= "- Describe characters sequentially from LEFT to RIGHT across the image composition\n";
-        $systemPrompt .= "- Include each character's physical description immediately after their identifier\n";
-        $systemPrompt .= "- Example: 'On the left, Male 1, a tall elderly man with gray beard and weathered face, stands beside Female 1, a young girl with red braids and freckles, who is positioned center-frame...'\n";
-        $systemPrompt .= "\nCAMERA AND TECHNICAL SPECIFICATIONS:\n";
-        $systemPrompt .= "- Specify camera type and lens choice (e.g., 'Sony A7IV with 50mm f/1.4 lens', 'Canon EOS R5 with 85mm f/1.2')\n";
-        $systemPrompt .= "- Include camera settings: aperture, ISO, shutter speed if relevant to the scene\n";
-        $systemPrompt .= "- Describe lighting setup: natural light, golden hour, studio lighting, dramatic shadows, soft diffused light, etc.\n";
-        $systemPrompt .= "- Specify dynamic range and color grading preferences\n";
-        $systemPrompt .= "- Mention depth of field and focus points\n";
-        $systemPrompt .= "\nRespond with ONLY the detailed visual prompt text. Do NOT use JSON format.";
+        $systemPrompt .= "- Focus on: characters, setting, mood, lighting, colors, and atmosphere\n";
+        $systemPrompt .= "- Keep the description concise (2-3 paragraphs maximum)\n";
+        $systemPrompt .= "- If the age level is teen or adult: realistic, cinematic style\n";
+        $systemPrompt .= "- If the age level is pre-teen: graphic novel style\n";
+        $systemPrompt .= "- If the age level is kids: bright, friendly cartoon style\n";
+        $systemPrompt .= "\nCHARACTER RULES:\n";
+        $systemPrompt .= "- DO NOT use character names\n";
+        $systemPrompt .= "- Identify characters as '[Gender] [Number]' (e.g., 'Male 1', 'Female 1')\n";
+        $systemPrompt .= "- Briefly describe each character's appearance\n";
+        $systemPrompt .= "\nRespond with ONLY the visual prompt text. Be concise. Do NOT use JSON format.";
 
         $userMessage = "Story Details:\n";
         $userMessage .= "Genre: {$book->genre}\n";
@@ -165,13 +154,14 @@ class BookCoverService
             }
         }
 
-        $userMessage .= "\nGenerate a highly detailed visual prompt for this scene, including camera specifications, lighting details, and technical camera settings.";
+        $userMessage .= "\nGenerate a concise visual prompt for this scene.";
 
         Log::info('BookCoverService: Making AI request for cover image prompt');
 
         $this->chatService->resetMessages();
         $this->chatService->setModel('gpt-4.1');
         $this->chatService->setTemperature(0.5);
+        $this->chatService->setMaxTokens(1000);
         $this->chatService->addSystemMessage($systemPrompt);
         $this->chatService->addUserMessage($userMessage);
 

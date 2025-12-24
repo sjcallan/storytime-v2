@@ -281,6 +281,7 @@ class ChapterBuilderService extends BuilderService
 
             $this->chatService->resetMessages();
             $this->chatService->setResponseFormat('json_object');
+            $this->chatService->setMaxTokens(8000);
             $this->chatService->addSystemMessage(json_encode($systemPrompt));
 
             $characterInstructions = $this->getCharacterIdentificationInstructions($characters);
