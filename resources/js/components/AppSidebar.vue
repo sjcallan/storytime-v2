@@ -20,7 +20,7 @@ import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
     {
-        title: 'My Stories',
+        title: 'Home',
         href: dashboard(),
         icon: BookOpen,
     }

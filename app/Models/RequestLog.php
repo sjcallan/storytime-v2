@@ -14,6 +14,7 @@ class RequestLog extends Model
 
     protected $fillable = [
         'user_id',
+        'profile_id',
         'book_id',
         'chapter_id',
         'item_type',
@@ -42,6 +43,11 @@ class RequestLog extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function profile(): BelongsTo
+    {
+        return $this->belongsTo(Profile::class);
     }
 
     public function book(): BelongsTo

@@ -126,7 +126,7 @@ class ChatService implements AiChatServiceInterface
         ];
     }
 
-    public function trackRequestLog(string $bookId, string $chapterId, string $userId, string $itemType, array $response): void
+    public function trackRequestLog(string $bookId, string $chapterId, string $userId, string $itemType, array $response, ?string $profileId = null): void
     {
         dispatch(new TrackRequestJob(
             $bookId,
@@ -137,7 +137,8 @@ class ChatService implements AiChatServiceInterface
             json_encode($response),
             json_encode($this->apiService->getResponse()),
             $this->apiService->getResponseStatusCode(),
-            $this->apiService->getResponseTime()
+            $this->apiService->getResponseTime(),
+            $profileId
         ));
     }
 

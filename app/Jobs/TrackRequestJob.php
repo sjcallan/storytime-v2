@@ -2,8 +2,6 @@
 
 namespace App\Jobs;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -12,48 +10,52 @@ use Illuminate\Support\Facades\Log;
 
 class TrackRequestJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, SerializesModels;
 
-    /** @var int */
-    protected $bookId;
+    protected string $bookId;
 
-    /** @var int */
-    protected $userId;
+    protected string $userId;
 
-    /** @var int */
-    protected $chapterId;
+    protected ?string $profileId;
 
-    /** @var int */
-    protected $responseStatusCode;
+    protected string $chapterId;
 
-    /** @var float */
-    protected $responseTime;
+    protected int $responseStatusCode;
 
-    /** @var string */
-    protected $itemType;
+    protected float $responseTime;
 
-    /** @var string */
-    protected $request;
+    protected string $itemType;
 
-    /** @var string */
-    protected $response;
+    protected string $request;
 
-    /** @var string */
-    protected $rawResponse;
+    protected string $response;
+
+    protected string $rawResponse;
 
     /**
      * Create a new job instance.
      */
-    public function __construct(string $bookId, string $chapterId, string $userId, string $itemType, string $request, string $response, string $rawResponse, int $responseStatusCode, float $responseTime)
-    {
+    public function __construct(
+        string $bookId,
+        string $chapterId,
+        string $userId,
+        string $itemType,
+        string $request,
+        string $response,
+        string $rawResponse,
+        int $responseStatusCode,
+        float $responseTime,
+        ?string $profileId = null
+    ) {
         $this->chapterId = $chapterId;
         $this->bookId = $bookId;
         $this->userId = $userId;
+        $this->profileId = $profileId;
         $this->itemType = $itemType;
-        $this->request= $request;
+        $this->request = $request;
         $this->response = $response;
-        $this->responseStatusCode= $responseStatusCode;
-        $this->responseTime= $responseTime;
+        $this->responseStatusCode = $responseStatusCode;
+        $this->responseTime = $responseTime;
         $this->rawResponse = $rawResponse;
     }
 
@@ -62,25 +64,24 @@ class TrackRequestJob implements ShouldQueue
      */
     public function handle(): void
     {
-        Log::debug('TRACK REQUEST: ' . $this->itemType);
+        Log::debug('TRACK REQUEST: '.$this->itemType);
 
         /** @var \App\Services\RequestLog\RequestLogService */
         $requestLogService = app(\App\Services\RequestLog\RequestLogService::class);
 
         $parsed = $requestLogService->parseResponseForStore(json_decode($this->response, true));
-        
+
         $requestLogService->store([
             'user_id' => $this->userId,
+            'profile_id' => $this->profileId,
             'book_id' => $this->bookId,
             'item_type' => $this->itemType,
             'chapter_id' => $this->chapterId,
             'request' => $this->request,
             'response' => $this->rawResponse,
             'response_time' => $this->responseTime,
-            'response_status_code' => $this->responseStatusCode
+            'response_status_code' => $this->responseStatusCode,
         ] + $parsed);
-        Log::debug('TRACK REQUEST: ' . $this->itemType . ' COMPLETE');
-
-        return;
+        Log::debug('TRACK REQUEST: '.$this->itemType.' COMPLETE');
     }
 }

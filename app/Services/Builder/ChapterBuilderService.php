@@ -852,7 +852,7 @@ class ChapterBuilderService extends BuilderService
             $this->chatService->addUserMessage('In plain text, write a '.$chapterLabel.' title. Do not include the word "Scene", "Chapter" or the '.$chapterLabel.' number.');
 
             $titleresponse = $this->chatService->chat();
-            $this->chatService->trackRequestLog($bookId, $chapterId, $userId, 'chapter_title', $titleresponse);
+            $this->chatService->trackRequestLog($bookId, $chapterId, $userId, 'chapter_title', $titleresponse, $book->profile_id);
 
             Log::debug('[ChapterBuilderService::getChapterTitle] Completed', [
                 'book_id' => $bookId,
@@ -900,7 +900,7 @@ class ChapterBuilderService extends BuilderService
             $this->chatService->addUserMessage($ctaPrompt);
 
             $cta = $this->chatService->chat();
-            $this->chatService->trackRequestLog($bookId, $chapterId, $userId, 'chapter_cta', $cta);
+            $this->chatService->trackRequestLog($bookId, $chapterId, $userId, 'chapter_cta', $cta, $book->profile_id);
 
             Log::debug('[ChapterBuilderService::getCta] Completed', [
                 'book_id' => $bookId,
@@ -992,7 +992,7 @@ class ChapterBuilderService extends BuilderService
             $this->chatService->addUserMessage('Provide a summary of this story so far. Respond with only the plain text summary.');
 
             $bookSummary = $this->chatService->chat();
-            $this->chatService->trackRequestLog($bookId, $chapterId, $userId, 'book_summary', $bookSummary);
+            $this->chatService->trackRequestLog($bookId, $chapterId, $userId, 'book_summary', $bookSummary, $book->profile_id);
 
             Log::debug('[ChapterBuilderService::getBookSummary] Completed', [
                 'book_id' => $bookId,

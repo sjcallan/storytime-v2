@@ -83,7 +83,7 @@ const handleLogout = () => {
                             :href="dashboard()"
                             class="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
                         >
-                            My Stories
+                            Home
                         </Link>
                     </nav>
                 </div>
@@ -196,7 +196,7 @@ const handleLogout = () => {
                                             class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
                                         >
                                             <LayoutGrid class="h-5 w-5" />
-                                            My Stories
+                                            Home
                                         </Link>
                                     </SheetClose>
                                 </nav>

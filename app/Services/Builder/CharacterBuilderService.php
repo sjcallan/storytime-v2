@@ -109,7 +109,7 @@ class CharacterBuilderService extends BuilderService
         $characterResponse = $this->chatService->chat();
         $characters = $characterResponse['completion'];
 
-        $this->chatService->trackRequestLog($chapter->book_id, $chapter->id, $chapter->user_id, 'chapter_characters', $characterResponse);
+        $this->chatService->trackRequestLog($chapter->book_id, $chapter->id, $chapter->user_id, 'chapter_characters', $characterResponse, $chapter->profile_id);
 
         return $characters;
     }
@@ -149,7 +149,7 @@ class CharacterBuilderService extends BuilderService
         $characterResponse = $this->chatService->chat();
         $characters = $characterResponse['completion'];
 
-        $this->chatService->trackRequestLog($bookId, 0, $book->user_id, 'book_characters', $characterResponse);
+        $this->chatService->trackRequestLog($bookId, '0', $book->user_id, 'book_characters', $characterResponse, $book->profile_id);
 
         return $characters;
     }

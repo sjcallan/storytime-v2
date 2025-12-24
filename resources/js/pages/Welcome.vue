@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import StorytimeIcon from '@/components/StorytimeIcon.vue';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import {
+    Sheet,
+    SheetClose,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+} from '@/components/ui/sheet';
 import { dashboard, login, register } from '@/routes';
 import { Head, Link } from '@inertiajs/vue3';
+import { LogIn, Menu, Sparkles, UserPlus } from 'lucide-vue-next';
 import { ref, onMounted } from 'vue';
 
 withDefaults(
@@ -14,12 +25,17 @@ withDefaults(
 );
 
 const isVisible = ref(false);
+const mobileMenuOpen = ref(false);
 
 onMounted(() => {
     setTimeout(() => {
         isVisible.value = true;
     }, 100);
 });
+
+const closeMobileMenu = () => {
+    mobileMenuOpen.value = false;
+};
 </script>
 
 <template>
@@ -35,7 +51,7 @@ onMounted(() => {
             class="fixed top-0 z-50 w-full border-b border-[#19140010] bg-white/80 backdrop-blur-md dark:border-[#3E3E3A20] dark:bg-[#161615]/80"
         >
             <nav
-                class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8"
+                class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8"
             >
                 <div class="flex items-center gap-3">
                     <div
@@ -49,7 +65,9 @@ onMounted(() => {
                         Storytime
                     </span>
                 </div>
-                <div class="flex items-center gap-3">
+
+                <!-- Desktop Navigation -->
+                <div class="hidden items-center gap-3 sm:flex">
                     <Link
                         v-if="$page.props.auth.user"
                         :href="dashboard()"
@@ -72,6 +90,135 @@ onMounted(() => {
                             Get Started
                         </Link>
                     </template>
+                </div>
+
+                <!-- Mobile Hamburger Menu -->
+                <div class="sm:hidden">
+                    <Sheet v-model:open="mobileMenuOpen">
+                        <SheetTrigger :as-child="true">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                class="h-10 w-10 text-[#1b1b18] hover:bg-[#19140010] dark:text-[#EDEDEC] dark:hover:bg-[#3E3E3A20]"
+                            >
+                                <Menu class="h-6 w-6" />
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent
+                            side="right"
+                            class="flex w-[300px] flex-col border-l border-[#19140020] bg-white p-0 dark:border-[#3E3E3A] dark:bg-[#161615]"
+                        >
+                            <SheetTitle class="sr-only">Menu</SheetTitle>
+
+                            <!-- Header with branding -->
+                            <SheetHeader
+                                class="border-b border-[#19140010] bg-gradient-to-br from-[#fff2f2] to-[#fff9e6] p-5 dark:border-[#3E3E3A20] dark:from-[#1D0002] dark:to-[#1a0f00]"
+                            >
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#f53003] to-[#F8B803] shadow-lg"
+                                    >
+                                        <StorytimeIcon class="h-7 w-7 text-white" />
+                                    </div>
+                                    <div>
+                                        <p
+                                            class="text-lg font-bold bg-gradient-to-r from-[#f53003] to-[#F8B803] bg-clip-text text-transparent"
+                                        >
+                                            Storytime
+                                        </p>
+                                        <p class="text-xs text-[#706f6c] dark:text-[#A1A09A]">
+                                            Bring your stories to life
+                                        </p>
+                                    </div>
+                                </div>
+                            </SheetHeader>
+
+                            <!-- Menu Content -->
+                            <div class="flex flex-1 flex-col p-4">
+                                <template v-if="$page.props.auth.user">
+                                    <SheetClose :as-child="true">
+                                        <Link
+                                            :href="dashboard()"
+                                            class="flex items-center gap-3 rounded-xl bg-gradient-to-r from-[#f53003] to-[#F8B803] px-4 py-3.5 font-semibold text-white shadow-lg transition-all hover:shadow-xl"
+                                            @click="closeMobileMenu"
+                                        >
+                                            <Sparkles class="h-5 w-5" />
+                                            Go to Dashboard
+                                        </Link>
+                                    </SheetClose>
+                                </template>
+                                <template v-else>
+                                    <div class="space-y-3">
+                                        <SheetClose :as-child="true">
+                                            <Link
+                                                :href="login()"
+                                                class="flex items-center gap-3 rounded-xl border border-[#19140020] bg-white px-4 py-3.5 font-medium text-[#1b1b18] transition-all hover:border-[#19140040] hover:bg-[#FDFDFC] dark:border-[#3E3E3A] dark:bg-[#161615] dark:text-[#EDEDEC] dark:hover:border-[#62605b]"
+                                                @click="closeMobileMenu"
+                                            >
+                                                <LogIn class="h-5 w-5" />
+                                                Log in
+                                            </Link>
+                                        </SheetClose>
+                                        <SheetClose v-if="canRegister" :as-child="true">
+                                            <Link
+                                                :href="register()"
+                                                class="flex items-center gap-3 rounded-xl bg-gradient-to-r from-[#f53003] to-[#F8B803] px-4 py-3.5 font-semibold text-white shadow-lg transition-all hover:shadow-xl"
+                                                @click="closeMobileMenu"
+                                            >
+                                                <UserPlus class="h-5 w-5" />
+                                                Get Started
+                                            </Link>
+                                        </SheetClose>
+                                    </div>
+
+                                    <Separator class="my-5 bg-[#19140010] dark:bg-[#3E3E3A20]" />
+
+                                    <!-- Feature highlights -->
+                                    <div class="space-y-4">
+                                        <p class="text-xs font-medium uppercase tracking-wider text-[#706f6c] dark:text-[#A1A09A]">
+                                            Why Storytime?
+                                        </p>
+                                        <div class="space-y-3">
+                                            <div class="flex items-start gap-3">
+                                                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#F0ACB8]/20">
+                                                    <span class="text-sm">📚</span>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-medium text-[#1b1b18] dark:text-[#EDEDEC]">Multiple Formats</p>
+                                                    <p class="text-xs text-[#706f6c] dark:text-[#A1A09A]">Storybooks, plays & more</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-start gap-3">
+                                                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#F8B803]/20">
+                                                    <span class="text-sm">💬</span>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-medium text-[#1b1b18] dark:text-[#EDEDEC]">Chat with Characters</p>
+                                                    <p class="text-xs text-[#706f6c] dark:text-[#A1A09A]">Bring stories to life</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-start gap-3">
+                                                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f53003]/20">
+                                                    <span class="text-sm">🛡️</span>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-medium text-[#1b1b18] dark:text-[#EDEDEC]">Safe & Secure</p>
+                                                    <p class="text-xs text-[#706f6c] dark:text-[#A1A09A]">Made for families</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Footer -->
+                            <div class="border-t border-[#19140010] p-4 dark:border-[#3E3E3A20]">
+                                <p class="text-center text-xs text-[#706f6c] dark:text-[#A1A09A]">
+                                    Made with <span class="text-[#f53003]">♥</span> for storytellers
+                                </p>
+                            </div>
+                        </SheetContent>
+                    </Sheet>
                 </div>
             </nav>
         </header>

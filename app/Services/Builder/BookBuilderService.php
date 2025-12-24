@@ -46,7 +46,7 @@ class BookBuilderService extends BuilderService
         $title = $titleResponse['completion'];
         $title = $this->stripQuotes($title);
 
-        $this->chatService->trackRequestLog($bookId, 0, $book->user_id, 'book_title', $titleResponse);
+        $this->chatService->trackRequestLog($bookId, '0', $book->user_id, 'book_title', $titleResponse, $book->profile_id);
 
         return $title;
     }
@@ -110,7 +110,7 @@ class BookBuilderService extends BuilderService
         $metaDataResponse = $this->chatService->chat();
         $metaData = json_decode($metaDataResponse['completion'], true);
 
-        $this->chatService->trackRequestLog($bookId, 0, $book->user_id, 'book_metadata', $metaDataResponse);
+        $this->chatService->trackRequestLog($bookId, '0', $book->user_id, 'book_metadata', $metaDataResponse, $book->profile_id);
 
         return [
             'title' => $this->stripQuotes($metaData['title'] ?? ''),

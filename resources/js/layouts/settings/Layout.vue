@@ -8,6 +8,7 @@ import { edit as editAppearance } from '@/routes/appearance';
 import { edit as editProfile } from '@/routes/profile';
 import { index as profilesIndex } from '@/routes/profiles';
 import { show } from '@/routes/two-factor';
+import { index as usageIndex } from '@/routes/usage';
 import { edit as editPassword } from '@/routes/user-password';
 import { status as pinStatus } from '@/actions/App/Http/Controllers/Settings/PinController';
 import { type NavItem, type AppPageProps } from '@/types';
@@ -38,6 +39,10 @@ const sidebarNavItems: NavItem[] = [
     {
         title: 'Appearance',
         href: editAppearance(),
+    },
+    {
+        title: 'Usage',
+        href: usageIndex(),
     },
 ];
 

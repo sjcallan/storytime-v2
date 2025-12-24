@@ -137,5 +137,5 @@ interface AiChatServiceInterface
      *
      * @param  array<string, mixed>  $response
      */
-    public function trackRequestLog(string $bookId, string $chapterId, string $userId, string $itemType, array $response): void;
+    public function trackRequestLog(string $bookId, string $chapterId, string $userId, string $itemType, array $response, ?string $profileId = null): void;
 }

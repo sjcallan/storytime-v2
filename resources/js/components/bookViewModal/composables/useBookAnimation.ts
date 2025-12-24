@@ -48,8 +48,20 @@ export function useBookAnimation() {
     };
 
     const calculateCoverDimensions = (): CardPosition => {
-        const coverHeight = window.innerHeight * 0.96;
-        const coverWidth = coverHeight * 0.67;
+        const maxHeight = window.innerHeight * 0.96;
+        const maxWidth = window.innerWidth * 0.96;
+        
+        // Calculate dimensions maintaining 3:4 aspect ratio (0.67 width:height for book cover)
+        // Start with height-based calculation
+        let coverHeight = maxHeight;
+        let coverWidth = coverHeight * 0.67;
+        
+        // If the calculated width exceeds the max width, constrain by width instead
+        if (coverWidth > maxWidth) {
+            coverWidth = maxWidth;
+            coverHeight = coverWidth / 0.67;
+        }
+        
         const coverTop = (window.innerHeight - coverHeight) / 2;
         const coverLeft = (window.innerWidth - coverWidth) / 2;
 

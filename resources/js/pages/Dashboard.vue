@@ -1078,10 +1078,7 @@ const formatGenreName = (genre: string) => {
 
             <!-- Main content -->
             <div class="relative z-10 flex h-full flex-1 flex-col gap-12 overflow-x-auto px-4 py-6 sm:px-6">
-            <!-- Header -->
-            <div>
-                <h1 class="text-3xl font-bold tracking-tight">My Stories</h1>
-            </div>
+
             <!-- Empty State -->
             <div
                 v-if="!hasBooks"
@@ -1107,9 +1104,6 @@ const formatGenreName = (genre: string) => {
             <div v-if="recentlyReadState.length > 0" class="space-y-4">
                 <!-- Section Header -->
                 <div class="flex items-center gap-3">
-                    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/20">
-                        <BookOpen class="h-5 w-5 text-white" />
-                    </div>
                     <div>
                         <h2 class="text-2xl font-medium tracking-tight">Jump Back In</h2>
                         <p class="text-sm text-muted-foreground">Continue where you left off</p>

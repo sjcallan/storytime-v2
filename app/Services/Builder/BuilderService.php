@@ -95,7 +95,7 @@ class BuilderService
             $this->chatService->addUserMessage('In one sentence, what prompt should I give to our image generation service to draw these characters in this scene. Exclude character names.');
             $imagePrompt = $this->chatService->chat();
 
-            $this->chatService->trackRequestLog($bookId, $chapterId, $book->user_id, 'image_prompt', $imagePrompt);
+            $this->chatService->trackRequestLog($bookId, $chapterId, $book->user_id, 'image_prompt', $imagePrompt, $book->profile_id);
 
             $prompt = $imagePrompt['completion'];
             $prompt = $this->stripQuotes($prompt);
