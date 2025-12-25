@@ -61,9 +61,20 @@ export const apiFetch = async (request, method = 'GET', data = null, isFormData 
     // Check if the response is ok (status in the range 200-299)
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
+      // Extract the most relevant error message without HTTP status prefix
+      let errorMessage = response.statusText;
+      if (errorData) {
+        // Check for validation errors (e.g., moderation)
+        if (errorData.errors && typeof errorData.errors === 'object') {
+          const firstError = Object.values(errorData.errors)[0];
+          errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      }
       return { 
         data: null, 
-        error: new Error(`HTTP error ${response.status}: ${errorData?.message || response.statusText}`) 
+        error: new Error(errorMessage) 
       };
     }
     

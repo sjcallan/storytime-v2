@@ -203,7 +203,14 @@ const handleGenerateBackground = async () => {
         }
     } catch (error: any) {
         console.error('Failed to generate background:', error);
-        generationError.value = error.response?.data?.error || 'An error occurred while generating the image.';
+        // Handle Laravel validation errors (including moderation)
+        const errorData = error.response?.data;
+        if (errorData?.errors && typeof errorData.errors === 'object') {
+            const firstError = Object.values(errorData.errors)[0];
+            generationError.value = Array.isArray(firstError) ? firstError[0] : (firstError as string);
+        } else {
+            generationError.value = errorData?.error || errorData?.message || 'An error occurred while generating the image.';
+        }
     } finally {
         isGeneratingImage.value = false;
     }

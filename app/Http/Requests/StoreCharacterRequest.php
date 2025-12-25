@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Traits\Http\ValidatesModeration;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreCharacterRequest extends FormRequest
 {
+    use ValidatesModeration;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -31,5 +34,22 @@ class StoreCharacterRequest extends FormRequest
             'nationality' => ['nullable', 'string', 'max:255'],
             'backstory' => ['nullable', 'string'],
         ];
+    }
+
+    /**
+     * @return array<string>
+     */
+    protected function moderatedFields(): array
+    {
+        return [
+            'name',
+            'description',
+            'backstory',
+        ];
+    }
+
+    protected function moderationSource(): string
+    {
+        return 'store_character';
     }
 }

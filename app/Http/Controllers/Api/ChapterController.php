@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\GenerateChapterRequest;
 use App\Http\Requests\StoreChapterRequest;
 use App\Http\Requests\UpdateChapterRequest;
 use App\Models\Book;
@@ -10,7 +11,6 @@ use App\Models\Chapter;
 use App\Services\Builder\ChapterBuilderService;
 use App\Services\Chapter\ChapterService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class ChapterController extends Controller
 {
@@ -134,13 +134,9 @@ class ChapterController extends Controller
     /**
      * Generate the next chapter for a book.
      */
-    public function generateNext(Request $request, Book $book): JsonResponse
+    public function generateNext(GenerateChapterRequest $request, Book $book): JsonResponse
     {
-
-        $validated = $request->validate([
-            'user_prompt' => 'nullable|string|max:1000',
-            'final_chapter' => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
 
         $existingChapterCount = $this->chapterService->getCompleteChapterCount($book->id);
         $userPrompt = $validated['user_prompt'] ?? null;

@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Traits\Http\ValidatesModeration;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreConversationMessageRequest extends FormRequest
 {
+    use ValidatesModeration;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -28,5 +31,18 @@ class StoreConversationMessageRequest extends FormRequest
             'audio_file_url' => ['nullable', 'string', 'max:255'],
             'character_id' => ['nullable', 'string', 'exists:characters,id'],
         ];
+    }
+
+    /**
+     * @return array<string>
+     */
+    protected function moderatedFields(): array
+    {
+        return ['message'];
+    }
+
+    protected function moderationSource(): string
+    {
+        return 'conversation_message';
     }
 }

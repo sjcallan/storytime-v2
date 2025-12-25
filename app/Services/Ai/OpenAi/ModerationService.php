@@ -1,111 +1,185 @@
 <?php
 
-namespace App\Services\Utility;
+namespace App\Services\Ai\OpenAi;
 
-use App\Services\Gpt\OpenAi\ApiService;
+use App\Models\Moderation;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Orhanerday\OpenAi\OpenAi;
 
 class ModerationService
 {
+    protected string $apiKey;
 
-    protected string $prompt;
+    protected string $baseUrl;
 
-    protected bool $flagged = false;
+    protected string $model;
 
-    protected array $categories;
+    protected ?array $lastResponse = null;
 
-    protected array $categoryScores;
+    protected ?Moderation $lastModeration = null;
 
-    /**
-     * 
-     */
-    public function __construct(protected ApiService $openAi)
+    public function __construct()
     {
-        
+        $this->apiKey = config('ai.providers.openai.api_key') ?? config('services.openai.api_key');
+        $this->baseUrl = config('ai.providers.openai.base_url') ?? 'https://api.openai.com/v1';
+        $this->model = config('ai.moderation.model', 'omni-moderation-latest');
     }
 
     /**
-     * 
+     * Check if moderation is enabled.
      */
-    public function test(string $string):array
+    public function isEnabled(): bool
     {
-        if(config('ai_moderation_enabled') == 'disabled') {
-            $this->setFlagged(false);
-            return [];
+        return config('ai.moderation.enabled', false) === true;
+    }
+
+    /**
+     * Moderate text content and record the result.
+     *
+     * @param  array<string, mixed>  $context  Optional context like user_id, profile_id, source
+     */
+    public function moderate(string $input, array $context = []): ModerationResult
+    {
+        if (! $this->isEnabled()) {
+            return new ModerationResult(
+                flagged: false,
+                categories: [],
+                categoryScores: [],
+                moderationId: null,
+                model: null,
+            );
         }
 
-        $this->setPrompt($string);
-        $response = $this->openAi->moderation($string);
+        $response = $this->callApi($input);
 
-        $this->setFlagged($response['results'][0]['flagged']);
-        $this->setCategories($response['results'][0]['categories']);
-        $this->setCategoryScores($response['results'][0]['category_scores']);
+        if (! $response) {
+            Log::warning('Moderation API call failed, allowing content by default', [
+                'input_length' => strlen($input),
+            ]);
 
-        // Log::Debug($response, ['moderation']);
+            return new ModerationResult(
+                flagged: false,
+                categories: [],
+                categoryScores: [],
+                moderationId: null,
+                model: null,
+            );
+        }
 
-        return $response['results'];
+        $this->lastResponse = $response;
+
+        $result = $response['results'][0] ?? [];
+        $flagged = $result['flagged'] ?? false;
+        $categories = $result['categories'] ?? [];
+        $categoryScores = $result['category_scores'] ?? [];
+
+        $anyFlaggedCategory = collect($categories)->contains(true);
+        $isFlagged = $flagged || $anyFlaggedCategory;
+
+        $this->lastModeration = $this->recordModeration(
+            input: $input,
+            response: $response,
+            flagged: $isFlagged,
+            categories: $categories,
+            categoryScores: $categoryScores,
+            moderationId: $response['id'] ?? null,
+            model: $response['model'] ?? $this->model,
+            context: $context,
+        );
+
+        return new ModerationResult(
+            flagged: $isFlagged,
+            categories: $categories,
+            categoryScores: $categoryScores,
+            moderationId: $response['id'] ?? null,
+            model: $response['model'] ?? $this->model,
+            moderation: $this->lastModeration,
+        );
     }
 
     /**
-     * 
+     * Call the OpenAI moderation API.
+     *
+     * @return array<string, mixed>|null
      */
-    public function setPrompt(string $string):void
+    protected function callApi(string $input): ?array
     {
-        $this->prompt = $string;
-    }
+        $url = "{$this->baseUrl}/moderations";
 
-    /**
-     * 
-     */
-    public function setFlagged(bool $flagged):void
-    {
-        $this->flagged = $flagged;
-    }
+        try {
+            $response = Http::withToken($this->apiKey)
+                ->timeout(30)
+                ->post($url, [
+                    'model' => $this->model,
+                    'input' => $input,
+                ]);
 
-    /**
-     * 
-     */
-    public function setCategories(array $categories):void
-    {
-        $this->categories = $categories;
-    }
+            if ($response->failed()) {
+                Log::error('OpenAI Moderation API failed', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
 
-    /**
-     * 
-     */
-    public function setCategoryScores(array $categoryScores):void
-    {
-        $this->categoryScores = $categoryScores;
-    }
+                return null;
+            }
 
-    /**
-     * 
-     */
-    public function getCategories()
-    {
-       return $this->categories;
-    }
+            return $response->json();
+        } catch (\Exception $e) {
+            Log::error('OpenAI Moderation API exception', [
+                'exception' => $e->getMessage(),
+            ]);
 
-    /**
-     * 
-     */
-    public function getCategoryScores()
-    {
-        return $this->categoryScores;
-    }
-
-    /**
-     * 
-     */
-    public function isFlagged(string $string)
-    {
-        $this->test($string);
-
-        if($this->flagged) {
-            return true;
+            return null;
         }
     }
 
+    /**
+     * Record the moderation result to the database.
+     *
+     * @param  array<string, mixed>  $response
+     * @param  array<string, bool>  $categories
+     * @param  array<string, float>  $categoryScores
+     * @param  array<string, mixed>  $context
+     */
+    protected function recordModeration(
+        string $input,
+        array $response,
+        bool $flagged,
+        array $categories,
+        array $categoryScores,
+        ?string $moderationId,
+        ?string $model,
+        array $context,
+    ): Moderation {
+        return Moderation::create([
+            'user_id' => $context['user_id'] ?? auth()->id(),
+            'profile_id' => $context['profile_id'] ?? session('current_profile_id'),
+            'input' => $input,
+            'response' => $response,
+            'flagged' => $flagged,
+            'categories' => $categories,
+            'category_scores' => $categoryScores,
+            'moderation_id' => $moderationId,
+            'model' => $model,
+            'source' => $context['source'] ?? null,
+        ]);
+    }
 
+    /**
+     * Get the last API response.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getLastResponse(): ?array
+    {
+        return $this->lastResponse;
+    }
+
+    /**
+     * Get the last recorded moderation.
+     */
+    public function getLastModeration(): ?Moderation
+    {
+        return $this->lastModeration;
+    }
 }

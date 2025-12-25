@@ -3,11 +3,14 @@
 namespace App\Http\Requests\Settings;
 
 use App\Models\Profile;
+use App\Traits\Http\ValidatesModeration;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class UpdateProfileRequest extends FormRequest
 {
+    use ValidatesModeration;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -44,5 +47,18 @@ class UpdateProfileRequest extends FormRequest
             'age_group.required' => 'An age group is required.',
             'age_group.in' => 'Please select a valid age group.',
         ];
+    }
+
+    /**
+     * @return array<string>
+     */
+    protected function moderatedFields(): array
+    {
+        return ['name'];
+    }
+
+    protected function moderationSource(): string
+    {
+        return 'update_profile';
     }
 }

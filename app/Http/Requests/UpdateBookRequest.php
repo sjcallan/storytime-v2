@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Traits\Http\ValidatesModeration;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateBookRequest extends FormRequest
 {
+    use ValidatesModeration;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -37,5 +40,25 @@ class UpdateBookRequest extends FormRequest
             'additional_instructions' => ['nullable', 'string'],
             'first_chapter_prompt' => ['nullable', 'string'],
         ];
+    }
+
+    /**
+     * @return array<string>
+     */
+    protected function moderatedFields(): array
+    {
+        return [
+            'title',
+            'plot',
+            'user_characters',
+            'scene',
+            'additional_instructions',
+            'first_chapter_prompt',
+        ];
+    }
+
+    protected function moderationSource(): string
+    {
+        return 'update_book';
     }
 }

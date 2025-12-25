@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Traits\Http\ValidatesModeration;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreBookRequest extends FormRequest
 {
+    use ValidatesModeration;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -62,5 +65,28 @@ class StoreBookRequest extends FormRequest
             'characters.*.age' => ['nullable', 'string', 'max:255'],
             'characters.*.backstory' => ['nullable', 'string'],
         ];
+    }
+
+    /**
+     * @return array<string>
+     */
+    protected function moderatedFields(): array
+    {
+        return [
+            'title',
+            'plot',
+            'user_characters',
+            'scene',
+            'additional_instructions',
+            'first_chapter_prompt',
+            'characters.*.name',
+            'characters.*.description',
+            'characters.*.backstory',
+        ];
+    }
+
+    protected function moderationSource(): string
+    {
+        return 'store_book';
     }
 }

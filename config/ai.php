@@ -19,6 +19,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Content Moderation
+    |--------------------------------------------------------------------------
+    |
+    | Enable content moderation for user-submitted text using OpenAI's
+    | moderation API. When enabled, all user text inputs will be checked
+    | for potentially harmful content before processing.
+    |
+    */
+
+    'moderation' => [
+        'enabled' => env('MODERATION_ENABLED', false),
+        'model' => env('MODERATION_MODEL', 'omni-moderation-latest'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | AI Providers
     |--------------------------------------------------------------------------
     |

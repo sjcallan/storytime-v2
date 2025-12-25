@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Settings\GenerateBackgroundImageRequest;
 use App\Models\Profile;
 use App\Services\Theme\BackgroundImageService;
 use Illuminate\Http\JsonResponse;
@@ -136,11 +137,9 @@ class ThemeController extends Controller
     /**
      * Generate a background image using AI.
      */
-    public function generateBackgroundImage(Request $request): JsonResponse
+    public function generateBackgroundImage(GenerateBackgroundImageRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'description' => ['required', 'string', 'min:10', 'max:500'],
-        ]);
+        $validated = $request->validated();
 
         $profile = $this->getCurrentProfile($request);
 

@@ -5,7 +5,7 @@ namespace App\Http\Requests;
 use App\Traits\Http\ValidatesModeration;
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateCharacterRequest extends FormRequest
+class GenerateChapterRequest extends FormRequest
 {
     use ValidatesModeration;
 
@@ -25,14 +25,8 @@ class UpdateCharacterRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['nullable', 'string', 'max:255'],
-            'gender' => ['nullable', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'type' => ['nullable', 'string', 'in:book,user'],
-            'age' => ['nullable', 'string', 'max:255'],
-            'book_id' => ['nullable', 'string', 'exists:books,id'],
-            'nationality' => ['nullable', 'string', 'max:255'],
-            'backstory' => ['nullable', 'string'],
+            'user_prompt' => ['nullable', 'string', 'max:2000'],
+            'final_chapter' => ['nullable', 'boolean'],
         ];
     }
 
@@ -41,15 +35,11 @@ class UpdateCharacterRequest extends FormRequest
      */
     protected function moderatedFields(): array
     {
-        return [
-            'name',
-            'description',
-            'backstory',
-        ];
+        return ['user_prompt'];
     }
 
     protected function moderationSource(): string
     {
-        return 'update_character';
+        return 'generate_chapter';
     }
 }

@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Traits\Http\ValidatesModeration;
 use Illuminate\Foundation\Http\FormRequest;
 
 class SendCharacterChatMessageRequest extends FormRequest
 {
+    use ValidatesModeration;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -37,5 +40,18 @@ class SendCharacterChatMessageRequest extends FormRequest
             'message.required' => 'Please enter a message.',
             'message.max' => 'Your message is too long. Please keep it under 5000 characters.',
         ];
+    }
+
+    /**
+     * @return array<string>
+     */
+    protected function moderatedFields(): array
+    {
+        return ['message'];
+    }
+
+    protected function moderationSource(): string
+    {
+        return 'character_chat';
     }
 }

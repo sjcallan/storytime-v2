@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\Settings;
 
 use App\Traits\Http\ValidatesModeration;
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateCharacterRequest extends FormRequest
+class GenerateBackgroundImageRequest extends FormRequest
 {
     use ValidatesModeration;
 
@@ -25,14 +25,7 @@ class UpdateCharacterRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['nullable', 'string', 'max:255'],
-            'gender' => ['nullable', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'type' => ['nullable', 'string', 'in:book,user'],
-            'age' => ['nullable', 'string', 'max:255'],
-            'book_id' => ['nullable', 'string', 'exists:books,id'],
-            'nationality' => ['nullable', 'string', 'max:255'],
-            'backstory' => ['nullable', 'string'],
+            'description' => ['required', 'string', 'min:10', 'max:500'],
         ];
     }
 
@@ -41,15 +34,11 @@ class UpdateCharacterRequest extends FormRequest
      */
     protected function moderatedFields(): array
     {
-        return [
-            'name',
-            'description',
-            'backstory',
-        ];
+        return ['description'];
     }
 
     protected function moderationSource(): string
     {
-        return 'update_character';
+        return 'generate_background_image';
     }
 }
