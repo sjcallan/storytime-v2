@@ -252,7 +252,7 @@ const closeMobileMenu = () => {
                             <span
                                 class="bg-gradient-to-r from-[#f53003] via-[#F8B803] to-[#F0ACB8] bg-clip-text text-transparent"
                             >
-                                Stories to Life
+                                Imagination to Life
                             </span>
                         </h1>
                         <p

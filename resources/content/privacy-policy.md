@@ -95,6 +95,7 @@ When you explicitly authorize us to share information with third parties.
 ### 3.2 Service Providers
 With trusted third-party vendors who assist in operating the Service, including:
 - Cloud hosting providers
+- AI model providers 
 - Payment processors
 - Analytics services
 - Customer support tools
@@ -237,11 +238,12 @@ The "Last Updated" date at the top indicates when the policy was last revised.
 
 If you have questions, concerns, or requests regarding this Privacy Policy or your personal information, please contact us:
 
-**Email:** privacy@storytime.app
+**Email:** steve@prescottandwest.com
 
 **Mailing Address:**  
-Storytime Privacy Team  
-[Your Business Address]
+Prescott & West
+201 Prescott St.
+Reading, MA 01867
 
 ---
 
@@ -249,7 +251,7 @@ Storytime Privacy Team
 
 For privacy-related inquiries, you may also contact our Data Protection Officer at:
 
-**Email:** dpo@storytime.app
+**Email:** steve@prescottandwest.com
 
 ---
 
