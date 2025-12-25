@@ -11,7 +11,8 @@ import {
     SheetTrigger,
 } from '@/components/ui/sheet';
 import { dashboard, login, register } from '@/routes';
-import { Head, Link } from '@inertiajs/vue3';
+import { select as profileSelect } from '@/routes/profiles';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { LogIn, Menu, Sparkles, UserPlus } from 'lucide-vue-next';
 import { ref, onMounted } from 'vue';
 
@@ -24,10 +25,17 @@ withDefaults(
     },
 );
 
+const page = usePage();
 const isVisible = ref(false);
 const mobileMenuOpen = ref(false);
 
 onMounted(() => {
+    // Redirect logged-in users to profile selection
+    if (page.props.auth.user) {
+        router.visit(profileSelect());
+        return;
+    }
+    
     setTimeout(() => {
         isVisible.value = true;
     }, 100);
