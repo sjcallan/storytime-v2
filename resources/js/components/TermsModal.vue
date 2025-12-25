@@ -74,42 +74,92 @@ const renderedContent = computed(() => {
 <style scoped>
 @reference "tailwindcss";
 
-/* Custom prose styles for modal content */
+/* Custom prose styles for modal content - Light mode */
 :deep(.prose h1) {
-    @apply mb-4 text-xl font-bold text-[#1b1b18] dark:text-[#EDEDEC];
+    @apply mb-4 text-xl font-bold;
+    color: #2d2d2a;
 }
 
 :deep(.prose h2) {
-    @apply mt-6 mb-3 text-lg font-semibold text-[#1b1b18] dark:text-[#EDEDEC];
+    @apply mt-6 mb-3 text-lg font-bold;
+    color: #2d2d2a;
 }
 
 :deep(.prose h3) {
-    @apply mt-4 mb-2 text-base font-semibold text-[#1b1b18] dark:text-[#EDEDEC];
+    @apply mt-4 mb-2 text-base font-semibold;
+    color: #3d3d38;
 }
 
 :deep(.prose p) {
-    @apply text-sm text-[#706f6c] leading-relaxed dark:text-[#A1A09A];
+    @apply text-sm leading-relaxed;
+    color: #4a4a45;
 }
 
 :deep(.prose strong) {
-    @apply text-[#1b1b18] dark:text-[#EDEDEC];
+    @apply font-semibold;
+    color: #2d2d2a;
 }
 
 :deep(.prose ul),
 :deep(.prose ol) {
-    @apply text-sm text-[#706f6c] dark:text-[#A1A09A];
+    @apply text-sm;
+    color: #4a4a45;
 }
 
 :deep(.prose li) {
-    @apply my-0.5;
+    @apply my-1;
 }
 
 :deep(.prose hr) {
-    @apply my-4 border-[#19140020] dark:border-[#3E3E3A];
+    @apply my-4;
+    border-color: #d0d0c8;
 }
 
 :deep(.prose a) {
-    @apply text-[#f53003] no-underline hover:text-[#F8B803] transition-colors;
+    @apply font-medium no-underline transition-colors;
+    color: #f53003;
+}
+
+:deep(.prose a:hover) {
+    color: #F8B803;
+}
+
+/* Dark mode overrides */
+:root.dark :deep(.prose h1),
+.dark :deep(.prose h1) {
+    color: #EDEDEC;
+}
+
+:root.dark :deep(.prose h2),
+.dark :deep(.prose h2) {
+    color: #EDEDEC;
+}
+
+:root.dark :deep(.prose h3),
+.dark :deep(.prose h3) {
+    color: #EDEDEC;
+}
+
+:root.dark :deep(.prose p),
+.dark :deep(.prose p) {
+    color: #B8B8B0;
+}
+
+:root.dark :deep(.prose strong),
+.dark :deep(.prose strong) {
+    color: #EDEDEC;
+}
+
+:root.dark :deep(.prose ul),
+:root.dark :deep(.prose ol),
+.dark :deep(.prose ul),
+.dark :deep(.prose ol) {
+    color: #B8B8B0;
+}
+
+:root.dark :deep(.prose hr),
+.dark :deep(.prose hr) {
+    border-color: #3E3E3A;
 }
 </style>
 
