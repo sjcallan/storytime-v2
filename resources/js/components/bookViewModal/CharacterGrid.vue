@@ -56,7 +56,7 @@ const getAvatarGradient = (characterId: string): string => {
             v-if="characters.length > 0"
             class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-amber-300 scrollbar-track-transparent p-2"
         >
-            <div class="grid grid-cols-3 gap-3 pb-4">
+            <div class="grid grid-cols-2 gap-3 pb-4">
                 <button
                     v-for="character in characters"
                     :key="character.id"

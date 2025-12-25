@@ -100,10 +100,19 @@ const formatGender = (gender: string | null): string => {
 
         <!-- Character Details (Bottom Half) -->
         <div class="flex-1 overflow-y-auto px-6 py-4 scrollbar-thin scrollbar-thumb-amber-300 scrollbar-track-transparent">
-            <!-- Name -->
-            <h2 class="font-serif text-2xl md:text-3xl font-bold text-amber-950 dark:text-amber-900 tracking-tight mb-3">
-                {{ character.name }}
-            </h2>
+            <!-- Name and Chat Button Row -->
+            <div class="flex items-center justify-between gap-3 mb-3">
+                <h2 class="font-serif text-2xl md:text-3xl font-bold text-amber-950 dark:text-amber-900 tracking-tight">
+                    {{ character.name }}
+                </h2>
+                <button
+                    @click="openChat"
+                    class="shrink-0 flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 text-sm font-medium text-white shadow-md transition-all hover:from-amber-600 hover:to-orange-600 hover:shadow-lg active:scale-[0.98]"
+                >
+                    <MessageCircle class="h-4 w-4" />
+                    <span>Chat</span>
+                </button>
+            </div>
 
             <!-- Quick Info Tags -->
             <div class="flex flex-wrap gap-2 mb-4">
@@ -162,16 +171,6 @@ const formatGender = (gender: string | null): string => {
                 </p>
             </div>
 
-            <!-- Chat Button -->
-            <div class="mt-6 pt-4 border-t border-amber-200/50 dark:border-amber-700/30">
-                <button
-                    @click="openChat"
-                    class="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 font-medium text-white shadow-md transition-all hover:from-amber-600 hover:to-orange-600 hover:shadow-lg active:scale-[0.98]"
-                >
-                    <MessageCircle class="h-5 w-5" />
-                    <span>Chat with {{ character.name }}</span>
-                </button>
-            </div>
         </div>
     </div>
 
