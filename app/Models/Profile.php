@@ -30,6 +30,7 @@ class Profile extends Model
         'user_id',
         'name',
         'profile_image_path',
+        'profile_image_prompt',
         'age_group',
         'is_default',
         'themes',

@@ -7,6 +7,7 @@ use App\Http\Requests\Settings\ProfileImageRequest;
 use App\Http\Requests\Settings\StoreProfileRequest;
 use App\Http\Requests\Settings\UpdateProfileRequest;
 use App\Models\Profile;
+use App\Services\Profile\ProfileImageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,6 +17,10 @@ use Inertia\Response;
 
 class ProfilesController extends Controller
 {
+    public function __construct(
+        protected ProfileImageService $profileImageService
+    ) {}
+
     /**
      * Display the profile selection page.
      */
@@ -179,6 +184,44 @@ class ProfilesController extends Controller
         }
 
         return back()->with('status', 'profile-switched');
+    }
+
+    /**
+     * Generate an AI profile image.
+     */
+    public function generateImage(Request $request, Profile $profile): JsonResponse
+    {
+        if ($profile->user_id !== $request->user()->id) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'description' => ['required', 'string', 'min:10', 'max:500'],
+        ]);
+
+        $result = $this->profileImageService->generateProfileImage($validated['description']);
+
+        if ($result['error'] !== null) {
+            return response()->json([
+                'success' => false,
+                'error' => $result['error'],
+            ], 422);
+        }
+
+        if ($profile->profile_image_path) {
+            Storage::disk('public')->delete($profile->profile_image_path);
+        }
+
+        $relativePath = str_replace(Storage::disk('public')->url(''), '', $result['url']);
+        $profile->forceFill([
+            'profile_image_path' => $relativePath,
+            'profile_image_prompt' => $validated['description'],
+        ])->save();
+
+        return response()->json([
+            'success' => true,
+            'avatar' => $result['url'],
+        ]);
     }
 
     /**

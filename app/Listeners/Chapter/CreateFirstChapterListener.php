@@ -18,6 +18,7 @@ class CreateFirstChapterListener
     public function handle(object $event): void
     {
         $book = $event->book;
+        $originalBook = $book->getOriginal();
 
         if (! $book instanceof Book) {
             return;
@@ -25,7 +26,7 @@ class CreateFirstChapterListener
 
         // Only create chapter when book status changes to 'in_progress'
         // This ensures all character edits are complete (step 4 finished)
-        if ($book->status !== 'in_progress') {
+        if (! array_key_exists('status', $originalBook) || ! $book->status || $originalBook['status'] === $book->status || $book->status !== 'in_progress') {
             return;
         }
 

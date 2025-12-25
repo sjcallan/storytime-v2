@@ -26,14 +26,22 @@ import { useInitials } from '@/composables/useInitials';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { Form, Head, router } from '@inertiajs/vue3';
-import { Camera, Loader2, Plus, Star, Trash2, UserCircle } from 'lucide-vue-next';
+import { Textarea } from '@/components/ui/textarea';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { Camera, ExternalLink, Image, Loader2, Pencil, Plus, Sparkles, Star, Trash2, Upload, UserCircle, Wand2 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
+import axios from 'axios';
 
 interface Profile {
     id: string;
     name: string;
     avatar: string | null;
     profile_image_path: string | null;
+    profile_image_prompt: string | null;
     age_group: string;
     age_group_label: string;
     is_default: boolean;
@@ -75,6 +83,22 @@ const isUpdating = ref(false);
 const isDeleting = ref(false);
 const isSettingDefault = ref(false);
 
+// Edit modal image state
+const editPhotoInput = ref<HTMLInputElement | null>(null);
+const editImageDescription = ref('');
+const isGeneratingImage = ref(false);
+const generationError = ref<string | null>(null);
+
+// Example prompts for AI profile images
+const examplePrompts = [
+    'A brave young adventurer with flowing hair and determined eyes',
+    'A wise elder with kind eyes and silver hair',
+    'A playful child with freckles and a big smile',
+    'A mysterious figure with a hood and glowing eyes',
+    'A nature-loving character surrounded by leaves and flowers',
+    'A tech-savvy hero with futuristic gear',
+];
+
 const ageGroupOptions = computed(() => {
     return Object.entries(props.ageGroups).map(([value, data]) => ({
         value,
@@ -94,7 +118,9 @@ const openEditDialog = (profile: Profile) => {
     selectedProfile.value = profile;
     editProfileName.value = profile.name;
     editProfileAgeGroup.value = profile.age_group;
+    editImageDescription.value = profile.profile_image_prompt || '';
     editErrors.value = {};
+    generationError.value = null;
     isEditDialogOpen.value = true;
 };
 
@@ -243,6 +269,111 @@ const deletePhoto = (profile: Profile) => {
 const getAgeGroupEmoji = (ageGroup: string): string => {
     return props.ageGroups[ageGroup]?.emoji || '👤';
 };
+
+const selectEditPhoto = () => {
+    editPhotoInput.value?.click();
+};
+
+const handleEditPhotoChange = () => {
+    const photo = editPhotoInput.value?.files?.[0];
+    if (!photo || !selectedProfile.value) return;
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(photo.type)) {
+        generationError.value = 'Please select a JPG, PNG, GIF, or WebP image.';
+        return;
+    }
+
+    if (photo.size > 2 * 1024 * 1024) {
+        generationError.value = 'The photo must not be larger than 2MB.';
+        return;
+    }
+
+    uploadingPhoto.value = true;
+    generationError.value = null;
+
+    const formData = new FormData();
+    formData.append('image', photo);
+
+    router.post(ProfilesController.updateImage.url(selectedProfile.value.id), formData, {
+        preserveScroll: true,
+        onSuccess: (page: any) => {
+            // Sync selectedProfile with updated profiles from server
+            const updatedProfile = page.props.profiles?.find((p: Profile) => p.id === selectedProfile.value?.id);
+            if (updatedProfile && selectedProfile.value) {
+                selectedProfile.value.avatar = updatedProfile.avatar;
+                selectedProfile.value.profile_image_path = updatedProfile.profile_image_path;
+            }
+        },
+        onError: (errors) => {
+            generationError.value = errors.image || 'Failed to upload photo.';
+        },
+        onFinish: () => {
+            uploadingPhoto.value = false;
+            if (editPhotoInput.value) {
+                editPhotoInput.value.value = '';
+            }
+        },
+    });
+};
+
+const handleGenerateImage = async () => {
+    if (!selectedProfile.value || editImageDescription.value.length < 10) {
+        generationError.value = 'Please provide a description of at least 10 characters.';
+        return;
+    }
+
+    isGeneratingImage.value = true;
+    generationError.value = null;
+
+    try {
+        const response = await axios.post(
+            ProfilesController.generateImage.url(selectedProfile.value.id),
+            { description: editImageDescription.value }
+        );
+
+        if (response.data.success) {
+            // Update selectedProfile reactively for the modal
+            selectedProfile.value.avatar = response.data.avatar;
+            selectedProfile.value.profile_image_prompt = editImageDescription.value;
+            
+            // Update the profile in the profiles list for the grid
+            const profileIndex = props.profiles.findIndex(p => p.id === selectedProfile.value?.id);
+            if (profileIndex !== -1) {
+                props.profiles[profileIndex].avatar = response.data.avatar;
+                props.profiles[profileIndex].profile_image_prompt = editImageDescription.value;
+            }
+        } else {
+            generationError.value = response.data.error || 'Failed to generate image.';
+        }
+    } catch (error: any) {
+        console.error('Failed to generate profile image:', error);
+        generationError.value = error.response?.data?.error || 'An error occurred while generating the image.';
+    } finally {
+        isGeneratingImage.value = false;
+    }
+};
+
+const handleRemoveEditPhoto = () => {
+    if (!selectedProfile.value) return;
+    
+    router.delete(ProfilesController.destroyImage.url(selectedProfile.value.id), {
+        preserveScroll: true,
+        onSuccess: (page: any) => {
+            // Sync selectedProfile with updated profiles from server
+            const updatedProfile = page.props.profiles?.find((p: Profile) => p.id === selectedProfile.value?.id);
+            if (updatedProfile && selectedProfile.value) {
+                selectedProfile.value.avatar = updatedProfile.avatar;
+                selectedProfile.value.profile_image_path = updatedProfile.profile_image_path;
+                selectedProfile.value.profile_image_prompt = updatedProfile.profile_image_prompt;
+            }
+        },
+    });
+};
+
+const useExamplePrompt = (prompt: string) => {
+    editImageDescription.value = prompt;
+};
 </script>
 
 <template>
@@ -289,21 +420,19 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
                                         :alt="profile.name"
                                         class="object-cover"
                                     />
-                                    <AvatarFallback class="text-lg font-medium bg-gradient-to-br from-violet-500 to-purple-600 text-white">
+                                    <AvatarFallback class="text-lg font-medium bg-linear-to-br from-violet-500 to-purple-600 text-white">
                                         {{ getInitials(profile.name) }}
                                     </AvatarFallback>
                                 </Avatar>
 
-                                <!-- Photo upload overlay -->
+                                <!-- Edit profile overlay -->
                                 <button
                                     type="button"
-                                    @click="selectNewPhoto(profile)"
-                                    :disabled="uploadingPhoto"
-                                    class="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    aria-label="Change profile photo"
+                                    @click="openEditDialog(profile)"
+                                    class="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                                    aria-label="Edit profile"
                                 >
-                                    <Loader2 v-if="uploadingPhoto && selectedProfile?.id === profile.id" class="h-5 w-5 animate-spin text-white" />
-                                    <Camera v-else class="h-5 w-5 text-white" />
+                                    <Pencil class="h-5 w-5 text-white" />
                                 </button>
                             </div>
 
@@ -325,6 +454,7 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
                                     <Button
                                         variant="outline"
                                         size="sm"
+                                        class="cursor-pointer"
                                         @click="openEditDialog(profile)"
                                     >
                                         Edit
@@ -333,6 +463,7 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
                                         v-if="!profile.is_default"
                                         variant="outline"
                                         size="sm"
+                                        class="cursor-pointer"
                                         @click="setDefaultProfile(profile)"
                                         :disabled="isSettingDefault"
                                     >
@@ -343,7 +474,7 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
                                         v-if="profile.avatar"
                                         variant="ghost"
                                         size="sm"
-                                        class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                        class="text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
                                         @click="deletePhoto(profile)"
                                     >
                                         Remove Photo
@@ -352,7 +483,7 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
                                         v-if="!profile.is_default"
                                         variant="ghost"
                                         size="sm"
-                                        class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                        class="text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
                                         @click="openDeleteDialog(profile)"
                                     >
                                         <Trash2 class="h-4 w-4" />
@@ -438,15 +569,28 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
 
             <!-- Edit Profile Dialog -->
             <Dialog v-model:open="isEditDialogOpen">
-                <DialogContent class="sm:max-w-md">
+                <DialogContent class="sm:max-w-lg max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>Edit Profile</DialogTitle>
+                        <DialogTitle class="flex items-center gap-2">
+                            <UserCircle class="h-5 w-5 text-violet-500" />
+                            Edit Profile
+                        </DialogTitle>
                         <DialogDescription>
-                            Update the profile name and age group settings
+                            Update the profile name, age group, and profile image
                         </DialogDescription>
                     </DialogHeader>
 
+                    <!-- Hidden file input for photo upload -->
+                    <input
+                        ref="editPhotoInput"
+                        type="file"
+                        class="hidden"
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                        @change="handleEditPhotoChange"
+                    />
+
                     <div class="space-y-4 py-4">
+                        <!-- Profile Name -->
                         <div class="space-y-2">
                             <Label for="edit-name">Profile Name</Label>
                             <Input
@@ -458,6 +602,7 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
                             <InputError :message="editErrors.name" />
                         </div>
 
+                        <!-- Age Group -->
                         <div class="space-y-2">
                             <Label for="edit-age-group">Age Group</Label>
                             <Select v-model="editProfileAgeGroup">
@@ -476,6 +621,128 @@ const getAgeGroupEmoji = (ageGroup: string): string => {
                             </Select>
                             <InputError :message="editErrors.age_group" />
                         </div>
+
+                        <!-- Profile Image Section -->
+                        <Collapsible class="space-y-2" :default-open="!!selectedProfile?.avatar">
+                            <CollapsibleTrigger class="flex w-full items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm font-medium hover:bg-muted/50 transition-colors">
+                                <div class="flex items-center gap-2">
+                                    <Image class="h-4 w-4 text-violet-500" />
+                                    Profile Image
+                                    <span v-if="selectedProfile?.avatar" class="text-xs text-muted-foreground">(Active)</span>
+                                </div>
+                                <span class="text-xs text-muted-foreground">Click to expand</span>
+                            </CollapsibleTrigger>
+                            
+                            <CollapsibleContent class="space-y-4 pt-2">
+                                <!-- Current Profile Image Preview -->
+                                <div class="flex items-center gap-4">
+                                    <a
+                                        v-if="selectedProfile?.avatar"
+                                        :href="selectedProfile.avatar"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="relative block cursor-pointer group"
+                                        title="Click to view full image"
+                                    >
+                                        <Avatar class="h-20 w-20 rounded-full ring-2 ring-border transition-all group-hover:ring-violet-500 group-hover:ring-offset-2">
+                                            <AvatarImage
+                                                :src="selectedProfile.avatar"
+                                                :alt="selectedProfile?.name"
+                                                class="object-cover"
+                                            />
+                                        </Avatar>
+                                        <div class="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                                            <ExternalLink class="h-5 w-5 text-white" />
+                                        </div>
+                                    </a>
+                                    <div v-else class="relative">
+                                        <Avatar class="h-20 w-20 rounded-full ring-2 ring-border">
+                                            <AvatarFallback class="text-xl font-medium bg-linear-to-br from-violet-500 to-purple-600 text-white">
+                                                {{ getInitials(selectedProfile?.name || '') }}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                    </div>
+                                    <div class="flex flex-col gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            @click="selectEditPhoto"
+                                            :disabled="uploadingPhoto || isGeneratingImage"
+                                        >
+                                            <Upload v-if="!uploadingPhoto" class="mr-2 h-4 w-4" />
+                                            <Loader2 v-else class="mr-2 h-4 w-4 animate-spin" />
+                                            Upload Photo
+                                        </Button>
+                                        <Button
+                                            v-if="selectedProfile?.avatar"
+                                            variant="ghost"
+                                            size="sm"
+                                            class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                            @click="handleRemoveEditPhoto"
+                                            :disabled="uploadingPhoto || isGeneratingImage"
+                                        >
+                                            <Trash2 class="mr-2 h-4 w-4" />
+                                            Remove
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <!-- AI Image Generation -->
+                                <div class="space-y-3 rounded-lg border border-dashed border-violet-300/50 bg-violet-50/30 dark:bg-violet-950/20 p-3">
+                                    <div class="flex items-center gap-2 text-sm font-medium">
+                                        <Sparkles class="h-4 w-4 text-violet-500" />
+                                        Generate with AI
+                                        <Badge variant="secondary" class="text-xs">Graphic Novel Style</Badge>
+                                    </div>
+                                    
+                                    <div class="space-y-2">
+                                        <Label for="edit-image-description" class="text-xs text-muted-foreground">
+                                            Describe your character
+                                        </Label>
+                                        <Textarea
+                                            id="edit-image-description"
+                                            v-model="editImageDescription"
+                                            placeholder="e.g., A brave young adventurer with flowing hair and determined eyes..."
+                                            rows="2"
+                                            class="resize-none text-sm"
+                                            :disabled="isGeneratingImage"
+                                        />
+                                    </div>
+
+                                    <!-- Example Prompts -->
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <button
+                                            v-for="(prompt, index) in examplePrompts.slice(0, 3)"
+                                            :key="index"
+                                            class="text-xs px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors truncate max-w-[140px]"
+                                            @click="useExamplePrompt(prompt)"
+                                            :disabled="isGeneratingImage"
+                                            :title="prompt"
+                                        >
+                                            {{ prompt.slice(0, 25) }}...
+                                        </button>
+                                    </div>
+
+                                    <!-- Generate Button -->
+                                    <Button
+                                        @click="handleGenerateImage"
+                                        :disabled="editImageDescription.length < 10 || isGeneratingImage"
+                                        variant="outline"
+                                        size="sm"
+                                        class="w-full border-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/30"
+                                    >
+                                        <Wand2 v-if="!isGeneratingImage" class="h-4 w-4 mr-2 text-violet-500" />
+                                        <Loader2 v-else class="h-4 w-4 mr-2 animate-spin" />
+                                        {{ isGeneratingImage ? 'Generating... (30-60s)' : 'Generate Avatar' }}
+                                    </Button>
+                                </div>
+
+                                <!-- Error Message -->
+                                <div v-if="generationError" class="rounded-lg bg-destructive/10 p-2 text-xs text-destructive">
+                                    {{ generationError }}
+                                </div>
+                            </CollapsibleContent>
+                        </Collapsible>
                     </div>
 
                     <DialogFooter>

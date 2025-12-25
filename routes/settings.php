@@ -52,6 +52,7 @@ Route::middleware('auth')->group(function () {
     Route::post('settings/profiles/{profile}/default', [ProfilesController::class, 'setDefault'])->name('profiles.set-default');
     Route::post('settings/profiles/{profile}/image', [ProfilesController::class, 'updateImage'])->name('profiles.image.update');
     Route::delete('settings/profiles/{profile}/image', [ProfilesController::class, 'destroyImage'])->name('profiles.image.destroy');
+    Route::post('settings/profiles/{profile}/generate-image', [ProfilesController::class, 'generateImage'])->name('profiles.image.generate');
     Route::post('profiles/{profile}/switch', [ProfilesController::class, 'switchProfile'])->name('profiles.switch');
 
     // Theme customization routes
