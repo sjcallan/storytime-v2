@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCharacterRequest;
 use App\Http\Requests\UpdateCharacterRequest;
+use App\Jobs\Character\CreateCharacterPortraitJob;
 use App\Models\Character;
 use Illuminate\Http\JsonResponse;
 
@@ -75,5 +76,22 @@ class CharacterController extends Controller
         $character->delete();
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Regenerate the character's portrait image.
+     */
+    public function regeneratePortrait(Character $character): JsonResponse
+    {
+        $this->authorize('update', $character);
+
+        $character->update(['portrait_image' => null]);
+
+        CreateCharacterPortraitJob::dispatch($character)->onQueue('images');
+
+        return response()->json([
+            'message' => 'Portrait regeneration started',
+            'id' => $character->id,
+        ]);
     }
 }

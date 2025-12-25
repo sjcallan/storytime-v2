@@ -153,6 +153,7 @@ export interface PageContentItem {
     content: string;
     imageUrl?: string | null;
     imageStatus?: 'pending' | 'complete';
+    imageIndex?: number;
 }
 
 export interface PageSpread {

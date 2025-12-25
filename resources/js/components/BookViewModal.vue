@@ -736,6 +736,50 @@ const handleRegenerateCover = async () => {
     // On success, the websocket will update the cover_image when complete
 };
 
+// Inline image regeneration handler
+const handleRegenerateImage = async (item: { imageIndex?: number }, chapterId: string) => {
+    if (!props.bookId || !book.value || item.imageIndex === undefined) {
+        return;
+    }
+    
+    // Optimistically update the image status to pending via the composable
+    chapters.updateImageStatus(chapterId, item.imageIndex, 'pending');
+    
+    const { error } = await requestApiFetch(
+        `/api/books/${props.bookId}/chapters/${chapterId}/regenerate-image`, 
+        'POST',
+        { image_index: item.imageIndex }
+    );
+    
+    if (error) {
+        // Reset status on error
+        chapters.updateImageStatus(chapterId, item.imageIndex, 'error');
+        actionError.value = 'Failed to start image generation. Please try again.';
+    }
+    // On success, the websocket will update the image when complete
+};
+
+// Character update handler
+const handleCharacterUpdated = (updatedCharacter: Character) => {
+    if (!book.value) {
+        return;
+    }
+    
+    // Update the character in the book's characters array
+    const characterIndex = book.value.characters?.findIndex(c => c.id === updatedCharacter.id);
+    if (characterIndex !== undefined && characterIndex >= 0 && book.value.characters) {
+        book.value.characters[characterIndex] = updatedCharacter;
+    }
+    
+    // Update selected character if it's the same one
+    if (selectedCharacter.value?.id === updatedCharacter.id) {
+        selectedCharacter.value = updatedCharacter;
+    }
+    
+    // Emit the update to the parent (Dashboard) so it can update its book list
+    emit('updated', book.value);
+};
+
 // Table of Contents handlers
 const completedChapters = computed((): ChapterSummary[] => {
     if (!book.value?.chapters) {
@@ -1033,6 +1077,7 @@ onBeforeUnmount(() => {
                             @generate-chapter="handleGenerateChapter"
                             @textarea-focused="isTextareaFocused = $event"
                             @request-idea="handleRequestIdea"
+                            @regenerate-image="(item, chapterId) => handleRegenerateImage(item, chapterId)"
                         />
 
                         <!-- Book Spine (hidden in single-page mode) -->
@@ -1087,7 +1132,9 @@ onBeforeUnmount(() => {
                             @clear-selected-character="handleClearSelectedCharacter"
                             @textarea-focused="isTextareaFocused = $event"
                             @regenerate-cover="handleRegenerateCover"
+                            @regenerate-image="(item, chapterId) => handleRegenerateImage(item, chapterId)"
                             @request-idea="handleRequestIdea"
+                            @character-updated="handleCharacterUpdated"
                         />
 
                         <!-- Right Edge Click Zone (Go Forward / Start Reading) -->

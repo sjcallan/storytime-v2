@@ -105,6 +105,7 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
                     content: imageForParagraph.prompt,
                     imageUrl: imageForParagraph.url,
                     imageStatus: isPending ? 'pending' : 'complete',
+                    imageIndex: imageForParagraph.paragraph_index,
                 });
             }
         }
@@ -566,6 +567,42 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         }
     };
 
+    const updateImageStatus = (chapterId: string, imageIndex: number, status: 'pending' | 'complete' | 'error'): void => {
+        // Helper to update inline images array with new status
+        const updateInlineImages = (chapter: Chapter): Chapter => {
+            if (!chapter.inline_images) {
+                return chapter;
+            }
+            
+            const updatedImages = chapter.inline_images.map(img => {
+                if (img.paragraph_index === imageIndex) {
+                    return {
+                        ...img,
+                        status: status === 'error' ? 'complete' : status,
+                        // Clear URL if pending to show loading state
+                        url: status === 'pending' ? null : img.url,
+                    };
+                }
+                return img;
+            });
+            
+            return {
+                ...chapter,
+                inline_images: updatedImages,
+            };
+        };
+        
+        // Update current chapter if it matches
+        if (currentChapter.value && currentChapter.value.id === chapterId) {
+            currentChapter.value = updateInlineImages(currentChapter.value);
+        }
+        
+        // Update next chapter data if it matches
+        if (nextChapterData.value && nextChapterData.value.id === chapterId) {
+            nextChapterData.value = updateInlineImages(nextChapterData.value);
+        }
+    };
+
     // Handle chapter created event from broadcast
     const handleChapterCreated = (payload: ChapterCreatedPayload): void => {
         // A chapter was created - track it as pending if it doesn't have 'complete' status
@@ -782,6 +819,7 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         jumpToChapter,
         resetChapterState,
         updateChapterInlineImages,
+        updateImageStatus,
         handleChapterCreated,
         handleChapterUpdated,
         setAwaitingChapterGeneration,

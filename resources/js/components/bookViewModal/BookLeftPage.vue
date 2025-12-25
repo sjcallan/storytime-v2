@@ -4,8 +4,8 @@ import BookPageTexture from './BookPageTexture.vue';
 import BookPageDecorative from './BookPageDecorative.vue';
 import CharacterGrid from './CharacterGrid.vue';
 import CreateChapterForm from './CreateChapterForm.vue';
-import { BookOpen, ImageIcon, Sparkles } from 'lucide-vue-next';
-import type { Chapter, PageSpread, ReadingView, Character, BookType } from './types';
+import { BookOpen, ImageIcon, Sparkles, RefreshCw } from 'lucide-vue-next';
+import type { Chapter, PageSpread, ReadingView, Character, BookType, PageContentItem } from './types';
 import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
 
 interface Props {
@@ -37,6 +37,7 @@ const emit = defineEmits<{
     (e: 'generateChapter'): void;
     (e: 'textareaFocused', value: boolean): void;
     (e: 'requestIdea'): void;
+    (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
 }>();
 
 // Calculate left page number
@@ -131,7 +132,7 @@ const isValidImageUrl = (url: string | null | undefined): boolean => {
                                     class="mb-5 font-serif text-lg leading-relaxed"
                                     v-html="formatContent(item.content)"
                                 />
-                                <figure v-else-if="item.type === 'image'" class="my-6">
+                                <figure v-else-if="item.type === 'image'" class="group/image my-6 relative">
                                     <!-- Pending image placeholder (when generating or no valid URL) -->
                                     <div 
                                         v-if="item.imageStatus === 'pending' || !item.imageUrl || !isValidImageUrl(item.imageUrl)"
@@ -157,13 +158,23 @@ const isValidImageUrl = (url: string | null | undefined): boolean => {
                                         </div>
                                     </div>
                                     <!-- Loaded image (only when we have a valid URL) -->
-                                    <img
-                                        v-else
-                                        :src="item.imageUrl!"
-                                        :alt="'Chapter illustration'"
-                                        class="w-full h-auto rounded-lg shadow-md object-cover aspect-video"
-                                        loading="lazy"
-                                    />
+                                    <template v-else>
+                                        <img
+                                            :src="item.imageUrl!"
+                                            :alt="'Chapter illustration'"
+                                            class="w-full h-auto rounded-lg shadow-md object-cover aspect-video"
+                                            loading="lazy"
+                                        />
+                                        <!-- Regenerate Image Button -->
+                                        <button
+                                            @click.stop="emit('regenerateImage', item, chapter!.id)"
+                                            class="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/image:opacity-100 cursor-pointer"
+                                            title="Generate new illustration"
+                                        >
+                                            <RefreshCw class="h-3.5 w-3.5" />
+                                            <span>New image</span>
+                                        </button>
+                                    </template>
                                 </figure>
                             </template>
                         </div>

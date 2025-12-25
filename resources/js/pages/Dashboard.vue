@@ -144,20 +144,25 @@ const recentlyReadState = ref<RecentlyReadBook[]>([...recentlyRead.value]);
 
 const favoritesState = ref<FavoriteBook[]>([...favorites.value]);
 
-watch(booksByGenre, (newValue) => {
-    booksByGenreState.value = cloneBooksByGenre(newValue);
-    nextTick(() => updateAllScrollStates());
-});
+// Watch for profile switches - when props change significantly, reset all state and subscriptions
+watch(
+    [booksByGenre, recentlyRead, favorites],
+    ([newBooksByGenre, newRecentlyRead, newFavorites]) => {
+        // Clean up all existing Echo subscriptions (from previous profile)
+        cleanupAllSubscriptions();
 
-watch(recentlyRead, (newValue) => {
-    recentlyReadState.value = [...newValue];
-    nextTick(() => updateAllScrollStates());
-});
+        // Reset state from the new props
+        booksByGenreState.value = cloneBooksByGenre(newBooksByGenre);
+        recentlyReadState.value = [...newRecentlyRead];
+        favoritesState.value = [...newFavorites];
 
-watch(favorites, (newValue) => {
-    favoritesState.value = [...newValue];
-    nextTick(() => updateAllScrollStates());
-});
+        // Re-subscribe to Echo channels for the new profile's books
+        subscribeToAllBooks();
+        subscribeToUserBooksChannel();
+
+        nextTick(() => updateAllScrollStates());
+    },
+);
 
 const hasBooks = computed(() =>
     Object.values(booksByGenreState.value).some((list) => list.length > 0),

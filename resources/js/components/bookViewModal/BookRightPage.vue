@@ -61,7 +61,9 @@ const emit = defineEmits<{
     (e: 'goBack'): void;
     (e: 'clearSelectedCharacter'): void;
     (e: 'regenerateCover'): void;
+    (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
     (e: 'requestIdea'): void;
+    (e: 'characterUpdated', character: Character): void;
 }>();
 
 // Show create form on right when in create-chapter view and chapter ended on left
@@ -130,7 +132,9 @@ const showInlineCreateForm = computed(() => {
             v-else-if="readingView === 'title' && selectedCharacter"
             :character="selectedCharacter"
             :is-single-page-mode="isSinglePageMode"
+            :book-id="book?.id"
             @back="emit('clearSelectedCharacter')"
+            @character-updated="(character) => emit('characterUpdated', character)"
         />
 
         <!-- Title Page View -->
@@ -178,6 +182,7 @@ const showInlineCreateForm = computed(() => {
                 :spread="spread"
                 :spread-index="spreadIndex"
                 :book-type="bookType"
+                @regenerate-image="(item, chapterId) => emit('regenerateImage', item, chapterId)"
             />
         </template>
 

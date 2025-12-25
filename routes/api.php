@@ -62,4 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('characters/{character}/chat', [CharacterChatController::class, 'getOrCreateConversation'])->name('api.characters.chat.conversation');
     Route::post('conversations/{conversation}/chat', [CharacterChatController::class, 'sendMessage'])->name('api.conversations.chat.send');
     Route::get('conversations/{conversation}/history', [CharacterChatController::class, 'getHistory'])->name('api.conversations.chat.history');
+
+    // Character portrait regeneration
+    Route::post('characters/{character}/regenerate-portrait', [CharacterController::class, 'regeneratePortrait'])->name('api.characters.regenerate-portrait');
 });
