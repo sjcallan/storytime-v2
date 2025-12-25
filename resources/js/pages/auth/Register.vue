@@ -3,7 +3,6 @@ import InputError from '@/components/InputError.vue';
 import TermsModal from '@/components/TermsModal.vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -103,15 +102,16 @@ const openTermsModal = () => {
                 <!-- Terms Checkbox -->
                 <div class="grid gap-2">
                     <div class="flex items-start gap-3">
-                        <Checkbox
+                        <input
                             id="terms"
+                            type="checkbox"
                             name="terms"
+                            value="1"
                             :tabindex="5"
                             :checked="termsAccepted"
-                            class="mt-1 data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#f53003] data-[state=checked]:to-[#F8B803] data-[state=checked]:border-[#f53003]"
-                            @update:checked="termsAccepted = $event"
+                            class="mt-1.5 h-4 w-4 shrink-0 rounded border border-[#19140020] dark:border-[#3E3E3A] text-[#f53003] focus:ring-[#f53003]/20 focus:ring-2 cursor-pointer accent-[#f53003]"
+                            @change="termsAccepted = ($event.target as HTMLInputElement).checked"
                         />
-                        <input type="hidden" name="terms" :value="termsAccepted ? '1' : ''" />
                         <div class="flex-1">
                             <Label
                                 for="terms"
