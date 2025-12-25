@@ -10,7 +10,7 @@ import {
     SheetTitle,
     SheetTrigger,
 } from '@/components/ui/sheet';
-import { dashboard, login, register } from '@/routes';
+import { dashboard, login, privacy, register, terms } from '@/routes';
 import { select as profileSelect } from '@/routes/profiles';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { LogIn, Menu, Sparkles, UserPlus } from 'lucide-vue-next';
@@ -633,14 +633,29 @@ const closeMobileMenu = () => {
         <footer
             class="border-t border-[#19140020] px-6 py-12 dark:border-[#3E3E3A]"
         >
-            <div
-                class="mx-auto max-w-7xl text-center text-sm text-[#706f6c] dark:text-[#A1A09A]"
-            >
-                <p>
-                    &copy; 2025 Storytime. Made with
-                    <span class="text-[#f53003]">♥</span> for young
-                    storytellers everywhere.
-                </p>
+            <div class="mx-auto max-w-7xl">
+                <div class="flex flex-col items-center gap-4">
+                    <div class="flex items-center gap-6">
+                        <Link
+                            :href="terms()"
+                            class="text-sm text-[#706f6c] transition-colors hover:text-[#f53003] dark:text-[#A1A09A] dark:hover:text-[#F8B803]"
+                        >
+                            Terms of Use
+                        </Link>
+                        <span class="text-[#19140020] dark:text-[#3E3E3A]">•</span>
+                        <Link
+                            :href="privacy()"
+                            class="text-sm text-[#706f6c] transition-colors hover:text-[#f53003] dark:text-[#A1A09A] dark:hover:text-[#F8B803]"
+                        >
+                            Privacy Policy
+                        </Link>
+                    </div>
+                    <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">
+                        &copy; 2025 Storytime. Made with
+                        <span class="text-[#f53003]">♥</span> for young
+                        storytellers everywhere.
+                    </p>
+                </div>
             </div>
         </footer>
     </div>

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
+import TermsModal from '@/components/TermsModal.vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -9,6 +11,18 @@ import AuthBase from '@/layouts/AuthLayout.vue';
 import { login } from '@/routes';
 import { store } from '@/routes/register';
 import { Form, Head } from '@inertiajs/vue3';
+import { ref } from 'vue';
+
+defineProps<{
+    termsContent: string;
+}>();
+
+const termsAccepted = ref(false);
+const termsModalOpen = ref(false);
+
+const openTermsModal = () => {
+    termsModalOpen.value = true;
+};
 </script>
 
 <template>
@@ -86,10 +100,41 @@ import { Form, Head } from '@inertiajs/vue3';
                     <InputError :message="errors.password_confirmation" />
                 </div>
 
+                <!-- Terms Checkbox -->
+                <div class="grid gap-2">
+                    <div class="flex items-start gap-3">
+                        <Checkbox
+                            id="terms"
+                            name="terms"
+                            :tabindex="5"
+                            :checked="termsAccepted"
+                            class="mt-1 data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#f53003] data-[state=checked]:to-[#F8B803] data-[state=checked]:border-[#f53003]"
+                            @update:checked="termsAccepted = $event"
+                        />
+                        <input type="hidden" name="terms" :value="termsAccepted ? '1' : ''" />
+                        <div class="flex-1">
+                            <Label
+                                for="terms"
+                                class="text-sm leading-relaxed text-[#706f6c] dark:text-[#A1A09A] cursor-pointer"
+                            >
+                                I agree to the
+                                <button
+                                    type="button"
+                                    class="text-[#f53003] hover:text-[#F8B803] font-medium transition-colors underline underline-offset-2"
+                                    @click.prevent="openTermsModal"
+                                >
+                                    Terms of Use
+                                </button>
+                            </Label>
+                        </div>
+                    </div>
+                    <InputError :message="errors.terms" />
+                </div>
+
                 <Button
                     type="submit"
                     class="mt-2 h-12 w-full rounded-xl bg-gradient-to-r from-[#f53003] to-[#F8B803] text-white font-semibold shadow-lg shadow-[#f5300320] hover:shadow-xl hover:shadow-[#f5300340] transition-all hover:scale-[1.02] active:scale-[0.98]"
-                    tabindex="5"
+                    tabindex="6"
                     :disabled="processing"
                     data-test="register-user-button"
                 >
@@ -103,11 +148,14 @@ import { Form, Head } from '@inertiajs/vue3';
                 <TextLink
                     :href="login()"
                     class="text-[#f53003] hover:text-[#F8B803] font-medium transition-colors"
-                    :tabindex="6"
+                    :tabindex="7"
                 >
                     Log in
                 </TextLink>
             </div>
         </Form>
+
+        <!-- Terms Modal -->
+        <TermsModal v-model:open="termsModalOpen" :content="termsContent" />
     </AuthBase>
 </template>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\LegalController;
 use App\Models\Favorite;
 use App\Models\ReadingHistory;
 use Illuminate\Support\Facades\Route;
@@ -11,6 +12,9 @@ Route::get('/', function () {
         'canRegister' => Features::enabled(Features::registration()),
     ]);
 })->name('home');
+
+Route::get('/terms', [LegalController::class, 'terms'])->name('terms');
+Route::get('/privacy', [LegalController::class, 'privacy'])->name('privacy');
 
 Route::get('dashboard', function () {
     $user = auth()->user();
