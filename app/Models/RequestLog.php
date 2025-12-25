@@ -18,6 +18,7 @@ class RequestLog extends Model
         'book_id',
         'chapter_id',
         'item_type',
+        'type',
         'request',
         'response',
         'response_status_code',
@@ -27,6 +28,10 @@ class RequestLog extends Model
         'prompt_tokens',
         'completion_tokens',
         'total_tokens',
+        'input_images_count',
+        'output_images_count',
+        'cost_per_input_image',
+        'cost_per_output_image',
         'cost_per_token',
         'total_cost',
     ];
@@ -36,6 +41,8 @@ class RequestLog extends Model
         return [
             'response_time' => 'decimal:6',
             'cost_per_token' => 'decimal:8',
+            'cost_per_input_image' => 'decimal:8',
+            'cost_per_output_image' => 'decimal:8',
             'total_cost' => 'decimal:8',
         ];
     }

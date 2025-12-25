@@ -17,15 +17,19 @@ class BackgroundImageService
     /**
      * Generate a background image from a user's description.
      *
+     * @param  string|null  $userId  Optional user ID for tracking
+     * @param  string|null  $profileId  Optional profile ID for tracking
      * @return array{url: string|null, error: string|null}
      */
-    public function generateBackgroundImage(string $userDescription): array
-    {
+    public function generateBackgroundImage(
+        string $userDescription,
+        ?string $userId = null,
+        ?string $profileId = null
+    ): array {
         Log::info('BackgroundImageService: Starting background image generation', [
             'user_description' => $userDescription,
         ]);
 
-        // Step 1: Refine the prompt using OpenAI
         $refinedPrompt = $this->refinePromptWithOpenAi($userDescription);
 
         if ($refinedPrompt === null) {
@@ -40,11 +44,17 @@ class BackgroundImageService
             'refined' => $refinedPrompt,
         ]);
 
-        // Step 2: Generate the image using Replicate Flux 2
+        $trackingContext = [
+            'item_type' => 'theme_background',
+            'user_id' => $userId,
+            'profile_id' => $profileId,
+        ];
+
         $result = $this->replicate->generateImage(
             prompt: $refinedPrompt,
             inputImages: null,
-            aspectRatio: '16:9'
+            aspectRatio: '16:9',
+            trackingContext: $trackingContext
         );
 
         if ($result['error'] !== null || $result['url'] === null) {
@@ -62,7 +72,6 @@ class BackgroundImageService
             'replicate_url' => $result['url'],
         ]);
 
-        // Step 3: Download and save to storage
         $savedPath = $this->saveImageToStorage($result['url']);
 
         if ($savedPath === null) {

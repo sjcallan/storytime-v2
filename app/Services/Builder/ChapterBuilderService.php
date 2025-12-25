@@ -476,10 +476,19 @@ class ChapterBuilderService extends BuilderService
             ]);
 
             try {
+                $trackingContext = [
+                    'item_type' => 'chapter_inline_image',
+                    'user_id' => $book->user_id,
+                    'profile_id' => $book->profile_id,
+                    'book_id' => $bookId,
+                    'chapter_id' => $chapterId,
+                ];
+
                 $imageResponse = $this->replicateApiService->generateImage(
                     $fullPrompt,
                     $characterImages,
-                    '16:9'
+                    '16:9',
+                    $trackingContext
                 );
 
                 if (! $imageResponse || ! isset($imageResponse['url']) || ! $imageResponse['url']) {

@@ -52,16 +52,80 @@ class RequestLogService
         return $data;
     }
 
-    public function parseResponseForStore(array $response)
+    /**
+     * Parse text generation response for storage
+     *
+     * @param  array<string, mixed>  $response
+     * @return array<string, mixed>
+     */
+    public function parseResponseForStore(array $response): array
     {
         return [
-            'open_ai_id' => $response['id'],
-            'model' => $response['model'],
-            'prompt_tokens' => $response['prompt_tokens'],
-            'completion_tokens' => $response['completion_tokens'],
-            'total_tokens' => $response['total_tokens'],
-            'cost_per_token' => $response['cost_per_token'],
-            'total_cost' => $response['total_cost'],
+            'type' => 'text',
+            'open_ai_id' => $response['id'] ?? null,
+            'model' => $response['model'] ?? null,
+            'prompt_tokens' => $response['prompt_tokens'] ?? null,
+            'completion_tokens' => $response['completion_tokens'] ?? null,
+            'total_tokens' => $response['total_tokens'] ?? null,
+            'cost_per_token' => $response['cost_per_token'] ?? null,
+            'total_cost' => $response['total_cost'] ?? null,
+        ];
+    }
+
+    /**
+     * Parse image generation response for storage
+     *
+     * @param  array{url: string|null, error: string|null}  $response
+     * @return array<string, mixed>
+     */
+    public function parseImageResponseForStore(
+        array $response,
+        string $model,
+        int $inputImagesCount,
+        int $outputImagesCount
+    ): array {
+        $pricing = $this->getImagePricingForModel($model);
+
+        $inputCost = $inputImagesCount * $pricing['cost_per_input_image'];
+        $outputCost = $outputImagesCount * $pricing['cost_per_output_image'];
+
+        return [
+            'type' => 'image',
+            'model' => $model,
+            'input_images_count' => $inputImagesCount,
+            'output_images_count' => $outputImagesCount,
+            'cost_per_input_image' => $pricing['cost_per_input_image'],
+            'cost_per_output_image' => $pricing['cost_per_output_image'],
+            'total_cost' => $inputCost + $outputCost,
+        ];
+    }
+
+    /**
+     * Get pricing configuration for the specified image model
+     *
+     * @return array{cost_per_input_image: float, cost_per_output_image: float}
+     */
+    protected function getImagePricingForModel(string $model): array
+    {
+        $imageConfig = config('ai.image_generation.replicate', []);
+
+        if (str_contains($model, 'flux-2-pro')) {
+            return [
+                'cost_per_input_image' => $imageConfig['flux_2_pro']['cost_per_input_image'] ?? 0.015,
+                'cost_per_output_image' => $imageConfig['flux_2_pro']['cost_per_output_image'] ?? 0.015,
+            ];
+        }
+
+        if (str_contains($model, 'flux-krea')) {
+            return [
+                'cost_per_input_image' => $imageConfig['flux_krea_dev']['cost_per_input_image'] ?? 0.0,
+                'cost_per_output_image' => $imageConfig['flux_krea_dev']['cost_per_output_image'] ?? 0.025,
+            ];
+        }
+
+        return [
+            'cost_per_input_image' => $imageConfig['custom_model']['cost_per_input_image'] ?? 0.0,
+            'cost_per_output_image' => $imageConfig['custom_model']['cost_per_output_image'] ?? 0.025,
         ];
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Services\Replicate;
 
+use App\Jobs\TrackImageRequestJob;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -33,23 +34,29 @@ class ReplicateApiService
      * @param  string  $prompt  The text prompt for image generation
      * @param  array<string>|null  $inputImages  Optional array of image URLs for image-to-image generation (max 8)
      * @param  string  $aspectRatio  The aspect ratio for the generated image (default: 16:9)
+     * @param  array<string, mixed>|null  $trackingContext  Optional context for request logging
      * @return array{url: string|null, error: string|null}
      */
     public function generateImage(
         string $prompt,
         ?array $inputImages = null,
-        string $aspectRatio = '16:9'
+        string $aspectRatio = '16:9',
+        ?array $trackingContext = null
     ): array {
+        $startTime = microtime(true);
+
         $input = [
             'prompt' => $prompt,
             'aspect_ratio' => $aspectRatio,
             'safety_tolerance' => 5,
         ];
 
+        $inputImagesCount = 0;
         if ($inputImages !== null && count($inputImages) > 0) {
             $input['input_images'] = array_slice($inputImages, 0, 8);
+            $inputImagesCount = count($input['input_images']);
             Log::info('Replicate API: Adding character images to request', [
-                'input_images_count' => count($input['input_images']),
+                'input_images_count' => $inputImagesCount,
                 'input_images' => $input['input_images'],
             ]);
         }
@@ -60,10 +67,11 @@ class ReplicateApiService
             'prompt_preview' => substr($prompt, 0, 150),
             'aspect_ratio' => $aspectRatio,
             'has_input_images' => isset($input['input_images']),
-            'input_images_count' => isset($input['input_images']) ? count($input['input_images']) : 0,
+            'input_images_count' => $inputImagesCount,
         ]);
 
         $response = $this->makeRequestWithRetry($this->defaultModel, $input);
+        $responseTime = microtime(true) - $startTime;
 
         if ($response->failed()) {
             Log::error('Replicate API error', [
@@ -72,18 +80,42 @@ class ReplicateApiService
                 'body' => $response->body(),
             ]);
 
-            return [
+            $result = [
                 'url' => null,
                 'error' => $response->json('detail') ?? 'Failed to generate image',
             ];
+
+            $this->trackRequest(
+                $this->defaultModel,
+                $trackingContext,
+                $result,
+                $prompt,
+                $inputImagesCount,
+                0,
+                $responseTime
+            );
+
+            return $result;
         }
 
         $data = $response->json();
 
-        return [
+        $result = [
             'url' => $data['output'] ?? null,
             'error' => null,
         ];
+
+        $this->trackRequest(
+            $this->defaultModel,
+            $trackingContext,
+            $result,
+            $prompt,
+            $inputImagesCount,
+            $result['url'] ? 1 : 0,
+            $responseTime
+        );
+
+        return $result;
     }
 
     /**
@@ -92,15 +124,19 @@ class ReplicateApiService
      *
      * @param  string  $prompt  The text prompt for image generation
      * @param  string  $aspectRatio  The aspect ratio for the generated image (default: 1:1)
+     * @param  array<string, mixed>|null  $trackingContext  Optional context for request logging
      * @return array{url: string|null, error: string|null}
      */
     public function generateImageWithKrea(
         string $prompt,
-        string $aspectRatio = '1:1'
+        string $aspectRatio = '1:1',
+        ?array $trackingContext = null
     ): array {
         if ($this->useCustomModel) {
-            return $this->generateImageWithCustomModel($prompt, $aspectRatio);
+            return $this->generateImageWithCustomModel($prompt, $aspectRatio, [], $trackingContext);
         }
+
+        $startTime = microtime(true);
 
         $input = [
             'prompt' => $prompt,
@@ -125,6 +161,7 @@ class ReplicateApiService
         ]);
 
         $response = $this->makeRequestWithRetry($this->kreaModel, $input);
+        $responseTime = microtime(true) - $startTime;
 
         if ($response->failed()) {
             Log::error('Replicate API error with Krea model', [
@@ -133,16 +170,27 @@ class ReplicateApiService
                 'body' => $response->body(),
             ]);
 
-            return [
+            $result = [
                 'url' => null,
                 'error' => $response->json('detail') ?? 'Failed to generate image',
             ];
+
+            $this->trackRequest(
+                $this->kreaModel,
+                $trackingContext,
+                $result,
+                $prompt,
+                0,
+                0,
+                $responseTime
+            );
+
+            return $result;
         }
 
         $data = $response->json();
         $output = $data['output'] ?? null;
 
-        // Krea model returns an array of URLs, extract the first one
         if (is_array($output) && count($output) > 0) {
             $url = $output[0];
         } else {
@@ -155,10 +203,22 @@ class ReplicateApiService
             'extracted_url' => $url,
         ]);
 
-        return [
+        $result = [
             'url' => $url,
             'error' => null,
         ];
+
+        $this->trackRequest(
+            $this->kreaModel,
+            $trackingContext,
+            $result,
+            $prompt,
+            0,
+            $url ? 1 : 0,
+            $responseTime
+        );
+
+        return $result;
     }
 
     /**
@@ -168,13 +228,17 @@ class ReplicateApiService
      * @param  string  $prompt  The text prompt for image generation
      * @param  string  $aspectRatio  The aspect ratio for the generated image (default: 1:1)
      * @param  array<string, mixed>  $customParams  Optional custom parameters to override defaults
+     * @param  array<string, mixed>|null  $trackingContext  Optional context for request logging
      * @return array{url: string|null, error: string|null}
      */
     public function generateImageWithCustomModel(
         string $prompt,
         string $aspectRatio = '1:1',
-        array $customParams = []
+        array $customParams = [],
+        ?array $trackingContext = null
     ): array {
+        $startTime = microtime(true);
+
         $input = array_merge([
             'prompt' => $prompt,
             'model' => 'dev',
@@ -202,6 +266,9 @@ class ReplicateApiService
         ]);
 
         $response = $this->makeCustomModelRequestWithRetry($input);
+        $responseTime = microtime(true) - $startTime;
+
+        $modelName = 'custom/'.$this->customModelVersion;
 
         if ($response->failed()) {
             Log::error('Replicate API error with custom model', [
@@ -210,16 +277,27 @@ class ReplicateApiService
                 'body' => $response->body(),
             ]);
 
-            return [
+            $result = [
                 'url' => null,
                 'error' => $response->json('detail') ?? 'Failed to generate image',
             ];
+
+            $this->trackRequest(
+                $modelName,
+                $trackingContext,
+                $result,
+                $prompt,
+                0,
+                0,
+                $responseTime
+            );
+
+            return $result;
         }
 
         $data = $response->json();
         $output = $data['output'] ?? null;
 
-        // Custom model may return an array of URLs, extract the first one
         if (is_array($output) && count($output) > 0) {
             $url = $output[0];
         } else {
@@ -232,10 +310,57 @@ class ReplicateApiService
             'extracted_url' => $url,
         ]);
 
-        return [
+        $result = [
             'url' => $url,
             'error' => null,
         ];
+
+        $this->trackRequest(
+            $modelName,
+            $trackingContext,
+            $result,
+            $prompt,
+            0,
+            $url ? 1 : 0,
+            $responseTime
+        );
+
+        return $result;
+    }
+
+    /**
+     * Track the image generation request for logging and cost tracking.
+     *
+     * @param  array<string, mixed>|null  $context  Tracking context with user_id, book_id, etc.
+     * @param  array{url: string|null, error: string|null}  $response
+     */
+    protected function trackRequest(
+        string $model,
+        ?array $context,
+        array $response,
+        string $prompt,
+        int $inputImagesCount,
+        int $outputImagesCount,
+        float $responseTime
+    ): void {
+        if ($context === null) {
+            return;
+        }
+
+        TrackImageRequestJob::dispatch(
+            model: $model,
+            itemType: $context['item_type'] ?? 'image_generation',
+            response: $response,
+            prompt: $prompt,
+            inputImagesCount: $inputImagesCount,
+            outputImagesCount: $outputImagesCount,
+            responseTime: $responseTime,
+            userId: $context['user_id'] ?? null,
+            profileId: $context['profile_id'] ?? null,
+            bookId: $context['book_id'] ?? null,
+            chapterId: $context['chapter_id'] ?? null,
+            characterId: $context['character_id'] ?? null,
+        );
     }
 
     /**

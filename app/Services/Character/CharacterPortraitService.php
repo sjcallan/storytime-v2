@@ -45,14 +45,25 @@ class CharacterPortraitService
             'using_krea_model' => $useKreaModel,
         ]);
 
+        $trackingContext = [
+            'item_type' => 'character_portrait',
+            'user_id' => $character->book->user_id,
+            'profile_id' => $character->book->profile_id,
+            'book_id' => $character->book_id,
+            'character_id' => $character->id,
+        ];
+
         $result = $useKreaModel
             ? $this->replicateService->generateImageWithKrea(
                 prompt: $prompt,
-                aspectRatio: '1:1'
+                aspectRatio: '1:1',
+                trackingContext: $trackingContext
             )
             : $this->replicateService->generateImage(
                 prompt: $prompt,
-                aspectRatio: '1:1'
+                inputImages: null,
+                aspectRatio: '1:1',
+                trackingContext: $trackingContext
             );
 
         if ($result['error']) {

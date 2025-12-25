@@ -148,7 +148,11 @@ class ThemeController extends Controller
             return response()->json(['error' => 'No profile selected'], 400);
         }
 
-        $result = $this->backgroundImageService->generateBackgroundImage($validated['description']);
+        $result = $this->backgroundImageService->generateBackgroundImage(
+            $validated['description'],
+            $request->user()?->id,
+            $profile->id
+        );
 
         if ($result['error'] !== null) {
             return response()->json([

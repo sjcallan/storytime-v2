@@ -27,6 +27,35 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Image Generation Pricing
+    |--------------------------------------------------------------------------
+    |
+    | Pricing configuration for image generation services. Costs are per image.
+    | These values can be updated as pricing changes.
+    |
+    */
+
+    'image_generation' => [
+        'replicate' => [
+            'flux_2_pro' => [
+                'model' => 'black-forest-labs/flux-2-pro',
+                'cost_per_input_image' => 0.015,
+                'cost_per_output_image' => 0.015,
+            ],
+            'flux_krea_dev' => [
+                'model' => 'black-forest-labs/flux-krea-dev',
+                'cost_per_input_image' => 0.0,
+                'cost_per_output_image' => 0.025,
+            ],
+            'custom_model' => [
+                'cost_per_input_image' => 0.0,
+                'cost_per_output_image' => 0.025,
+            ],
+        ],
+    ],
+
     'providers' => [
 
         'openai' => [

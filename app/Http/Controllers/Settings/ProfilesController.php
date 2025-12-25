@@ -199,7 +199,11 @@ class ProfilesController extends Controller
             'description' => ['required', 'string', 'min:10', 'max:500'],
         ]);
 
-        $result = $this->profileImageService->generateProfileImage($validated['description']);
+        $result = $this->profileImageService->generateProfileImage(
+            $validated['description'],
+            $request->user()->id,
+            $profile->id
+        );
 
         if ($result['error'] !== null) {
             return response()->json([

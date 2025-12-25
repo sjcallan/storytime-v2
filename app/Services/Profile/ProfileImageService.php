@@ -17,10 +17,15 @@ class ProfileImageService
     /**
      * Generate a profile avatar image from a user's description.
      *
+     * @param  string|null  $userId  Optional user ID for tracking
+     * @param  string|null  $profileId  Optional profile ID for tracking
      * @return array{url: string|null, error: string|null}
      */
-    public function generateProfileImage(string $userDescription): array
-    {
+    public function generateProfileImage(
+        string $userDescription,
+        ?string $userId = null,
+        ?string $profileId = null
+    ): array {
         Log::info('ProfileImageService: Starting profile image generation', [
             'user_description' => $userDescription,
         ]);
@@ -39,10 +44,17 @@ class ProfileImageService
             'refined' => $refinedPrompt,
         ]);
 
+        $trackingContext = [
+            'item_type' => 'profile_avatar',
+            'user_id' => $userId,
+            'profile_id' => $profileId,
+        ];
+
         $result = $this->replicate->generateImage(
             prompt: $refinedPrompt,
             inputImages: null,
-            aspectRatio: '1:1'
+            aspectRatio: '1:1',
+            trackingContext: $trackingContext
         );
 
         if ($result['error'] !== null || $result['url'] === null) {

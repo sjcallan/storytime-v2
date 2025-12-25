@@ -153,7 +153,7 @@ class BookCoverService
             }
         }
 
-        $userMessage = "Generate a concise visual prompt for this scene.";
+        $userMessage = 'Generate a concise visual prompt for this scene.';
 
         Log::info('BookCoverService: Making AI request for cover image prompt');
 
@@ -191,7 +191,6 @@ class BookCoverService
             return null;
         }
 
-        // Add style modifiers based on genre and age
         $stylePrefix = $this->getStylePrefix($book);
         $fullPrompt = $stylePrefix.$prompt;
 
@@ -199,7 +198,19 @@ class BookCoverService
             'prompt_length' => strlen($fullPrompt),
         ]);
 
-        $result = $this->replicateService->generateImage($fullPrompt.' shot on Sony A7IV, clean sharp, high dynamic range', null, '3:4');
+        $trackingContext = [
+            'item_type' => 'book_cover',
+            'user_id' => $book->user_id,
+            'profile_id' => $book->profile_id,
+            'book_id' => $book->id,
+        ];
+
+        $result = $this->replicateService->generateImage(
+            $fullPrompt.' shot on Sony A7IV, clean sharp, high dynamic range',
+            null,
+            '3:4',
+            $trackingContext
+        );
 
         if ($result['error'] || empty($result['url'])) {
             Log::error('BookCoverService: Replicate image generation failed', [
@@ -209,7 +220,6 @@ class BookCoverService
             return null;
         }
 
-        // Download and save the image to S3
         $imageUrl = $result['url'];
         $imagePath = $this->saveImageToS3($imageUrl, 'covers', $book->id);
 
