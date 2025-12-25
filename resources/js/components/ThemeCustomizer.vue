@@ -378,7 +378,7 @@ const contrastPreview = computed(() => {
 
     <!-- Create Theme Dialog -->
     <Dialog v-model:open="isCreateDialogOpen">
-        <DialogContent class="theme-reset sm:max-w-lg">
+        <DialogContent class="theme-reset sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                 <DialogTitle class="flex items-center gap-2">
                     <Palette class="h-5 w-5 text-violet-500" />
@@ -586,7 +586,7 @@ const contrastPreview = computed(() => {
 
     <!-- Edit Theme Dialog -->
     <Dialog v-model:open="isEditDialogOpen">
-        <DialogContent class="theme-reset sm:max-w-lg">
+        <DialogContent class="theme-reset sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                 <DialogTitle class="flex items-center gap-2">
                     <Edit2 class="h-5 w-5 text-violet-500" />
