@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import StorytimeIcon from '@/components/StorytimeIcon.vue';
+import StorytimeSaplingIcon from '@/components/StorytimeSaplingIcon.vue';
 import { home } from '@/routes';
 import { Link } from '@inertiajs/vue3';
 import { ref, onMounted } from 'vue';
@@ -39,7 +39,7 @@ onMounted(() => {
                     <div
                         class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#f53003] to-[#F8B803] shadow-lg shadow-[#f5300320]"
                     >
-                        <StorytimeIcon class="h-8 w-8 text-white" />
+                        <StorytimeSaplingIcon class="h-8 w-8 text-white" />
                     </div>
                     <span
                         class="text-2xl font-bold bg-gradient-to-r from-[#f53003] to-[#F8B803] bg-clip-text text-transparent"

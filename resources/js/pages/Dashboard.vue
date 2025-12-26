@@ -164,15 +164,58 @@ watch(
     },
 );
 
-const hasBooks = computed(() =>
-    Object.values(booksByGenreState.value).some((list) => list.length > 0),
-);
+const hasBooks = computed(() => {
+    // Check if there are any visible books (in non-adult genres, or all if adult enabled)
+    const hasGenreBooks = sortedBooksByGenre.value.some(([, books]) => books.length > 0);
+    const hasRecentBooks = filteredRecentlyRead.value.length > 0;
+    const hasFavoriteBooks = filteredFavorites.value.length > 0;
+    return hasGenreBooks || hasRecentBooks || hasFavoriteBooks;
+});
 
-// Sort genres alphabetically
-const sortedBooksByGenre = computed(() => {
-    return Object.entries(booksByGenreState.value).sort(([a], [b]) =>
-        a.localeCompare(b),
+// Adult/mature genres that should be hidden when adult_genres_enabled is false
+const matureGenres = ['drama', 'romance', 'horror', 'erotica'];
+
+// Check if adult genres are enabled from config
+const adultGenresEnabled = computed(() => {
+    return (
+        (page.props.config as { storytime?: { adult_genres_enabled?: boolean } })
+            ?.storytime?.adult_genres_enabled ?? false
     );
+});
+
+// Helper to check if a genre is an adult/mature genre
+const isAdultGenre = (genre: string): boolean => {
+    return matureGenres.includes(genre.toLowerCase());
+};
+
+// Filter recently read to exclude adult genre books when disabled
+const filteredRecentlyRead = computed(() => {
+    if (adultGenresEnabled.value) {
+        return recentlyReadState.value;
+    }
+    return recentlyReadState.value.filter((book) => !isAdultGenre(book.genre));
+});
+
+// Filter favorites to exclude adult genre books when disabled
+const filteredFavorites = computed(() => {
+    if (adultGenresEnabled.value) {
+        return favoritesState.value;
+    }
+    return favoritesState.value.filter((book) => !isAdultGenre(book.genre));
+});
+
+// Sort genres alphabetically, filtering out adult genres if disabled
+const sortedBooksByGenre = computed(() => {
+    let entries = Object.entries(booksByGenreState.value);
+
+    // Filter out adult genres if not enabled
+    if (!adultGenresEnabled.value) {
+        entries = entries.filter(
+            ([genre]) => !isAdultGenre(genre),
+        );
+    }
+
+    return entries.sort(([a], [b]) => a.localeCompare(b));
 });
 
 // Carousel functionality - use a non-reactive Map to avoid recursive updates
@@ -1124,7 +1167,7 @@ const formatGenreName = (genre: string) => {
             </div>
 
             <!-- Jump Back In Section -->
-            <div v-if="recentlyReadState.length > 0" class="space-y-4">
+            <div v-if="filteredRecentlyRead.length > 0" class="space-y-4">
                 <!-- Section Header -->
                 <div class="flex items-center gap-3">
                     <div>
@@ -1153,7 +1196,7 @@ const formatGenreName = (genre: string) => {
                         style="scrollbar-width: none; -ms-overflow-style: none"
                     >
                         <div
-                            v-for="book in recentlyReadState"
+                            v-for="book in filteredRecentlyRead"
                             :key="`recent-${book.id}`"
                             :style="getCardVisualStyles(book.id)"
                             @click="
@@ -1246,7 +1289,7 @@ const formatGenreName = (genre: string) => {
             </div>
 
             <!-- Favorites Section -->
-            <div v-if="favoritesState.length > 0" class="space-y-4">
+            <div v-if="filteredFavorites.length > 0" class="space-y-4">
                 <!-- Section Header -->
                 <div class="flex items-center gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-rose-500 to-pink-600 shadow-lg shadow-rose-500/20">
@@ -1278,7 +1321,7 @@ const formatGenreName = (genre: string) => {
                         style="scrollbar-width: none; -ms-overflow-style: none"
                     >
                         <div
-                            v-for="book in favoritesState"
+                            v-for="book in filteredFavorites"
                             :key="`favorite-${book.id}`"
                             :style="getCardVisualStyles(book.id)"
                             @click="
