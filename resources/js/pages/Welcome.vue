@@ -255,11 +255,11 @@ const closeMobileMenu = () => {
                         <h1
                             class="mb-6 text-5xl font-bold leading-tight text-white lg:text-7xl drop-shadow-lg"
                         >
-                            Bring Your
+                            Watch their world
                             <span
-                                class="bg-gradient-to-r from-[#f53003] via-[#F8B803] to-[#F0ACB8] bg-clip-text text-transparent drop-shadow-none"
+                                class="bg-gradient-to-r from-[#f53003] via-[#F8B803] to-[#F0ACB8] bg-clip-text text-transparent drop-shadow-none block"
                             >
-                                Imagination to Life
+                                Come to Life
                             </span>
                         </h1>
                         <p
@@ -382,7 +382,7 @@ const closeMobileMenu = () => {
                     <h2
                         class="mb-4 text-4xl font-bold text-[#1b1b18] lg:text-5xl dark:text-[#EDEDEC]"
                     >
-                        Everything You Need to
+                        Everything They Need to
                         <span
                             class="bg-gradient-to-r from-[#f53003] to-[#F8B803] bg-clip-text text-transparent"
                         >
@@ -392,8 +392,7 @@ const closeMobileMenu = () => {
                     <p
                         class="mx-auto max-w-2xl text-lg text-[#706f6c] dark:text-[#A1A09A]"
                     >
-                        Powerful tools designed for young storytellers and
-                        their families
+                        Designed specifically for young storytellers and their families
                     </p>
                 </div>
 
@@ -665,7 +664,7 @@ const closeMobileMenu = () => {
                         </Link>
                     </div>
                     <p class="text-sm text-[#706f6c] dark:text-[#A1A09A]">
-                        &copy; 2025 Storytime. Made with
+                        &copy; 2025 StorytimeBooks.ai by Prescott & West. Made with
                         <span class="text-[#f53003]">♥</span> for young
                         storytellers everywhere.
                     </p>
