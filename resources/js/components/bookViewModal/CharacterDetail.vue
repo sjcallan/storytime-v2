@@ -196,40 +196,17 @@ const displayName = computed(() => isEditing.value ? editForm.value.name : props
 
 <template>
     <div class="relative z-10 flex h-full flex-col overflow-hidden">
-        <!-- Top Action Bar - Back and Edit buttons in a row -->
-        <div 
+        <!-- Back Button -->
+        <button
+            @click="emit('back')"
             :class="[
-                'absolute left-0 right-0 z-20 flex items-center justify-between px-6',
+                'absolute z-20 flex items-center gap-1.5 rounded-full bg-amber-100/80 dark:bg-amber-200/80 px-3 py-1.5 text-sm font-medium text-amber-800 shadow-sm backdrop-blur-sm transition-all hover:bg-amber-200 hover:scale-105 active:scale-95 left-6',
                 isSinglePageMode ? 'top-16' : 'top-6'
             ]"
         >
-            <!-- Back Button -->
-            <button
-                @click="emit('back')"
-                class="flex items-center gap-1.5 rounded-full bg-amber-100/80 dark:bg-amber-200/80 px-3 py-1.5 text-sm font-medium text-amber-800 shadow-sm backdrop-blur-sm transition-all hover:bg-amber-200 hover:scale-105 active:scale-95"
-            >
-                <ArrowLeft class="h-4 w-4" />
-                <span>Back</span>
-            </button>
-
-            <!-- Edit/Cancel Button -->
-            <button
-                v-if="!isEditing"
-                @click="startEditing"
-                class="flex items-center gap-1.5 rounded-full bg-amber-100/80 dark:bg-amber-200/80 px-3 py-1.5 text-sm font-medium text-amber-800 shadow-sm backdrop-blur-sm transition-all hover:bg-amber-200 hover:scale-105 active:scale-95"
-            >
-                <Pencil class="h-4 w-4" />
-                <span>Edit</span>
-            </button>
-            <button
-                v-else
-                @click="cancelEditing"
-                class="flex items-center gap-1.5 rounded-full bg-red-100/80 dark:bg-red-200/80 px-3 py-1.5 text-sm font-medium text-red-700 shadow-sm backdrop-blur-sm transition-all hover:bg-red-200 hover:scale-105 active:scale-95"
-            >
-                <X class="h-4 w-4" />
-                <span>Cancel</span>
-            </button>
-        </div>
+            <ArrowLeft class="h-4 w-4" />
+            <span>Back</span>
+        </button>
 
         <!-- Portrait Image Section (Top Half) -->
         <div class="relative h-1/2 w-full overflow-hidden">
@@ -271,18 +248,39 @@ const displayName = computed(() => isEditing.value ? editForm.value.name : props
                 </div>
             </template>
             
-            <!-- Regenerate Portrait Button -->
-            <button
-                v-if="character.portrait_image && !isRegeneratingPortrait"
-                @click="regeneratePortrait"
-                class="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 rounded-full bg-white/90 dark:bg-gray-800/90 px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-200 shadow-lg backdrop-blur-sm transition-all hover:bg-white hover:scale-105 active:scale-95"
-            >
-                <RefreshCw class="h-4 w-4" />
-                <span>New Portrait</span>
-            </button>
+            <!-- Action Buttons Row (Edit + New Portrait) -->
+            <div class="absolute bottom-4 right-4 z-20 flex items-center gap-2">
+                <!-- Edit/Cancel Button -->
+                <button
+                    v-if="!isEditing"
+                    @click="startEditing"
+                    class="flex items-center gap-1.5 rounded-full bg-white/90 dark:bg-gray-800/90 px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-200 shadow-lg backdrop-blur-sm transition-all hover:bg-white hover:scale-105 active:scale-95"
+                >
+                    <Pencil class="h-4 w-4" />
+                    <span>Edit</span>
+                </button>
+                <button
+                    v-else
+                    @click="cancelEditing"
+                    class="flex items-center gap-1.5 rounded-full bg-red-100/90 dark:bg-red-900/90 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-200 shadow-lg backdrop-blur-sm transition-all hover:bg-red-200 hover:scale-105 active:scale-95"
+                >
+                    <X class="h-4 w-4" />
+                    <span>Cancel</span>
+                </button>
+                
+                <!-- Regenerate Portrait Button -->
+                <button
+                    v-if="character.portrait_image && !isRegeneratingPortrait"
+                    @click="regeneratePortrait"
+                    class="flex items-center gap-1.5 rounded-full bg-white/90 dark:bg-gray-800/90 px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-200 shadow-lg backdrop-blur-sm transition-all hover:bg-white hover:scale-105 active:scale-95"
+                >
+                    <RefreshCw class="h-4 w-4" />
+                    <span>New Portrait</span>
+                </button>
+            </div>
             
             <!-- Gradient overlay for better text contrast -->
-            <div class="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-amber-50 dark:from-amber-100 to-transparent" />
+            <div class="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-amber-50 dark:from-amber-100 to-transparent pointer-events-none" />
         </div>
 
         <!-- Character Details (Bottom Half) -->
