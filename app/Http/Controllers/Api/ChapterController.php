@@ -6,14 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\GenerateChapterRequest;
 use App\Http\Requests\StoreChapterRequest;
 use App\Http\Requests\UpdateChapterRequest;
+use App\Jobs\Chapter\RegenerateChapterInlineImageJob;
 use App\Models\Book;
 use App\Models\Chapter;
 use App\Services\Builder\ChapterBuilderService;
 use App\Services\Chapter\ChapterService;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ChapterController extends Controller
 {
+    use AuthorizesRequests;
+
     public function __construct(
         protected ChapterService $chapterService,
         protected ChapterBuilderService $chapterBuilderService
@@ -162,5 +167,54 @@ class ChapterController extends Controller
             'has_next' => false,
             'has_previous' => $chapter->sort > 1,
         ], 201);
+    }
+
+    /**
+     * Regenerate an inline image for a chapter.
+     */
+    public function regenerateImage(Request $request, Book $book, Chapter $chapter): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        if ($chapter->book_id !== $book->id) {
+            return response()->json(['message' => 'Chapter does not belong to this book.'], 404);
+        }
+
+        $imageIndex = $request->input('image_index');
+
+        if ($imageIndex === null || ! is_numeric($imageIndex)) {
+            return response()->json(['message' => 'image_index is required.'], 422);
+        }
+
+        $imageIndex = (int) $imageIndex;
+
+        $inlineImages = $chapter->inline_images ?? [];
+        $imageExists = false;
+
+        $updatedImages = [];
+        foreach ($inlineImages as $image) {
+            if (($image['paragraph_index'] ?? null) === $imageIndex) {
+                $imageExists = true;
+                $updatedImages[] = [
+                    ...$image,
+                    'status' => 'pending',
+                ];
+            } else {
+                $updatedImages[] = $image;
+            }
+        }
+
+        if (! $imageExists) {
+            return response()->json(['message' => 'Image not found at specified index.'], 404);
+        }
+
+        $chapter->update(['inline_images' => $updatedImages]);
+
+        RegenerateChapterInlineImageJob::dispatch($chapter, $imageIndex);
+
+        return response()->json([
+            'message' => 'Image regeneration started',
+            'image_index' => $imageIndex,
+        ]);
     }
 }

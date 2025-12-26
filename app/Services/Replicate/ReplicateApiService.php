@@ -43,6 +43,10 @@ class ReplicateApiService
         string $aspectRatio = '16:9',
         ?array $trackingContext = null
     ): array {
+        if ($this->useCustomModel) {
+            return $this->generateImageWithCustomModel($prompt, $aspectRatio, [], $trackingContext);
+        }
+
         $startTime = microtime(true);
 
         $input = [
