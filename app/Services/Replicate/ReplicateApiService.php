@@ -256,7 +256,7 @@ class ReplicateApiService
             'output_quality' => 80,
             'prompt_strength' => 0.8,
             'extra_lora_scale' => 1,
-            'num_inference_steps' => 28,
+            'num_inference_steps' => 30,
             'disable_safety_checker' => true,
         ], $customParams);
 

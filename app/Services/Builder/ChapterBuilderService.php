@@ -204,7 +204,7 @@ class ChapterBuilderService extends BuilderService
 
             $userAddedPrompt = '';
             if ($userPromptText = $data['user_prompt'] ?? null) {
-                $userAddedPrompt = 'Ensure that it includes: '.$userPromptText;
+                $userAddedPrompt = ' Ensure that it includes: '.$userPromptText;
             }
 
             $systemPrompt = [
@@ -259,7 +259,6 @@ class ChapterBuilderService extends BuilderService
                     $userPrompt .= ' about: '.$data['first_chapter_prompt'];
                 }
 
-                $systemPrompt['rules'][] = 'End the '.$chapterLabel.' with a question that makes the reader want to find out what happens next.';
             } else {
                 $previousChapter = $chapters->last();
 
@@ -275,7 +274,6 @@ class ChapterBuilderService extends BuilderService
                     $userPrompt = 'Write the final '.$chapterLabel.' to this '.$bookTypeLabel.'.';
                 } else {
                     $userPrompt = 'Write the next '.$chapterLabel.' to this '.$bookTypeLabel.'.';
-                    $systemPrompt['rules'][] = 'End the '.$chapterLabel.' with a cliffhanger that makes the reader want to find out what happens next.';
                 }
             }
 
@@ -384,23 +382,23 @@ class ChapterBuilderService extends BuilderService
         $book = $this->bookService->getById($bookId, null, ['with' => ['characters', 'chapters']]);
         $style = $this->getSceneImageStylePrefix($book);
 
-        $characterImages = [];
+        $baseImages = [];
 
-        // Add book cover image first
+        // Add book cover image first for style consistency
         if ($book->cover_image) {
             $coverUrl = $book->cover_image;
             if (! str_starts_with($coverUrl, 'http')) {
                 $coverUrl = $this->getCloudFrontImageUrl($coverUrl);
             }
             if ($coverUrl) {
-                $characterImages[] = $coverUrl;
+                $baseImages[] = $coverUrl;
                 Log::debug('[ChapterBuilderService::generateChapterImages] Added book cover image', [
                     'cover_url' => $coverUrl,
                 ]);
             }
         }
 
-        // Add last inline chapter image
+        // Add last inline chapter image for style consistency
         $lastInlineImage = null;
         foreach ($book->chapters->sortByDesc('sort') as $chapter) {
             if ($chapter->inline_images && is_array($chapter->inline_images)) {
@@ -418,14 +416,15 @@ class ChapterBuilderService extends BuilderService
                 $lastInlineImage = $this->getCloudFrontImageUrl($lastInlineImage);
             }
             if ($lastInlineImage) {
-                $characterImages[] = $lastInlineImage;
+                $baseImages[] = $lastInlineImage;
                 Log::debug('[ChapterBuilderService::generateChapterImages] Added last inline chapter image', [
                     'image_url' => $lastInlineImage,
                 ]);
             }
         }
 
-        // Add character portraits
+        // Build character portrait map (name => portrait URL)
+        $characterPortraits = [];
         if ($book->characters) {
             foreach ($book->characters as $character) {
                 if ($character->portrait_image) {
@@ -434,20 +433,15 @@ class ChapterBuilderService extends BuilderService
                         $portraitUrl = $this->getCloudFrontImageUrl($portraitUrl);
                     }
                     if ($portraitUrl) {
-                        $characterImages[] = $portraitUrl;
-                        Log::debug('[ChapterBuilderService::generateChapterImages] Added character portrait', [
-                            'character_id' => $character->id,
-                            'character_name' => $character->name,
-                            'portrait_url' => $portraitUrl,
-                        ]);
+                        $characterPortraits[$character->name] = $portraitUrl;
                     }
                 }
             }
         }
 
         Log::info('[ChapterBuilderService::generateChapterImages] Reference images collected', [
-            'total_reference_images' => count($characterImages),
-            'reference_image_urls' => $characterImages,
+            'base_images_count' => count($baseImages),
+            'available_character_portraits' => array_keys($characterPortraits),
         ]);
 
         $inlineImages = [];
@@ -467,12 +461,23 @@ class ChapterBuilderService extends BuilderService
 
             $fullPrompt = trim($style.' '.$this->stripQuotes($scene['prompt']));
 
+            // Identify which characters are present in this scene and get their portraits
+            $sceneCharacterImages = $this->getCharacterImagesForScene(
+                $scene['prompt'],
+                $book->characters,
+                $characterPortraits
+            );
+
+            // Combine base images with scene-specific character portraits
+            $inputImages = array_merge($baseImages, $sceneCharacterImages);
+
             Log::debug('[ChapterBuilderService::generateChapterImages] Generating image', [
                 'scene_index' => $index,
                 'paragraph_index' => $paragraphIndex,
                 'prompt_preview' => substr($fullPrompt, 0, 100),
-                'character_images_count' => count($characterImages),
-                'character_image_urls' => $characterImages,
+                'base_images_count' => count($baseImages),
+                'scene_character_images_count' => count($sceneCharacterImages),
+                'total_input_images' => count($inputImages),
             ]);
 
             try {
@@ -486,7 +491,7 @@ class ChapterBuilderService extends BuilderService
 
                 $imageResponse = $this->replicateApiService->generateImage(
                     $fullPrompt,
-                    $characterImages,
+                    $inputImages,
                     '16:9',
                     $trackingContext
                 );
@@ -535,6 +540,103 @@ class ChapterBuilderService extends BuilderService
         ]);
 
         return $inlineImages;
+    }
+
+    /**
+     * Identify which characters are present in a scene prompt using AI.
+     *
+     * @param  string  $scenePrompt  The scene description prompt
+     * @param  \Illuminate\Support\Collection  $characters  All characters from the book
+     * @param  array<string, string>  $characterPortraits  Map of character name to portrait URL
+     * @return array<string> Array of portrait URLs for characters present in the scene
+     */
+    protected function getCharacterImagesForScene(string $scenePrompt, $characters, array $characterPortraits): array
+    {
+        if ($characters->isEmpty() || empty($characterPortraits)) {
+            return [];
+        }
+
+        $characterNames = $characters->pluck('name')->filter()->toArray();
+
+        if (empty($characterNames)) {
+            return [];
+        }
+
+        try {
+            $this->chatService->resetMessages();
+            $this->chatService->setModel('gpt-4.1-mini');
+            $this->chatService->setMaxTokens(200);
+            $this->chatService->setTemperature(0);
+            $this->chatService->setResponseFormat('json_object');
+
+            $systemPrompt = 'You identify which characters from a story are present in a scene description. ';
+            $systemPrompt .= 'Analyze the scene prompt and determine which of the provided characters appear or are mentioned. ';
+            $systemPrompt .= 'Consider gender identifiers like "Male 1", "Female 1" etc. and match them to the characters based on their order. ';
+            $systemPrompt .= 'Return a JSON object with a single key "characters" containing an array of character names that are present.';
+
+            $userPrompt = "Characters in this story (in order):\n";
+            $maleCount = 0;
+            $femaleCount = 0;
+            foreach ($characters as $character) {
+                $gender = strtolower($character->gender ?? 'unknown');
+                if ($gender === 'male') {
+                    $maleCount++;
+                    $identifier = "Male {$maleCount}";
+                } elseif ($gender === 'female') {
+                    $femaleCount++;
+                    $identifier = "Female {$femaleCount}";
+                } else {
+                    $identifier = 'Character';
+                }
+                $userPrompt .= "- {$character->name} ({$identifier})\n";
+            }
+            $userPrompt .= "\nScene prompt:\n\"{$scenePrompt}\"\n\n";
+            $userPrompt .= 'Which characters from the list above are present in this scene? Return JSON: {"characters": ["name1", "name2"]}';
+
+            $this->chatService->addSystemMessage($systemPrompt);
+            $this->chatService->addUserMessage($userPrompt);
+
+            $result = $this->chatService->chat();
+
+            if (empty($result['completion'])) {
+                Log::warning('[ChapterBuilderService::getCharacterImagesForScene] Empty AI response');
+
+                return [];
+            }
+
+            $parsed = json_decode($result['completion'], true);
+
+            if (json_last_error() !== JSON_ERROR_NONE || ! isset($parsed['characters'])) {
+                Log::warning('[ChapterBuilderService::getCharacterImagesForScene] Failed to parse AI response', [
+                    'response' => $result['completion'],
+                ]);
+
+                return [];
+            }
+
+            $presentCharacters = $parsed['characters'];
+            $selectedPortraits = [];
+
+            foreach ($presentCharacters as $name) {
+                if (isset($characterPortraits[$name])) {
+                    $selectedPortraits[] = $characterPortraits[$name];
+                }
+            }
+
+            Log::info('[ChapterBuilderService::getCharacterImagesForScene] Identified characters in scene', [
+                'scene_preview' => substr($scenePrompt, 0, 100),
+                'identified_characters' => $presentCharacters,
+                'portraits_found' => count($selectedPortraits),
+            ]);
+
+            return $selectedPortraits;
+        } catch (Throwable $e) {
+            Log::error('[ChapterBuilderService::getCharacterImagesForScene] Exception', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
     }
 
     /**

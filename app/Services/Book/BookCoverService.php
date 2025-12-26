@@ -194,8 +194,12 @@ class BookCoverService
         $stylePrefix = $this->getStylePrefix($book);
         $fullPrompt = $stylePrefix.$prompt;
 
+        // Collect all character portrait images for Flux 2 input
+        $characterImages = $this->getCharacterPortraitUrls($book);
+
         Log::info('BookCoverService: Generating image with Replicate', [
             'prompt_length' => strlen($fullPrompt),
+            'character_images_count' => count($characterImages),
         ]);
 
         $trackingContext = [
@@ -207,7 +211,7 @@ class BookCoverService
 
         $result = $this->replicateService->generateImage(
             $fullPrompt.' shot on Sony A7IV, clean sharp, high dynamic range',
-            null,
+            $characterImages,
             '3:4',
             $trackingContext
         );
@@ -232,6 +236,36 @@ class BookCoverService
         Log::info('BookCoverService: Image saved to S3', ['path' => $imagePath]);
 
         return $imagePath;
+    }
+
+    /**
+     * Get all character portrait URLs for the book.
+     *
+     * @return array<string>
+     */
+    protected function getCharacterPortraitUrls(Book $book): array
+    {
+        $characterImages = [];
+
+        $characters = $book->characters ?? $book->characters()->get();
+
+        foreach ($characters as $character) {
+            if ($character->portrait_image) {
+                $portraitUrl = $character->portrait_image;
+                if (! str_starts_with($portraitUrl, 'http')) {
+                    $portraitUrl = $this->getCloudFrontImageUrl($portraitUrl);
+                }
+                if ($portraitUrl) {
+                    $characterImages[] = $portraitUrl;
+                    Log::debug('BookCoverService: Added character portrait for cover', [
+                        'character_id' => $character->id,
+                        'character_name' => $character->name,
+                    ]);
+                }
+            }
+        }
+
+        return $characterImages;
     }
 
     /**

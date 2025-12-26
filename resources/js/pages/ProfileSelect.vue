@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select';
 import InputError from '@/components/InputError.vue';
 import PinVerificationModal from '@/components/PinVerificationModal.vue';
-import StorytimeIcon from '@/components/StorytimeIcon.vue';
+import StorytimeSaplingIcon from '@/components/StorytimeSaplingIcon.vue';
 import { useInitials } from '@/composables/useInitials';
 import { switchMethod as switchProfile } from '@/routes/profiles';
 import ProfilesController from '@/actions/App/Http/Controllers/Settings/ProfilesController';
@@ -164,7 +164,7 @@ const getProfileGradient = (index: number): string => {
         <header class="relative z-20 flex items-center justify-between px-8 py-6">
             <Link :href="dashboard()" class="flex items-center gap-3 group">
                 <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#f53003] to-[#F8B803] transition-transform group-hover:scale-110">
-                    <StorytimeIcon class="h-6 w-6 text-white" />
+                    <StorytimeSaplingIcon class="h-6 w-6 text-white" />
                 </div>
                 <span class="text-2xl font-bold bg-gradient-to-r from-[#f53003] to-[#F8B803] bg-clip-text text-transparent">
                     Storytime

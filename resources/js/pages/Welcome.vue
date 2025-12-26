@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import StorytimeIcon from '@/components/StorytimeIcon.vue';
+import StorytimeSaplingIcon from '@/components/StorytimeSaplingIcon.vue';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -65,7 +65,7 @@ const closeMobileMenu = () => {
                     <div
                         class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#f53003] to-[#F8B803]"
                     >
-                        <StorytimeIcon class="h-6 w-6 text-white" />
+                        <StorytimeSaplingIcon class="h-6 w-6 text-white" />
                     </div>
                     <span
                         class="text-2xl font-bold bg-gradient-to-r from-[#f53003] to-[#F8B803] bg-clip-text text-transparent"
@@ -126,7 +126,7 @@ const closeMobileMenu = () => {
                                     <div
                                         class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#f53003] to-[#F8B803] shadow-lg"
                                     >
-                                        <StorytimeIcon class="h-7 w-7 text-white" />
+                                        <StorytimeSaplingIcon class="h-7 w-7 text-white" />
                                     </div>
                                     <div>
                                         <p
@@ -232,8 +232,15 @@ const closeMobileMenu = () => {
         </header>
 
         <!-- Hero Section -->
-        <section class="relative overflow-hidden px-6 pt-32 pb-20 lg:px-8">
-            <div class="mx-auto max-w-7xl">
+        <section class="relative isolate overflow-hidden px-6 pt-32 pb-20 lg:px-8 ">
+            <!-- Parallax Background Image -->
+            <div
+                class="absolute inset-0 bg-cover bg-center bg-fixed"
+                :style="{
+                    backgroundImage: 'url(https://d3lz6w5lgn41k.cloudfront.net/forrest-1.webp)',
+                }"
+            ></div>
+            <div class="relative z-10 mx-auto max-w-7xl">
                 <div
                     class="grid gap-12 lg:grid-cols-2 lg:gap-16 items-center"
                 >
@@ -246,17 +253,17 @@ const closeMobileMenu = () => {
                         ]"
                     >
                         <h1
-                            class="mb-6 text-5xl font-bold leading-tight text-[#1b1b18] lg:text-7xl dark:text-[#EDEDEC]"
+                            class="mb-6 text-5xl font-bold leading-tight text-white lg:text-7xl drop-shadow-lg"
                         >
                             Bring Your
                             <span
-                                class="bg-gradient-to-r from-[#f53003] via-[#F8B803] to-[#F0ACB8] bg-clip-text text-transparent"
+                                class="bg-gradient-to-r from-[#f53003] via-[#F8B803] to-[#F0ACB8] bg-clip-text text-transparent drop-shadow-none"
                             >
                                 Imagination to Life
                             </span>
                         </h1>
                         <p
-                            class="mb-8 text-lg leading-relaxed text-[#706f6c] lg:text-xl dark:text-[#A1A09A]"
+                            class="mb-8 text-lg leading-relaxed text-white/90 lg:text-xl drop-shadow-md"
                         >
                             Create magical storybooks, exciting chapter books,
                             and captivating plays. Chat with your characters,
@@ -284,12 +291,12 @@ const closeMobileMenu = () => {
                                     />
                                 </svg>
                             </Link>
-                            <Link
-                                :href="login()"
-                                class="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-[#19140020] px-8 py-4 font-semibold text-[#1b1b18] transition-all hover:border-[#19140040] hover:bg-white dark:border-[#3E3E3A] dark:text-[#EDEDEC] dark:hover:border-[#62605b] dark:hover:bg-[#161615]"
+                            <a
+                                href="#features"
+                                class="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-white/30 px-8 py-4 font-semibold text-white transition-all hover:border-white/60 hover:bg-white/10 backdrop-blur-sm"
                             >
                                 <span>Learn More</span>
-                            </Link>
+                            </a>
                         </div>
                     </div>
                     <div
@@ -300,59 +307,66 @@ const closeMobileMenu = () => {
                                 : 'translate-y-8 opacity-0',
                         ]"
                     >
-                        <!-- Floating Book Illustration -->
-                        <div class="relative">
+                        <!-- Book Covers Fan -->
+                        <div class="relative flex items-center justify-center py-8">
+                            <!-- Glow effects -->
                             <div
-                                class="absolute -top-4 -left-4 h-72 w-72 animate-pulse rounded-full bg-[#F0ACB8]/30 blur-3xl"
+                                class="absolute -top-8 -left-8 h-80 w-80 animate-pulse rounded-full bg-[#F0ACB8]/40 blur-3xl"
                             ></div>
                             <div
-                                class="absolute -bottom-4 -right-4 h-72 w-72 animate-pulse rounded-full bg-[#F8B803]/30 blur-3xl animation-delay-1000"
+                                class="absolute -bottom-8 -right-8 h-80 w-80 animate-pulse rounded-full bg-[#F8B803]/40 blur-3xl animation-delay-1000"
                             ></div>
-                            <div
-                                class="relative rounded-3xl bg-gradient-to-br from-white to-[#fff9e6] p-8 shadow-2xl dark:from-[#161615] dark:to-[#1a0f00]"
-                            >
+                            
+                            <!-- Fan of Book Covers -->
+                            <div class="relative h-[450px] w-[400px]">
+                                <!-- Book 1 (far left) -->
                                 <div
-                                    class="flex items-center justify-center"
+                                    class="book-cover absolute h-[300px] w-[200px] cursor-pointer overflow-hidden rounded-lg shadow-xl transition-all duration-300 hover:z-50 hover:scale-110"
+                                    style="left: 50%; top: 55%; transform: translate(-50%, -50%) translateX(-120px) translateY(20px) rotate(-18deg); z-index: 0; transform-origin: bottom center;"
                                 >
-                                    <div
-                                        class="relative h-96 w-80 transition-transform hover:scale-105"
-                                    >
-                                        <!-- Book -->
-                                        <div
-                                            class="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#f53003] to-[#F8B803] shadow-2xl transform rotate-6"
-                                        ></div>
-                                        <div
-                                            class="absolute inset-0 rounded-2xl bg-gradient-to-br from-white to-[#FDFDFC] shadow-xl dark:from-[#161615] dark:to-[#1b1b18]"
-                                        >
-                                            <div
-                                                class="flex h-full flex-col items-center justify-center p-8"
-                                            >
-                                                <svg
-                                                    class="mb-4 h-24 w-24 text-[#f53003]"
-                                                    fill="none"
-                                                    viewBox="0 0 24 24"
-                                                    stroke="currentColor"
-                                                >
-                                                    <path
-                                                        stroke-linecap="round"
-                                                        stroke-linejoin="round"
-                                                        stroke-width="1.5"
-                                                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-                                                    />
-                                                </svg>
-                                                <h3
-                                                    class="mb-2 text-center text-2xl font-bold text-[#1b1b18] dark:text-[#EDEDEC]"
-                                                >
-                                                    Your Story
-                                                </h3>
-                                                <p
-                                                    class="text-center text-sm text-[#706f6c] dark:text-[#A1A09A]"
-                                                >
-                                                    Imagination has no limits
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <img
+                                        src="https://d3lz6w5lgn41k.cloudfront.net/01kd8m1j8jpyb2qgrf2ck6kq1a_dGqeSF7M.webp"
+                                        alt="Storybook cover"
+                                        class="h-full w-full object-cover"
+                                    />
+                                </div>
+                                
+                                <!-- Book 2 (left) -->
+                                <div
+                                    class="book-cover absolute h-[320px] w-[210px] cursor-pointer overflow-hidden rounded-lg shadow-xl transition-all duration-300 hover:z-50 hover:scale-110"
+                                    style="left: 50%; top: 52%; transform: translate(-50%, -50%) translateX(-55px) translateY(10px) rotate(-8deg); z-index: 1; transform-origin: bottom center;"
+                                >
+                                    <img
+                                        src="https://d3lz6w5lgn41k.cloudfront.net/01kdbehm7vx30g9t1z4a59m1jq_8V4JDjhY.webp"
+                                        alt="Storybook cover"
+                                        class="h-full w-full object-cover"
+                                    />
+                                </div>
+                                
+                                <!-- Book 3 (right) -->
+                                <div
+                                    class="book-cover absolute h-[320px] w-[210px] cursor-pointer overflow-hidden rounded-lg shadow-xl transition-all duration-300 hover:z-50 hover:scale-110"
+                                    style="left: 50%; top: 52%; transform: translate(-50%, -50%) translateX(55px) translateY(10px) rotate(8deg); z-index: 2; transform-origin: bottom center;"
+                                >
+                                    <img
+                                        src="https://d3lz6w5lgn41k.cloudfront.net/01kd8d7jxjkbgv9yj1xdq2ghtq_BRYNCSdv.webp"
+                                        alt="Storybook cover"
+                                        class="h-full w-full object-cover"
+                                    />
+                                </div>
+                                
+                                <!-- Book 4 (front - most visible) -->
+                                <div
+                                    class="book-cover absolute h-[360px] w-[240px] cursor-pointer overflow-hidden rounded-lg shadow-2xl transition-all duration-300 hover:scale-105"
+                                    style="left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(2deg); z-index: 3;"
+                                >
+                                    <img
+                                        src="https://d3lz6w5lgn41k.cloudfront.net/01kcf866nybd69xftd89wmdt28_i7iVQtCN.webp"
+                                        alt="Storybook cover"
+                                        class="h-full w-full object-cover"
+                                    />
+                                    <!-- Subtle shine effect -->
+                                    <div class="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent"></div>
                                 </div>
                             </div>
                         </div>
@@ -362,7 +376,7 @@ const closeMobileMenu = () => {
         </section>
 
         <!-- Features Section -->
-        <section class="px-6 py-20 lg:px-8">
+        <section id="features" class="scroll-mt-24 px-6 py-20 lg:px-8">
             <div class="mx-auto max-w-7xl">
                 <div class="mb-16 text-center">
                     <h2

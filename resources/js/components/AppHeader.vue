@@ -389,17 +389,19 @@ const closeMobileMenu = () => {
                                 <div
                                     class="mt-auto border-t border-neutral-200 p-3 dark:border-neutral-800"
                                 >
-                                    <SheetClose :as-child="true">
-                                        <Link
-                                            :href="logout()"
-                                            as="button"
-                                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
-                                            @click="handleLogout"
-                                        >
-                                            <LogOut class="h-5 w-5" />
-                                            Log out
-                                        </Link>
-                                    </SheetClose>
+                                    <nav>
+                                        <SheetClose :as-child="true">
+                                            <Link
+                                                :href="logout()"
+                                                as="button"
+                                                class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                                                @click="handleLogout"
+                                            >
+                                                <LogOut class="h-5 w-5" />
+                                                Log out
+                                            </Link>
+                                        </SheetClose>
+                                    </nav>
                                 </div>
                             </SheetContent>
                         </Sheet>

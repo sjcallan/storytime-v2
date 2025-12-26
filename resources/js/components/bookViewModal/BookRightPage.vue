@@ -64,6 +64,7 @@ const emit = defineEmits<{
     (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
     (e: 'requestIdea'): void;
     (e: 'characterUpdated', character: Character): void;
+    (e: 'textareaFocused', value: boolean): void;
 }>();
 
 // Show create form on right when in create-chapter view and chapter ended on left
@@ -174,6 +175,7 @@ const showInlineCreateForm = computed(() => {
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
                 @request-idea="emit('requestIdea')"
+                @textarea-focused="emit('textareaFocused', $event)"
             />
             <!-- Otherwise show chapter content -->
             <BookChapterContent
@@ -202,6 +204,7 @@ const showInlineCreateForm = computed(() => {
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
                 @request-idea="emit('requestIdea')"
+                @textarea-focused="emit('textareaFocused', $event)"
             />
             <!-- Show decorative on right when chapter ended on right (form is on left) -->
             <BookPageDecorative v-else-if="showDecorativeOnRight" variant="wand" />
@@ -219,6 +222,7 @@ const showInlineCreateForm = computed(() => {
                 @update:is-final-chapter="emit('update:isFinalChapter', $event)"
                 @generate="emit('generateChapter')"
                 @request-idea="emit('requestIdea')"
+                @textarea-focused="emit('textareaFocused', $event)"
             />
         </template>
 

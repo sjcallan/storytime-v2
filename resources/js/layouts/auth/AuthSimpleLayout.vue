@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import StorytimeIcon from '@/components/StorytimeIcon.vue';
+import StorytimeSaplingIcon from '@/components/StorytimeSaplingIcon.vue';
 import { home } from '@/routes';
 import { Link } from '@inertiajs/vue3';
 
@@ -23,7 +23,7 @@ defineProps<{
                         <div
                             class="mb-1 flex h-32 w-32 items-center justify-center rounded-md"
                         >
-                            <StorytimeIcon
+                            <StorytimeSaplingIcon
                                 class="h-32 w-32 fill-current text-orange-500"
                             />
                         </div>
