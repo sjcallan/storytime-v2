@@ -402,6 +402,11 @@ onMounted(() => {
     nextTick(() => updateAllScrollStates());
     subscribeToAllBooks();
     subscribeToUserBooksChannel();
+
+    // Auto-open create story modal if user has no books
+    if (!hasBooks.value) {
+        openCreateStoryModal();
+    }
 });
 
 onUnmounted(() => {
