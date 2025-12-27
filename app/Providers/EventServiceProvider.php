@@ -51,6 +51,7 @@ class EventServiceProvider extends ServiceProvider
         ],
         \App\Events\User\UserCreatedEvent::class => [
             \App\Listeners\User\CreateDefaultProfileListener::class,
+            \App\Listeners\User\UserCreatedAdminNotificationListener::class,
         ],
     ];
 
