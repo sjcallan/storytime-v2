@@ -18,29 +18,37 @@ import axios from 'axios';
 
 const page = usePage<AppPageProps>();
 const hasPin = computed(() => page.props.auth.hasPin);
+const isAdmin = computed(() => page.props.auth.isAdmin);
 
-const sidebarNavItems: NavItem[] = [
-    {
-        title: 'Account',
-        href: editProfile(),
-    },
-    {
-        title: 'Manage Profiles',
-        href: profilesIndex(),
-    },
-    {
-        title: 'Password',
-        href: editPassword(),
-    },
-    {
-        title: 'Two-Factor Auth',
-        href: show(),
-    },
-    {
-        title: 'Usage',
-        href: usageIndex(),
-    },
-];
+const sidebarNavItems = computed<NavItem[]>(() => {
+    const items: NavItem[] = [
+        {
+            title: 'Account',
+            href: editProfile(),
+        },
+        {
+            title: 'Manage Profiles',
+            href: profilesIndex(),
+        },
+        {
+            title: 'Password',
+            href: editPassword(),
+        },
+        {
+            title: 'Two-Factor Auth',
+            href: show(),
+        },
+    ];
+
+    if (isAdmin.value) {
+        items.push({
+            title: 'Usage',
+            href: usageIndex(),
+        });
+    }
+
+    return items;
+});
 
 const currentPath = typeof window !== undefined ? window.location.pathname : '';
 

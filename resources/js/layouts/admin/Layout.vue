@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { toUrl, urlIsActive } from '@/lib/utils';
 import { index as usersIndex } from '@/routes/admin/users';
+import { index as usageIndex } from '@/routes/admin/usage';
 import { type NavItem, type AppPageProps } from '@/types';
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import { Users, ShieldCheck } from 'lucide-vue-next';
+import { Users, ShieldCheck, BarChart3 } from 'lucide-vue-next';
 
 const page = usePage<AppPageProps>();
 const isAdmin = computed(() => page.props.auth.isAdmin);
@@ -17,6 +18,11 @@ const sidebarNavItems: NavItem[] = [
         title: 'Users',
         href: usersIndex(),
         icon: Users,
+    },
+    {
+        title: 'Usage',
+        href: usageIndex(),
+        icon: BarChart3,
     },
 ];
 

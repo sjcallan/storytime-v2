@@ -24,13 +24,6 @@ class UserObserver
     public function created(User $user)
     {
         Event::dispatch(new UserCreatedEvent($user));
-
-        /** Notify Admins of a new User created */
-        $admins = User::where('is_admin', 1)->get();
-
-        foreach ($admins as $adminUser) {
-            $adminUser->notify(new UserCreatedEvent($user));
-        }
     }
 
     /**
