@@ -19,12 +19,15 @@ class ReplicateApiService
 
     protected ?string $customModelVersion;
 
+    protected ?string $customModelLora;
+
     protected bool $useCustomModel;
 
     public function __construct()
     {
         $this->apiKey = config('services.replicate.api_key');
         $this->customModelVersion = config('services.replicate.custom_model_version');
+        $this->customModelLora = config('services.replicate.custom_model_lora');
         $this->useCustomModel = (bool) config('services.replicate.use_custom_model', false);
     }
 
@@ -243,7 +246,7 @@ class ReplicateApiService
     ): array {
         $startTime = microtime(true);
 
-        $input = array_merge([
+        $defaultParams = [
             'prompt' => $prompt,
             'model' => 'dev',
             'go_fast' => false,
@@ -255,10 +258,16 @@ class ReplicateApiService
             'guidance_scale' => 2,
             'output_quality' => 80,
             'prompt_strength' => 0.8,
-            'extra_lora_scale' => 1,
+            'extra_lora_scale' => 0.8,
             'num_inference_steps' => 30,
             'disable_safety_checker' => true,
-        ], $customParams);
+        ];
+
+        if (! empty($this->customModelLora)) {
+            $defaultParams['extra_lora'] = $this->customModelLora;
+        }
+
+        $input = array_merge($defaultParams, $customParams);
 
         Log::debug('Replicate API: Making request with custom model', [
             'model_version' => $this->customModelVersion,
@@ -267,6 +276,8 @@ class ReplicateApiService
             'aspect_ratio' => $aspectRatio,
             'guidance_scale' => $input['guidance_scale'],
             'lora_scale' => $input['lora_scale'],
+            'extra_lora' => $input['extra_lora'] ?? null,
+            'extra_lora_scale' => $input['extra_lora_scale'],
         ]);
 
         $response = $this->makeCustomModelRequestWithRetry($input);
