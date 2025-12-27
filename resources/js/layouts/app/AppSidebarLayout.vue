@@ -113,7 +113,7 @@ const handleLogout = () => {
                         <!-- Button content -->
                         <span class="relative flex items-center gap-2">
                             <Wand2 class="h-4 w-4 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110 sm:h-5 sm:w-5" />
-                            <span>New Story</span>
+                            <span>Start a New Story</span>
                             <Sparkles class="h-3 w-3 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:animate-pulse sm:h-4 sm:w-4" />
                         </span>
                     </button>
