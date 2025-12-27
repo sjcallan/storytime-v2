@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Sparkles, ImageIcon, RefreshCw } from 'lucide-vue-next';
+import { Sparkles, ImageIcon, RefreshCw, ExternalLink } from 'lucide-vue-next';
 import type { Chapter, PageSpread, PageContentItem, BookType } from './types';
 import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
+
+// Open image in new window
+const openImageInNewWindow = (url: string | null | undefined) => {
+    if (url && typeof url === 'string') {
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
+};
 
 interface Props {
     chapter: Chapter;
@@ -120,21 +127,32 @@ const rightPageNumber = computed(() => {
                             </div>
                             <!-- Loaded image (only when we have a valid URL) -->
                             <template v-else>
-                                <img
-                                    :src="item.imageUrl!"
-                                    :alt="'Chapter illustration'"
-                                    class="w-full h-auto rounded-lg shadow-md object-cover aspect-video"
-                                    loading="lazy"
-                                />
                                 <!-- Regenerate Image Button -->
                                 <button
                                     @click.stop="emit('regenerateImage', item, chapter.id)"
-                                    class="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/image:opacity-100 cursor-pointer"
+                                    class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/image:opacity-100 cursor-pointer"
                                     title="Generate new illustration"
                                 >
                                     <RefreshCw class="h-3.5 w-3.5" />
                                     <span>New image</span>
                                 </button>
+                                <!-- Open in new window button -->
+                                <button
+                                    @click.stop="openImageInNewWindow(item.imageUrl)"
+                                    class="absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/image:opacity-100 cursor-pointer"
+                                    title="Open full image in new window"
+                                >
+                                    <ExternalLink class="h-3.5 w-3.5" />
+                                    <span>View full</span>
+                                </button>
+                                <img
+                                    :src="item.imageUrl!"
+                                    :alt="'Chapter illustration'"
+                                    class="w-full h-auto rounded-lg shadow-md object-cover aspect-video cursor-pointer transition-all hover:shadow-lg"
+                                    loading="lazy"
+                                    @click.stop="openImageInNewWindow(item.imageUrl)"
+                                    title="Click to view full image"
+                                />
                             </template>
                         </figure>
                         </template>
@@ -180,21 +198,32 @@ const rightPageNumber = computed(() => {
                             </div>
                             <!-- Loaded image (only when we have a valid URL) -->
                             <template v-else>
-                                <img
-                                    :src="item.imageUrl!"
-                                    :alt="'Chapter illustration'"
-                                    class="w-full h-auto rounded-lg shadow-md object-cover aspect-video"
-                                    loading="lazy"
-                                />
                                 <!-- Regenerate Image Button -->
                                 <button
                                     @click.stop="emit('regenerateImage', item, chapter.id)"
-                                    class="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/image:opacity-100 cursor-pointer"
+                                    class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/image:opacity-100 cursor-pointer"
                                     title="Generate new illustration"
                                 >
                                     <RefreshCw class="h-3.5 w-3.5" />
                                     <span>New image</span>
                                 </button>
+                                <!-- Open in new window button -->
+                                <button
+                                    @click.stop="openImageInNewWindow(item.imageUrl)"
+                                    class="absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/image:opacity-100 cursor-pointer"
+                                    title="Open full image in new window"
+                                >
+                                    <ExternalLink class="h-3.5 w-3.5" />
+                                    <span>View full</span>
+                                </button>
+                                <img
+                                    :src="item.imageUrl!"
+                                    :alt="'Chapter illustration'"
+                                    class="w-full h-auto rounded-lg shadow-md object-cover aspect-video cursor-pointer transition-all hover:shadow-lg"
+                                    loading="lazy"
+                                    @click.stop="openImageInNewWindow(item.imageUrl)"
+                                    title="Click to view full image"
+                                />
                             </template>
                         </figure>
                     </template>

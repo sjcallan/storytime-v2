@@ -129,6 +129,51 @@ type CharacterPortraitPayload = {
     portrait_image: string;
 };
 
+type CharacterCreatedPayload = {
+    id: string;
+    book_id: string;
+    name: string;
+    gender: string | null;
+    description: string | null;
+    type: string | null;
+    age: string | null;
+    nationality: string | null;
+    backstory: string | null;
+    portrait_image: string | null;
+    created_at: string;
+};
+
+// Handle real-time character created events
+const handleCharacterCreatedEvent = (payload: CharacterCreatedPayload) => {
+    if (!book.value || payload.book_id !== book.value.id) {
+        return;
+    }
+    
+    // Check if character already exists (avoid duplicates)
+    const existingCharacter = book.value.characters?.find(c => c.id === payload.id);
+    if (existingCharacter) {
+        return;
+    }
+    
+    // Initialize characters array if it doesn't exist
+    if (!book.value.characters) {
+        book.value.characters = [];
+    }
+    
+    // Add the new character to the book's characters array
+    book.value.characters.push({
+        id: payload.id,
+        name: payload.name,
+        gender: payload.gender,
+        description: payload.description,
+        type: payload.type,
+        age: payload.age,
+        nationality: payload.nationality,
+        backstory: payload.backstory,
+        portrait_image: payload.portrait_image,
+    });
+};
+
 // Handle real-time character portrait updated events
 const handleCharacterPortraitEvent = (payload: CharacterPortraitPayload) => {
     if (!book.value || !payload.id || !payload.portrait_image) {
@@ -233,6 +278,7 @@ const subscribeToBookChannel = (bookId: string) => {
         channel.listen('.chapter.created', handleChapterCreatedEvent);
         channel.listen('.chapter.updated', handleChapterUpdatedEvent);
         channel.listen('.chapter.inline-images.created', handleChapterInlineImagesEvent);
+        channel.listen('.character.created', handleCharacterCreatedEvent);
         channel.listen('.character.portrait.updated', handleCharacterPortraitEvent);
         bookChannel.value = channel;
     } catch (err) {
@@ -251,6 +297,7 @@ const unsubscribeFromBookChannel = () => {
         bookChannel.value.stopListening('.chapter.created');
         bookChannel.value.stopListening('.chapter.updated');
         bookChannel.value.stopListening('.chapter.inline-images.created');
+        bookChannel.value.stopListening('.character.created');
         bookChannel.value.stopListening('.character.portrait.updated');
         echo().leave(`book.${props.bookId}`);
     } catch {

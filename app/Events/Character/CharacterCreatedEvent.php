@@ -5,10 +5,11 @@ namespace App\Events\Character;
 use App\Models\Character;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class CharacterCreatedEvent
+class CharacterCreatedEvent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -28,7 +29,7 @@ class CharacterCreatedEvent
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('character.'.$this->character->id),
+            new PrivateChannel('book.'.$this->character->book_id),
         ];
     }
 
@@ -49,10 +50,16 @@ class CharacterCreatedEvent
     {
         return [
             'id' => $this->character->id,
-            'name' => $this->character->name,
             'book_id' => $this->character->book_id,
-            'created_at' => $this->character->created_at,
+            'name' => $this->character->name,
+            'gender' => $this->character->gender,
+            'description' => $this->character->description,
+            'type' => $this->character->type,
+            'age' => $this->character->age,
+            'nationality' => $this->character->nationality,
+            'backstory' => $this->character->backstory,
+            'portrait_image' => $this->character->portrait_image,
+            'created_at' => $this->character->created_at?->toIso8601String(),
         ];
     }
 }
-

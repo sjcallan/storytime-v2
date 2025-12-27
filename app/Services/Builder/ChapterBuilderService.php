@@ -80,7 +80,7 @@ class ChapterBuilderService extends BuilderService
 
             Log::debug('[ChapterBuilderService::buildChapter] Calling getCombinedChapterData');
             $combinedStartTime = microtime(true);
-            $chapterContent = $this->getCombinedChapterData($bookId, $data);
+            $chapterContent = $this->getCombinedChapterData($bookId, $data, $chapter->id);
             $combinedDuration = microtime(true) - $combinedStartTime;
 
             Log::info('[ChapterBuilderService::buildChapter] Combined chapter data generated', [
@@ -176,10 +176,11 @@ class ChapterBuilderService extends BuilderService
         }
     }
 
-    public function getCombinedChapterData(string $bookId, array $data): array
+    public function getCombinedChapterData(string $bookId, array $data, ?string $chapterId = null): array
     {
         Log::debug('[ChapterBuilderService::getCombinedChapterData] Starting', [
             'book_id' => $bookId,
+            'chapter_id' => $chapterId,
         ]);
 
         try {
@@ -316,6 +317,15 @@ class ChapterBuilderService extends BuilderService
                 'result_type' => gettype($result),
                 'has_completion' => is_array($result) && isset($result['completion']),
             ]);
+
+            $this->chatService->trackRequestLog(
+                $bookId,
+                $chapterId ?? '0',
+                $book->user_id,
+                'chapter_content',
+                $result,
+                $book->profile_id
+            );
 
             if (empty($result['completion'])) {
                 Log::error('[ChapterBuilderService::getCombinedChapterData] Empty completion', [
@@ -465,7 +475,13 @@ class ChapterBuilderService extends BuilderService
             $sceneCharacterImages = $this->getCharacterImagesForScene(
                 $scene['prompt'],
                 $book->characters,
-                $characterPortraits
+                $characterPortraits,
+                [
+                    'book_id' => $bookId,
+                    'chapter_id' => $chapterId,
+                    'user_id' => $book->user_id,
+                    'profile_id' => $book->profile_id,
+                ]
             );
 
             // Combine base images with scene-specific character portraits
@@ -548,9 +564,10 @@ class ChapterBuilderService extends BuilderService
      * @param  string  $scenePrompt  The scene description prompt
      * @param  \Illuminate\Support\Collection  $characters  All characters from the book
      * @param  array<string, string>  $characterPortraits  Map of character name to portrait URL
+     * @param  array{book_id: string, chapter_id: string, user_id: string, profile_id: string|null}|null  $trackingContext  Optional tracking context
      * @return array<string> Array of portrait URLs for characters present in the scene
      */
-    protected function getCharacterImagesForScene(string $scenePrompt, $characters, array $characterPortraits): array
+    protected function getCharacterImagesForScene(string $scenePrompt, $characters, array $characterPortraits, ?array $trackingContext = null): array
     {
         if ($characters->isEmpty() || empty($characterPortraits)) {
             return [];
@@ -597,6 +614,17 @@ class ChapterBuilderService extends BuilderService
             $this->chatService->addUserMessage($userPrompt);
 
             $result = $this->chatService->chat();
+
+            if ($trackingContext) {
+                $this->chatService->trackRequestLog(
+                    $trackingContext['book_id'],
+                    $trackingContext['chapter_id'],
+                    $trackingContext['user_id'],
+                    'scene_character_identification',
+                    $result,
+                    $trackingContext['profile_id'] ?? null
+                );
+            }
 
             if (empty($result['completion'])) {
                 Log::warning('[ChapterBuilderService::getCharacterImagesForScene] Empty AI response');
@@ -1032,15 +1060,16 @@ class ChapterBuilderService extends BuilderService
         }
     }
 
-    public function getSummary(string $bookId, string $chapterMessage)
+    public function getSummary(string $bookId, string $chapterMessage, ?string $chapterId = null)
     {
         Log::debug('[ChapterBuilderService::getSummary] Starting', [
             'book_id' => $bookId,
+            'chapter_id' => $chapterId,
             'message_length' => strlen($chapterMessage),
         ]);
 
         try {
-            $book = $this->bookService->getById($bookId, ['type']);
+            $book = $this->bookService->getById($bookId, ['type', 'user_id', 'profile_id']);
             $chapterLabel = $this->getChapterLabel($book->type);
 
             $this->setBackstory($bookId);
@@ -1050,6 +1079,15 @@ class ChapterBuilderService extends BuilderService
             $this->chatService->addUserMessage('Summarize this text. Respond in plain text with the key events of only this '.$chapterLabel.'. Include character names, descriptions, age, gender, experiences, thoughts, goals and nationalities. Do not add commentary.');
 
             $result = $this->chatService->chat();
+
+            $this->chatService->trackRequestLog(
+                $bookId,
+                $chapterId ?? '0',
+                $book->user_id,
+                'chapter_summary',
+                $result,
+                $book->profile_id
+            );
 
             Log::debug('[ChapterBuilderService::getSummary] Completed', [
                 'book_id' => $bookId,
@@ -1225,6 +1263,15 @@ PROMPT;
             $chatService->addUserMessage($userPrompt);
 
             $result = $chatService->chat();
+
+            $chatService->trackRequestLog(
+                $book->id,
+                $lastChapter->id,
+                $book->user_id,
+                'prompt_suggestion',
+                $result,
+                $book->profile_id
+            );
 
             if (! empty($result['error'])) {
                 Log::warning('[ChapterBuilderService::generatePromptSuggestion] AI error', [

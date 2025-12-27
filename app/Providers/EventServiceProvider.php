@@ -40,6 +40,9 @@ class EventServiceProvider extends ServiceProvider
         \App\Events\Book\BookUpdatedEvent::class => [
             \App\Listeners\Chapter\CreateFirstChapterListener::class,
         ],
+        \App\Events\Chapter\ChapterUpdatedEvent::class => [
+            \App\Listeners\Chapter\ExtractChapterCharactersListener::class,
+        ],
         \App\Events\Character\CharacterCreatedEvent::class => [
             \App\Listeners\Character\GenerateCharacterPortraitListener::class,
         ],
