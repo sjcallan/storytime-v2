@@ -47,7 +47,7 @@ const closeMobileMenu = () => {
 </script>
 
 <template>
-    <Head title="Welcome to Storytime">
+    <Head title="Storytime - Bring your stories to life">
         <link rel="preconnect" href="https://rsms.me/" />
         <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
     </Head>
@@ -235,7 +235,7 @@ const closeMobileMenu = () => {
         <section class="relative isolate overflow-hidden px-6 pt-32 pb-20 lg:px-8 ">
             <!-- Parallax Background Image -->
             <div
-                class="absolute inset-0 bg-cover bg-center bg-fixed"
+                class="absolute inset-0 bg-cover bg-center sm:bg-fixed"
                 :style="{
                     backgroundImage: 'url(https://d3lz6w5lgn41k.cloudfront.net/forrest-1.webp)',
                 }"
@@ -259,7 +259,7 @@ const closeMobileMenu = () => {
                             <span
                                 class="bg-gradient-to-r from-[#f53003] via-[#F8B803] to-[#F0ACB8] bg-clip-text text-transparent drop-shadow-none block"
                             >
-                                Come to Life
+                                come to life
                             </span>
                         </h1>
                         <p
@@ -270,11 +270,11 @@ const closeMobileMenu = () => {
                             share your imagination, and watch your stories come
                             alive!
                         </p>
-                        <div class="flex flex-col gap-4 sm:flex-row">
+                        <div class="flex w-full flex-col gap-4 sm:w-auto sm:flex-row">
                             <Link
                                 v-if="canRegister"
                                 :href="register()"
-                                class="group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#f53003] to-[#F8B803] px-8 py-4 font-semibold text-white shadow-2xl transition-all hover:shadow-[#f5300340] hover:scale-105"
+                                class="group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#f53003] to-[#F8B803] px-8 py-4 font-semibold text-white shadow-2xl transition-all hover:shadow-[#f5300340] hover:scale-105 sm:w-auto"
                             >
                                 <span>Start Creating</span>
                                 <svg
@@ -293,7 +293,7 @@ const closeMobileMenu = () => {
                             </Link>
                             <a
                                 href="#features"
-                                class="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-white/30 px-8 py-4 font-semibold text-white transition-all hover:border-white/60 hover:bg-white/10 backdrop-blur-sm"
+                                class="inline-flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-white/30 px-8 py-4 font-semibold text-white transition-all hover:border-white/60 hover:bg-white/10 backdrop-blur-sm sm:w-auto"
                             >
                                 <span>Learn More</span>
                             </a>
@@ -301,7 +301,7 @@ const closeMobileMenu = () => {
                     </div>
                     <div
                         :class="[
-                            'relative transition-all duration-1000 delay-300',
+                            'relative hidden transition-all duration-1000 delay-300 lg:block',
                             isVisible
                                 ? 'translate-y-0 opacity-100'
                                 : 'translate-y-8 opacity-0',

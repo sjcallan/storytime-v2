@@ -11,6 +11,8 @@
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-title" content="Storytime" />
         <link rel="manifest" href="/site.webmanifest" />
+        <link rel="icon" type="image/x-icon" sizes="16x16 32x32" href="favicon.ico">
+        <link rel="icon" sizes="192x192" href="/web-app-manifest-192x192">
 
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
         <script>
@@ -38,11 +40,10 @@
             }
         </style>
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        <title inertia>{{ config('app.name', 'Storytime - Bring your stories to life') }}</title>
+        <meta name="description" content="Creative storytelling for kids and young adults. Bring your stories to life, chat with the chatacters and share your imagination with others.">
 
-        <link rel="icon" href="/favicon.ico" sizes="any">
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
