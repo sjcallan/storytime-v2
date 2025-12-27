@@ -408,7 +408,7 @@ const useExamplePrompt = (prompt: string) => {
                         v-for="profile in profiles"
                         :key="profile.id"
                         class="group relative rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md"
-                        :class="{ 'ring-2 ring-primary/50': profile.is_default }"
+                        :class="{ 'ring-2 ring-orange-400 shadow-[0_0_12px_rgba(251,146,60,0.5)]': profile.is_default }"
                     >
                         <div class="flex items-start gap-4">
                             <!-- Profile Avatar -->
