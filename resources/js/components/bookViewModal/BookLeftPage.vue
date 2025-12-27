@@ -7,6 +7,7 @@ import CreateChapterForm from './CreateChapterForm.vue';
 import { BookOpen, ImageIcon, Sparkles, RefreshCw, PenLine } from 'lucide-vue-next';
 import type { Chapter, PageSpread, ReadingView, Character, BookType, PageContentItem } from './types';
 import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
+import { useSwipeGesture } from './composables/useSwipeGesture';
 
 interface Props {
     readingView: ReadingView;
@@ -27,6 +28,7 @@ interface Props {
     isGeneratingChapter?: boolean;
     bookType?: BookType;
     isSinglePageMode?: boolean;
+    bookTitle?: string;
 }
 
 const props = defineProps<Props>();
@@ -40,7 +42,16 @@ const emit = defineEmits<{
     (e: 'requestIdea'): void;
     (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
     (e: 'editChapter'): void;
+    (e: 'swipeForward'): void;
+    (e: 'swipeBack'): void;
 }>();
+
+// Swipe gesture support for touch devices
+const { onTouchStart, onTouchMove, onTouchEnd } = useSwipeGesture(
+    () => emit('swipeForward'),  // Swipe left = go forward
+    () => emit('swipeBack'),     // Swipe right = go back
+    { threshold: 50 }
+);
 
 // Calculate left page number
 const leftPageNumber = computed(() => {
@@ -52,6 +63,12 @@ const leftPageNumber = computed(() => {
     }
     // Title page is 0, first spread is pages 2-3, second spread is 4-5, etc.
     return 2 + (props.spreadIndex * 2);
+});
+
+// Show header when viewing chapter content
+const showHeader = computed(() => {
+    return (props.readingView === 'chapter-image' || props.readingView === 'chapter-content') && 
+           props.bookTitle;
 });
 
 // Show create form on left page when chapter ended on right and no next chapter
@@ -89,16 +106,33 @@ const isValidImageUrl = (url: string | null | undefined): boolean => {
 </script>
 
 <template>
-    <div :class="[
-        'relative h-full bg-amber-50 dark:bg-amber-100 overflow-hidden',
-        isSinglePageMode ? 'w-full' : 'w-1/2'
-    ]">
+    <div 
+        :class="[
+            'relative h-full bg-amber-50 dark:bg-amber-100 overflow-hidden',
+            isSinglePageMode ? 'w-full' : 'w-1/2'
+        ]"
+        @touchstart.passive="onTouchStart"
+        @touchmove="onTouchMove"
+        @touchend.passive="onTouchEnd"
+    >
         <!-- Paper texture -->
         <BookPageTexture />
         
         <!-- Decorative page lines -->
         <div class="absolute inset-y-0 left-4 w-px bg-amber-300/60 dark:bg-amber-400/50" />
         <div class="absolute inset-y-0 left-8 w-px bg-amber-300/40 dark:bg-amber-400/30" />
+        
+        <!-- Page Header - Book Title -->
+        <div 
+            v-if="showHeader"
+            class="absolute top-6 left-0 right-0 z-10 flex items-center justify-center gap-3 px-12"
+        >
+            <div class="h-px flex-1 bg-linear-to-r from-amber-600 via-amber-600 to-transparent dark:from-amber-400 dark:via-amber-400" />
+            <span class="text-xs font-medium text-amber-700 dark:text-amber-600 truncate max-w-[60%] text-center">
+                {{ bookTitle }}
+            </span>
+            <div class="h-px flex-1 bg-linear-to-l from-amber-600 via-amber-600 to-transparent dark:from-amber-400 dark:via-amber-400" />
+        </div>
         
         <!-- Left Page Content Based on View -->
         <template v-if="readingView === 'title'">

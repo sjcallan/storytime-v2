@@ -102,6 +102,30 @@ const isChapterEditing = ref(false);
 const chapterEditError = ref<string | null>(null);
 const pendingEditChapterId = ref<string | null>(null);
 
+// Navigation hint state (flash arrow when user scrolled to bottom)
+const isFlashingNextArrow = ref(false);
+let flashTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const handleScrolledToBottom = () => {
+    // Only flash if we can navigate forward
+    if (!canNavigateForward.value) {
+        return;
+    }
+    
+    // Start flashing the arrow
+    isFlashingNextArrow.value = true;
+    
+    // Clear any existing timeout
+    if (flashTimeout) {
+        clearTimeout(flashTimeout);
+    }
+    
+    // Stop flashing after 3 seconds
+    flashTimeout = setTimeout(() => {
+        isFlashingNextArrow.value = false;
+    }, 3000);
+};
+
 // Computed: is the current chapter the last chapter?
 const isLastChapter = computed(() => {
     return chapters.totalChapters.value > 0 && 
@@ -833,6 +857,13 @@ const handleSubmitRewrite = async (newPrompt: string) => {
 
 // Handle right edge click - smarter navigation for title page in single-page mode
 const handleRightEdgeClick = () => {
+    // Stop flashing when user navigates
+    isFlashingNextArrow.value = false;
+    if (flashTimeout) {
+        clearTimeout(flashTimeout);
+        flashTimeout = null;
+    }
+    
     if (chapters.readingView.value === 'title') {
         // In single-page mode viewing characters (left page), first show title (right page)
         if (responsive.isSinglePageMode.value && responsive.singlePageSide.value === 'left') {
@@ -844,6 +875,19 @@ const handleRightEdgeClick = () => {
         handleContinueToChapter1();
     } else {
         handleGoToNextChapter();
+    }
+};
+
+// Swipe gesture handlers for touch devices
+const handleSwipeForward = () => {
+    if (canNavigateForward.value && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value) {
+        handleRightEdgeClick();
+    }
+};
+
+const handleSwipeBack = () => {
+    if (canNavigateBack.value && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value) {
+        handleGoToPreviousChapter();
     }
 };
 
@@ -1026,6 +1070,9 @@ onBeforeUnmount(() => {
     animation.clearScheduledTimeouts();
     window.removeEventListener('keydown', handleKeydown);
     unsubscribeFromBookChannel();
+    if (flashTimeout) {
+        clearTimeout(flashTimeout);
+    }
 });
 </script>
 
@@ -1098,7 +1145,10 @@ onBeforeUnmount(() => {
                             accent-color="text-orange-400"
                             class="mx-auto"
                         />
-                        <p class="text-lg font-medium text-amber-900 dark:text-amber-800 animate-pulse">
+                        <p 
+                            v-if="!animation.isClosing.value"
+                            class="text-lg font-medium text-amber-900 dark:text-amber-800 animate-pulse"
+                        >
                             Opening your story...
                         </p>
                     </div>
@@ -1248,6 +1298,7 @@ onBeforeUnmount(() => {
                             :is-generating-chapter="chapters.isGeneratingChapter.value || chapters.isAwaitingChapterGeneration.value"
                             :book-type="book?.type"
                             :is-single-page-mode="responsive.isSinglePageMode.value"
+                            :book-title="displayTitle"
                             @select-character="handleSelectCharacter"
                             @update:next-chapter-prompt="chapters.nextChapterPrompt.value = $event"
                             @update:is-final-chapter="chapters.isFinalChapter.value = $event"
@@ -1256,6 +1307,8 @@ onBeforeUnmount(() => {
                             @request-idea="handleRequestIdea"
                             @regenerate-image="(item, chapterId) => handleRegenerateImage(item, chapterId)"
                             @edit-chapter="handleOpenChapterEditModal"
+                            @swipe-forward="handleSwipeForward"
+                            @swipe-back="handleSwipeBack"
                         />
 
                         <!-- Book Spine (hidden in single-page mode) -->
@@ -1315,17 +1368,31 @@ onBeforeUnmount(() => {
                             @request-idea="handleRequestIdea"
                             @character-updated="handleCharacterUpdated"
                             @edit-chapter="handleOpenChapterEditModal"
+                            @scrolled-to-bottom="handleScrolledToBottom"
+                            @swipe-forward="handleSwipeForward"
+                            @swipe-back="handleSwipeBack"
                         />
 
                         <!-- Right Edge Click Zone (Go Forward / Start Reading) -->
                         <button
                             v-if="canNavigateForward && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
-                            class="edge-nav-zone edge-nav-right group absolute right-0 inset-y-0 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none"
+                            :class="[
+                                'edge-nav-zone edge-nav-right group absolute right-0 inset-y-0 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none',
+                                { 'nav-arrow-flash': isFlashingNextArrow }
+                            ]"
                             @click="handleRightEdgeClick"
                             :aria-label="chapters.readingView.value === 'title' ? 'Start reading' : 'Next page'"
                         >
-                            <div class="absolute inset-y-0 right-0 w-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                <svg class="w-6 h-6 text-amber-700/60 dark:text-amber-500/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <div :class="[
+                                'absolute inset-y-0 right-0 w-full flex items-center justify-center transition-opacity duration-200',
+                                isFlashingNextArrow ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                            ]">
+                                <svg :class="[
+                                    'w-6 h-6 transition-all duration-200',
+                                    isFlashingNextArrow 
+                                        ? 'text-amber-600 dark:text-amber-400 scale-125 animate-bounce-gentle' 
+                                        : 'text-amber-700/60 dark:text-amber-500/60'
+                                ]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                                 </svg>
                             </div>
@@ -1358,6 +1425,46 @@ onBeforeUnmount(() => {
     }
     to {
         opacity: 1;
+    }
+}
+
+/* Navigation arrow flash animation */
+.nav-arrow-flash {
+    animation: arrowPulse 0.6s ease-in-out infinite;
+}
+
+@keyframes arrowPulse {
+    0%, 100% {
+        background-color: transparent;
+    }
+    50% {
+        background-color: rgb(217 119 6 / 0.1);
+    }
+}
+
+:is(.dark .nav-arrow-flash) {
+    animation: arrowPulseDark 0.6s ease-in-out infinite;
+}
+
+@keyframes arrowPulseDark {
+    0%, 100% {
+        background-color: transparent;
+    }
+    50% {
+        background-color: rgb(251 191 36 / 0.1);
+    }
+}
+
+.animate-bounce-gentle {
+    animation: bounceGentle 0.6s ease-in-out infinite;
+}
+
+@keyframes bounceGentle {
+    0%, 100% {
+        transform: translateX(0) scale(1.25);
+    }
+    50% {
+        transform: translateX(4px) scale(1.25);
     }
 }
 </style>

@@ -9,6 +9,7 @@ import CreateChapterForm from './CreateChapterForm.vue';
 import CharacterDetail from './CharacterDetail.vue';
 import NextChapterPreview from './NextChapterPreview.vue';
 import type { Book, Chapter, PageSpread, ReadingView, BookEditFormData, Character, PageContentItem } from './types';
+import { useSwipeGesture } from './composables/useSwipeGesture';
 
 interface Props {
     book: Book | null;
@@ -67,7 +68,17 @@ const emit = defineEmits<{
     (e: 'characterUpdated', character: Character): void;
     (e: 'textareaFocused', value: boolean): void;
     (e: 'editChapter'): void;
+    (e: 'scrolledToBottom'): void;
+    (e: 'swipeForward'): void;
+    (e: 'swipeBack'): void;
 }>();
+
+// Swipe gesture support for touch devices
+const { onTouchStart, onTouchMove, onTouchEnd } = useSwipeGesture(
+    () => emit('swipeForward'),  // Swipe left = go forward
+    () => emit('swipeBack'),     // Swipe right = go back
+    { threshold: 50 }
+);
 
 // Check if current chapter is the last (most recent) chapter
 const isLastChapter = computed(() => {
@@ -98,13 +109,24 @@ const showInlineCreateForm = computed(() => {
            !props.hasNextChapter &&
            !props.shouldShowNextChapterOnRight;
 });
+
+// Show header when viewing chapter content
+const showHeader = computed(() => {
+    return (props.readingView === 'chapter-image' || props.readingView === 'chapter-content') && 
+           props.chapter?.title;
+});
 </script>
 
 <template>
-    <div :class="[
-        'relative h-full bg-amber-50 dark:bg-amber-100 overflow-hidden',
-        isSinglePageMode ? 'w-full' : 'w-1/2'
-    ]">
+    <div 
+        :class="[
+            'relative h-full bg-amber-50 dark:bg-amber-100 overflow-hidden',
+            isSinglePageMode ? 'w-full' : 'w-1/2'
+        ]"
+        @touchstart.passive="onTouchStart"
+        @touchmove="onTouchMove"
+        @touchend.passive="onTouchEnd"
+    >
         <!-- Paper texture -->
         <BookPageTexture />
         
@@ -114,6 +136,18 @@ const showInlineCreateForm = computed(() => {
         
         <!-- Left shadow from spine (hidden in single-page mode) -->
         <div v-if="!isSinglePageMode" class="absolute inset-y-0 left-0 w-6 bg-linear-to-r from-amber-900/10 to-transparent pointer-events-none" />
+
+        <!-- Page Header - Chapter Title -->
+        <div 
+            v-if="showHeader"
+            class="absolute top-6 left-0 right-0 z-10 flex items-center justify-center gap-3 px-12"
+        >
+            <div class="h-px flex-1 bg-linear-to-r from-transparent via-amber-600 to-amber-600 dark:via-amber-400 dark:to-amber-400" />
+            <span class="text-xs font-medium text-amber-700 dark:text-amber-600 truncate max-w-[60%] text-center">
+                {{ chapter?.title }}
+            </span>
+            <div class="h-px flex-1 bg-linear-to-l from-transparent via-amber-600 to-amber-600 dark:via-amber-400 dark:to-amber-400" />
+        </div>
 
         <!-- Action/Chapter Error -->
         <div
@@ -195,6 +229,7 @@ const showInlineCreateForm = computed(() => {
                 :is-last-spread="isOnLastSpread"
                 @regenerate-image="(item, chapterId) => emit('regenerateImage', item, chapterId)"
                 @edit-chapter="emit('editChapter')"
+                @scrolled-to-bottom="emit('scrolledToBottom')"
             />
         </template>
 

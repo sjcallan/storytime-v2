@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { Sparkles, ImageIcon, RefreshCw, ExternalLink, PenLine } from 'lucide-vue-next';
 import type { Chapter, PageSpread, PageContentItem, BookType } from './types';
 import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
@@ -25,7 +25,50 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
     (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
     (e: 'editChapter'): void;
+    (e: 'scrolledToBottom'): void;
 }>();
+
+// Scroll detection
+const contentScrollArea = ref<HTMLElement | null>(null);
+const hasEmittedScrollToBottom = ref(false);
+
+const checkScrollPosition = () => {
+    const el = contentScrollArea.value;
+    if (!el) {
+        return;
+    }
+    
+    // Check if content is scrollable (has overflow)
+    const isScrollable = el.scrollHeight > el.clientHeight;
+    if (!isScrollable) {
+        return;
+    }
+    
+    // Check if scrolled to bottom (with small tolerance)
+    const scrolledToBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 10;
+    
+    if (scrolledToBottom && !hasEmittedScrollToBottom.value) {
+        hasEmittedScrollToBottom.value = true;
+        emit('scrolledToBottom');
+    }
+};
+
+// Reset when spread changes
+watch(() => [props.spread, props.spreadIndex], () => {
+    hasEmittedScrollToBottom.value = false;
+});
+
+onMounted(() => {
+    if (contentScrollArea.value) {
+        contentScrollArea.value.addEventListener('scroll', checkScrollPosition, { passive: true });
+    }
+});
+
+onUnmounted(() => {
+    if (contentScrollArea.value) {
+        contentScrollArea.value.removeEventListener('scroll', checkScrollPosition);
+    }
+});
 
 // Show edit button only on the last spread of the most recent chapter
 const showEditButton = computed(() => {
@@ -97,7 +140,7 @@ const rightPageNumber = computed(() => {
                 </div>
                 
                 <!-- Remaining ~60% for content -->
-                <div class="flex-1 overflow-y-auto">
+                <div ref="contentScrollArea" class="flex-1 overflow-y-auto">
                     <div v-if="spread.rightContent" class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
                         <template v-for="(item, idx) in spread.rightContent" :key="idx">
                             <p 
@@ -171,7 +214,7 @@ const rightPageNumber = computed(() => {
         
         <!-- Subsequent spreads: Content continuation on right page (full height) -->
         <template v-else>
-            <div class="h-full px-16 pt-24 pb-12 overflow-y-auto">
+            <div ref="contentScrollArea" class="h-full px-16 pt-24 pb-12 overflow-y-auto">
                 <div v-if="spread.rightContent" class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
                     <template v-for="(item, idx) in spread.rightContent" :key="idx">
                         <p 
