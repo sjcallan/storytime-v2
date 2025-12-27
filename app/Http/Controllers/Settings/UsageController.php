@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Models\Book;
 use App\Models\RequestLog;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -18,14 +19,19 @@ class UsageController extends Controller
     {
         $user = $request->user();
         $profileId = $request->input('profile_id');
+        $bookId = $request->input('book_id');
 
         $query = RequestLog::query()
             ->where('user_id', $user->id)
-            ->with('profile:id,name')
+            ->with(['profile:id,name', 'book:id,title'])
             ->orderByDesc('created_at');
 
         if ($profileId) {
             $query->where('profile_id', $profileId);
+        }
+
+        if ($bookId) {
+            $query->where('book_id', $bookId);
         }
 
         $logs = $query->paginate(15)->withQueryString();
@@ -35,6 +41,10 @@ class UsageController extends Controller
 
         if ($profileId) {
             $statsQuery->where('profile_id', $profileId);
+        }
+
+        if ($bookId) {
+            $statsQuery->where('book_id', $bookId);
         }
 
         $allTimeStats = (clone $statsQuery)->selectRaw('
@@ -56,8 +66,15 @@ class UsageController extends Controller
                 COUNT(*) as total_requests
             ')->first();
 
+        $books = Book::query()
+            ->where('user_id', $user->id)
+            ->select('id', 'title')
+            ->orderBy('title')
+            ->get();
+
         return Inertia::render('settings/Usage', [
             'logs' => $logs,
+            'books' => $books,
             'allTimeStats' => [
                 'prompt_tokens' => (int) ($allTimeStats->total_prompt_tokens ?? 0),
                 'completion_tokens' => (int) ($allTimeStats->total_completion_tokens ?? 0),
@@ -73,6 +90,7 @@ class UsageController extends Controller
                 'total_requests' => (int) ($last30DaysStats->total_requests ?? 0),
             ],
             'selectedProfileId' => $profileId,
+            'selectedBookId' => $bookId,
         ]);
     }
 }

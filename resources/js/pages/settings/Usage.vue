@@ -1,11 +1,24 @@
 <script setup lang="ts">
 import { index as usageIndex } from '@/routes/usage';
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
 import HeadingSmall from '@/components/HeadingSmall.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import {
     Select,
     SelectContent,
@@ -17,15 +30,24 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import type { AppPageProps, Profile } from '@/types';
 import {
+    BookOpen,
+    Calendar,
+    Check,
     ChevronLeft,
     ChevronRight,
+    ChevronsUpDown,
     Coins,
     Cpu,
     FileText,
-    Zap,
-    Calendar,
     TrendingUp,
+    X,
+    Zap,
 } from 'lucide-vue-next';
+
+interface Book {
+    id: string;
+    title: string;
+}
 
 interface RequestLog {
     id: string;
@@ -39,6 +61,10 @@ interface RequestLog {
     profile: {
         id: string;
         name: string;
+    } | null;
+    book: {
+        id: string;
+        title: string;
     } | null;
 }
 
@@ -67,9 +93,11 @@ interface UsageStats {
 
 interface Props {
     logs: PaginatedLogs;
+    books: Book[];
     allTimeStats: UsageStats;
     last30DaysStats: UsageStats;
     selectedProfileId: string | null;
+    selectedBookId: string | null;
 }
 
 const props = defineProps<Props>();
@@ -78,19 +106,57 @@ const page = usePage<AppPageProps>();
 const profiles = computed(() => page.props.auth.profiles as Profile[]);
 
 const selectedProfile = ref<string>(props.selectedProfileId ?? 'all');
+const selectedBook = ref<string>(props.selectedBookId ?? '');
+const bookSearchOpen = ref(false);
+const bookSearchQuery = ref('');
 
-watch(selectedProfile, (newValue) => {
-    const profileId = newValue === 'all' ? null : newValue;
+const selectedBookLabel = computed(() => {
+    if (!selectedBook.value) {
+        return 'All books';
+    }
+    const book = props.books.find((b) => b.id === selectedBook.value);
+    return book?.title ?? 'All books';
+});
+
+const filteredBooks = computed(() => {
+    if (!bookSearchQuery.value) {
+        return props.books;
+    }
+    const query = bookSearchQuery.value.toLowerCase();
+    return props.books.filter((book) => book.title.toLowerCase().includes(query));
+});
+
+function applyFilters(): void {
+    const profileId = selectedProfile.value === 'all' ? null : selectedProfile.value;
+    const bookId = selectedBook.value || null;
+
     router.get(
         usageIndex.url(),
-        { profile_id: profileId },
+        { profile_id: profileId, book_id: bookId },
         {
             preserveState: true,
             preserveScroll: true,
             replace: true,
         }
     );
+}
+
+watch(selectedProfile, () => {
+    applyFilters();
 });
+
+function selectBook(bookId: string): void {
+    selectedBook.value = bookId;
+    bookSearchOpen.value = false;
+    bookSearchQuery.value = '';
+    applyFilters();
+}
+
+function clearBookFilter(): void {
+    selectedBook.value = '';
+    bookSearchQuery.value = '';
+    applyFilters();
+}
 
 function formatCost(cost: number | string | null): string {
     if (cost === null || cost === undefined) {
@@ -145,6 +211,16 @@ function formatItemType(itemType: string | null): string {
         .join(' ');
 }
 
+function formatBookTitle(title: string | null): string {
+    if (!title) {
+        return '-';
+    }
+    if (title.length > 25) {
+        return title.substring(0, 22) + '...';
+    }
+    return title;
+}
+
 function goToPage(url: string | null): void {
     if (url) {
         router.get(url, {}, { preserveState: true, preserveScroll: true });
@@ -165,26 +241,94 @@ function goToPage(url: string | null): void {
                         description="Monitor your AI token usage and costs across all profiles"
                     />
 
-                    <!-- Profile Filter -->
-                    <div class="flex items-center gap-4">
-                        <label class="text-sm font-medium text-muted-foreground">
-                            Filter by profile:
-                        </label>
-                        <Select v-model="selectedProfile">
-                            <SelectTrigger class="w-[200px]">
-                                <SelectValue placeholder="All profiles" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All profiles</SelectItem>
-                                <SelectItem
-                                    v-for="profile in profiles"
-                                    :key="profile.id"
-                                    :value="profile.id"
-                                >
-                                    {{ profile.name }}
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
+                    <!-- Filters -->
+                    <div class="flex flex-wrap items-center gap-4">
+                        <!-- Profile Filter -->
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm font-medium text-muted-foreground">Profile:</label>
+                            <Select v-model="selectedProfile">
+                                <SelectTrigger class="w-[180px]">
+                                    <SelectValue placeholder="All profiles" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All profiles</SelectItem>
+                                    <SelectItem
+                                        v-for="profile in profiles"
+                                        :key="profile.id"
+                                        :value="profile.id"
+                                    >
+                                        {{ profile.name }}
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <!-- Book Filter -->
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm font-medium text-muted-foreground">Book:</label>
+                            <Popover v-model:open="bookSearchOpen">
+                                <PopoverTrigger as-child>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        :aria-expanded="bookSearchOpen"
+                                        class="w-[220px] justify-between"
+                                    >
+                                        <span class="flex items-center gap-2 truncate">
+                                            <BookOpen class="h-4 w-4 shrink-0 opacity-50" />
+                                            <span class="truncate">{{ selectedBookLabel }}</span>
+                                        </span>
+                                        <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent class="w-[280px] p-0">
+                                    <Command v-model:search-term="bookSearchQuery">
+                                        <CommandInput placeholder="Search books..." />
+                                        <CommandList>
+                                            <CommandEmpty>No books found.</CommandEmpty>
+                                            <CommandGroup>
+                                                <CommandItem
+                                                    value="all-books"
+                                                    @select="selectBook('')"
+                                                >
+                                                    <Check
+                                                        :class="[
+                                                            'mr-2 h-4 w-4',
+                                                            selectedBook === '' ? 'opacity-100' : 'opacity-0',
+                                                        ]"
+                                                    />
+                                                    All books
+                                                </CommandItem>
+                                                <CommandItem
+                                                    v-for="book in filteredBooks"
+                                                    :key="book.id"
+                                                    :value="book.title"
+                                                    @select="selectBook(book.id)"
+                                                >
+                                                    <Check
+                                                        :class="[
+                                                            'mr-2 h-4 w-4',
+                                                            selectedBook === book.id ? 'opacity-100' : 'opacity-0',
+                                                        ]"
+                                                    />
+                                                    {{ book.title }}
+                                                </CommandItem>
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                            <Button
+                                v-if="selectedBook"
+                                variant="ghost"
+                                size="icon"
+                                class="h-8 w-8"
+                                @click="clearBookFilter"
+                            >
+                                <X class="h-4 w-4" />
+                                <span class="sr-only">Clear book filter</span>
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
@@ -319,7 +463,7 @@ function goToPage(url: string | null): void {
                         class="overflow-hidden rounded-lg border border-border"
                     >
                         <div class="overflow-x-auto">
-                            <table class="w-full min-w-[600px] text-sm">
+                            <table class="w-full min-w-[700px] text-sm">
                                 <thead class="border-b border-border bg-muted/50">
                                     <tr>
                                         <th class="px-4 py-3 text-left font-medium text-muted-foreground">
@@ -327,6 +471,9 @@ function goToPage(url: string | null): void {
                                         </th>
                                         <th class="px-4 py-3 text-left font-medium text-muted-foreground">
                                             Type
+                                        </th>
+                                        <th class="px-4 py-3 text-left font-medium text-muted-foreground">
+                                            Book
                                         </th>
                                         <th class="px-4 py-3 text-left font-medium text-muted-foreground">
                                             Model
@@ -355,6 +502,9 @@ function goToPage(url: string | null): void {
                                             <span class="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
                                                 {{ formatItemType(log.item_type) }}
                                             </span>
+                                        </td>
+                                        <td class="px-4 py-3 text-muted-foreground" :title="log.book?.title">
+                                            {{ formatBookTitle(log.book?.title ?? null) }}
                                         </td>
                                         <td class="px-4 py-3 font-mono text-xs text-muted-foreground">
                                             {{ formatModel(log.model) }}
@@ -420,4 +570,3 @@ function goToPage(url: string | null): void {
         </SettingsLayout>
     </AppLayout>
 </template>
-
