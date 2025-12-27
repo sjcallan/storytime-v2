@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\EditChapterRequest;
 use App\Http\Requests\GenerateChapterRequest;
+use App\Http\Requests\RewriteChapterRequest;
 use App\Http\Requests\StoreChapterRequest;
 use App\Http\Requests\UpdateChapterRequest;
+use App\Jobs\Chapter\EditChapterJob;
 use App\Jobs\Chapter\RegenerateChapterInlineImageJob;
 use App\Models\Book;
 use App\Models\Chapter;
@@ -215,6 +218,83 @@ class ChapterController extends Controller
         return response()->json([
             'message' => 'Image regeneration started',
             'image_index' => $imageIndex,
+        ]);
+    }
+
+    /**
+     * Edit a chapter's content with small changes based on user instructions.
+     */
+    public function editContent(EditChapterRequest $request, Book $book, Chapter $chapter): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        if ($chapter->book_id !== $book->id) {
+            return response()->json(['message' => 'Chapter does not belong to this book.'], 404);
+        }
+
+        // Only allow editing the most recent chapter (by sort order, any status)
+        $lastChapter = $this->chapterService->getMostRecentChapter($book->id);
+        if (! $lastChapter || $lastChapter->id !== $chapter->id) {
+            return response()->json(['message' => 'Only the most recent chapter can be edited.'], 403);
+        }
+
+        $validated = $request->validated();
+
+        // Mark chapter as editing and dispatch the job
+        $chapter->update(['status' => 'editing']);
+
+        EditChapterJob::dispatch($chapter, $validated['instructions']);
+
+        return response()->json([
+            'message' => 'Chapter edit started',
+            'chapter_id' => $chapter->id,
+        ]);
+    }
+
+    /**
+     * Completely rewrite a chapter based on a new user prompt.
+     */
+    public function rewriteContent(RewriteChapterRequest $request, Book $book, Chapter $chapter): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        if ($chapter->book_id !== $book->id) {
+            return response()->json(['message' => 'Chapter does not belong to this book.'], 404);
+        }
+
+        // Only allow rewriting the most recent chapter (by sort order, any status)
+        $lastChapter = $this->chapterService->getMostRecentChapter($book->id);
+        if (! $lastChapter || $lastChapter->id !== $chapter->id) {
+            return response()->json(['message' => 'Only the most recent chapter can be rewritten.'], 403);
+        }
+
+        $validated = $request->validated();
+        $userPrompt = $validated['user_prompt'] ?? null;
+
+        // Mark chapter as being rewritten
+        $chapter->update([
+            'status' => 'pending',
+            'body' => null,
+            'summary' => null,
+            'inline_images' => null,
+        ]);
+
+        // Build a new chapter with the same sort order
+        $chapterData = [
+            'final_chapter' => $chapter->final_chapter,
+            'user_prompt' => $userPrompt,
+        ];
+
+        // Use the builder service to regenerate the chapter content
+        $updatedChapter = $this->chapterBuilderService->rebuildChapter($chapter, $chapterData);
+
+        $totalChapters = $this->chapterService->getCompleteChapterCount($book->id);
+
+        return response()->json([
+            'chapter' => $updatedChapter,
+            'total_chapters' => $totalChapters,
+            'has_next' => false,
+            'has_previous' => $updatedChapter->sort > 1,
         ]);
     }
 }

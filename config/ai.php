@@ -31,6 +31,9 @@ return [
     'moderation' => [
         'enabled' => env('MODERATION_ENABLED', false),
         'model' => env('MODERATION_MODEL', 'omni-moderation-latest'),
+        // Minimum score threshold to consider a flag valid (0.0 - 1.0)
+        // OpenAI sometimes flags content with low confidence scores - this overrides those
+        'min_threshold' => env('MODERATION_MIN_THRESHOLD', 0.5),
     ],
 
     /*

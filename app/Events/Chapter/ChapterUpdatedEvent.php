@@ -61,6 +61,7 @@ class ChapterUpdatedEvent implements ShouldBroadcast
             'image_prompt' => $this->chapter->image_prompt,
             'final_chapter' => $this->chapter->final_chapter,
             'inline_images' => $this->chapter->inline_images,
+            'user_prompt' => $this->chapter->user_prompt,
             'updated_at' => $this->chapter->updated_at,
         ];
     }

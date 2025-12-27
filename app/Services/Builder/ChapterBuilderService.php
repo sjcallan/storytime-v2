@@ -678,11 +678,11 @@ class ChapterBuilderService extends BuilderService
 
         // Age-based style: cartoon for kids/pre-teens, realistic for teens/adults
         if ($book->age_level <= 13) {
-            $style .= 'Graphic cartoon illustration in the style of Neil Gaiman and Dave McKean, ';
+            $style .= 'Cartoon illustration in the style of Neil Gaiman and Dave McKean, ';
             $style .= 'whimsical yet slightly dark, hand-drawn aesthetic, rich textures, ';
             $style .= 'imaginative and dreamlike, vibrant colors with moody undertones, ';
         } else {
-            $style .= 'Realsitic photograph, professional quality, dramatic composition, ';
+            $style .= 'Photorealistic, professional quality, dramatic composition, ';
         }
 
         // Genre-specific mood additions
@@ -1300,6 +1300,275 @@ PROMPT;
             ]);
 
             return null;
+        }
+    }
+
+    /**
+     * Rebuild an existing chapter completely with new content.
+     *
+     * @param  \App\Models\Chapter  $chapter  The chapter to rebuild
+     * @param  array{final_chapter?: bool, user_prompt?: string|null}  $data  The chapter data
+     */
+    public function rebuildChapter(\App\Models\Chapter $chapter, array $data): \App\Models\Chapter
+    {
+        $startTime = microtime(true);
+
+        Log::info('[ChapterBuilderService::rebuildChapter] Starting chapter rebuild', [
+            'chapter_id' => $chapter->id,
+            'book_id' => $chapter->book_id,
+            'has_user_prompt' => ! empty($data['user_prompt'] ?? null),
+            'is_final_chapter' => $data['final_chapter'] ?? false,
+        ]);
+
+        try {
+            $book = $this->bookService->getById($chapter->book_id, null, ['with' => ['chapters', 'user']]);
+
+            if (! $book) {
+                throw new \RuntimeException("Book not found: {$chapter->book_id}");
+            }
+
+            $user = \Illuminate\Support\Facades\Auth::user();
+            $profileId = session('current_profile_id');
+
+            // Fall back to book's user when running in a job context
+            if (! $user && $book->user_id) {
+                $user = $book->user;
+                $profileId = $profileId ?? $book->profile_id;
+            }
+
+            if (! $user) {
+                throw new \RuntimeException('No authenticated user found when rebuilding chapter');
+            }
+
+            Log::debug('[ChapterBuilderService::rebuildChapter] Calling getCombinedChapterData');
+            $combinedStartTime = microtime(true);
+            $chapterContent = $this->getCombinedChapterData($chapter->book_id, $data, $chapter->id);
+            $combinedDuration = microtime(true) - $combinedStartTime;
+
+            if (empty($chapterContent['body'])) {
+                throw new \RuntimeException('Empty chapter body returned from AI');
+            }
+
+            $updateData = [
+                'body' => $chapterContent['body'],
+                'summary' => $chapterContent['summary'] ?? '',
+                'title' => $chapterContent['title'] ?? null,
+                'image_prompt' => $chapterContent['image_prompt'] ?? null,
+                'status' => 'complete',
+                'user_prompt' => $data['user_prompt'] ?? null,
+                'final_chapter' => $data['final_chapter'] ?? false,
+            ];
+
+            $sceneImages = $chapterContent['scene_images'] ?? [];
+
+            // Store pending placeholders for inline images
+            if (! empty($sceneImages) && is_array($sceneImages)) {
+                $pendingImages = [];
+                foreach ($sceneImages as $index => $scene) {
+                    $paragraphIndex = is_numeric($scene['paragraph_index'] ?? null)
+                        ? (int) $scene['paragraph_index']
+                        : $index * 2;
+                    $pendingImages[] = [
+                        'paragraph_index' => $paragraphIndex,
+                        'url' => null,
+                        'prompt' => $scene['prompt'] ?? '',
+                        'status' => 'pending',
+                    ];
+                }
+                $updateData['inline_images'] = $pendingImages;
+            }
+
+            Log::info('[ChapterBuilderService::rebuildChapter] Updating chapter with new content', [
+                'chapter_id' => $chapter->id,
+                'body_length' => strlen($updateData['body']),
+                'scene_images_count' => count($sceneImages),
+            ]);
+
+            $chapter = $this->chapterService->updateById($chapter->id, $updateData);
+
+            // Dispatch inline images generation as a background job
+            if (! empty($sceneImages) && is_array($sceneImages)) {
+                Log::info('[ChapterBuilderService::rebuildChapter] Dispatching inline images job', [
+                    'chapter_id' => $chapter->id,
+                    'scene_count' => count($sceneImages),
+                ]);
+
+                CreateChapterInlineImagesJob::dispatch($chapter, $sceneImages)->onQueue('images');
+            }
+
+            $endTime = microtime(true);
+            $totalDuration = $endTime - $startTime;
+
+            Log::info('[ChapterBuilderService::rebuildChapter] Chapter rebuild completed', [
+                'chapter_id' => $chapter->id,
+                'total_duration_seconds' => round($totalDuration, 2),
+                'combined_generation_seconds' => round($combinedDuration, 2),
+            ]);
+
+            return $chapter;
+        } catch (Throwable $e) {
+            Log::error('[ChapterBuilderService::rebuildChapter] Exception thrown', [
+                'chapter_id' => $chapter->id,
+                'exception_class' => get_class($e),
+                'exception_message' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Edit an existing chapter's content based on user instructions.
+     *
+     * @param  \App\Models\Chapter  $chapter  The chapter to edit
+     * @param  string  $instructions  User's edit instructions
+     * @return array{body: string, summary: string, scene_images: array<array{paragraph_index: int, prompt: string}>}
+     */
+    public function editChapterContent(\App\Models\Chapter $chapter, string $instructions): array
+    {
+        Log::info('[ChapterBuilderService::editChapterContent] Starting edit', [
+            'chapter_id' => $chapter->id,
+            'book_id' => $chapter->book_id,
+            'instructions_length' => strlen($instructions),
+        ]);
+
+        try {
+            $book = $this->bookService->getById($chapter->book_id, null, ['with' => ['characters']]);
+
+            if ($book->type == 'theatre') {
+                $chapterLabel = 'scene';
+                $bookTypeLabel = 'theatre play script';
+            } elseif ($book->type == 'screenplay') {
+                $chapterLabel = 'scene';
+                $bookTypeLabel = 'screenplay';
+            } else {
+                $chapterLabel = 'chapter';
+                $bookTypeLabel = 'chapter book';
+            }
+
+            $isScriptFormat = in_array($book->type, ['theatre', 'screenplay']);
+
+            $systemPrompt = [
+                'you_are' => 'An expert editor modifying a '.$chapterLabel.' in a '.$book->genre.' '.$bookTypeLabel.' for '.$book->age_level.' year old readers.',
+                'story_details' => [
+                    'format' => $bookTypeLabel,
+                    'genre' => $book->genre,
+                    'title' => $book->title,
+                ],
+                'rules' => [
+                    'Maintain the overall narrative and plot points unless specifically asked to change them.',
+                    'Keep the same characters unless asked to add or remove them.',
+                    'Preserve the writing style and tone of the original.',
+                    'The response must be '.$this->getBodyWordCount($book->id).' words or less.',
+                    'No '.$chapterLabel.' number or title in the body.',
+                ],
+            ];
+
+            if ($isScriptFormat) {
+                $scriptRules = $this->getScriptFormattingRules($book->type);
+                $systemPrompt['rules'] = array_merge($systemPrompt['rules'], $scriptRules);
+            }
+
+            // Add character descriptions for scene image generation
+            $characters = $book->characters()->get();
+            if ($characters->count() > 0) {
+                $characterDescriptions = [];
+                foreach ($characters as $character) {
+                    $desc = $character->name;
+                    if ($character->age) {
+                        $desc .= " ({$character->age} years old)";
+                    }
+                    if ($character->gender) {
+                        $desc .= ", {$character->gender}";
+                    }
+                    if ($character->description) {
+                        $desc .= ": {$character->description}";
+                    }
+                    $characterDescriptions[] = $desc;
+                }
+                $systemPrompt['story_details']['characters'] = $characterDescriptions;
+            }
+
+            $characterInstructions = $this->getCharacterIdentificationInstructions($characters);
+
+            $this->chatService->resetMessages();
+            $this->chatService->setResponseFormat('json_object');
+            $this->chatService->setMaxTokens(8000);
+            $this->chatService->addSystemMessage(json_encode($systemPrompt));
+
+            $outputFormat = [
+                'body' => 'The complete edited '.$chapterLabel.' text',
+                'summary' => 'A detailed summary with key events, character names, descriptions, ages, genders, experiences, thoughts, goals, and nationalities. No commentary.',
+                'scene_images' => [
+                    [
+                        'paragraph_index' => 'The 0-based paragraph index where this scene occurs (early in the '.$chapterLabel.', around 20-30% through)',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
+                    ],
+                    [
+                        'paragraph_index' => 'The 0-based paragraph index where this scene occurs (later in the '.$chapterLabel.', around 60-80% through)',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
+                    ],
+                ],
+            ];
+
+            $userPrompt = "Here is the current {$chapterLabel} content:\n\n";
+            $userPrompt .= $chapter->body."\n\n";
+            $userPrompt .= "Please edit this {$chapterLabel} with the following changes: {$instructions}\n\n";
+            $userPrompt .= 'Respond with a JSON object containing: '.json_encode($outputFormat);
+
+            $this->chatService->addUserMessage($userPrompt);
+
+            Log::info('[ChapterBuilderService::editChapterContent] Calling chat service');
+            $chatStartTime = microtime(true);
+            $result = $this->chatService->chat();
+            $chatDuration = microtime(true) - $chatStartTime;
+
+            Log::info('[ChapterBuilderService::editChapterContent] Chat service returned', [
+                'duration_seconds' => round($chatDuration, 2),
+            ]);
+
+            $this->chatService->trackRequestLog(
+                $chapter->book_id,
+                $chapter->id,
+                $book->user_id,
+                'chapter_edit',
+                $result,
+                $book->profile_id
+            );
+
+            if (empty($result['completion'])) {
+                Log::error('[ChapterBuilderService::editChapterContent] Empty completion');
+                throw new \RuntimeException('Empty response from AI service');
+            }
+
+            $jsonData = $this->parseJsonResponse($result['completion']);
+
+            if ($jsonData === null) {
+                Log::error('[ChapterBuilderService::editChapterContent] JSON decode error', [
+                    'error' => json_last_error_msg(),
+                ]);
+                throw new \RuntimeException('Failed to decode JSON response: '.json_last_error_msg());
+            }
+
+            Log::info('[ChapterBuilderService::editChapterContent] Edit completed successfully', [
+                'chapter_id' => $chapter->id,
+                'body_length' => strlen($jsonData['body'] ?? ''),
+                'scene_images_count' => count($jsonData['scene_images'] ?? []),
+            ]);
+
+            return [
+                'body' => $this->stripQuotes($jsonData['body'] ?? ''),
+                'summary' => $this->stripQuotes($jsonData['summary'] ?? ''),
+                'scene_images' => $jsonData['scene_images'] ?? [],
+            ];
+        } catch (Throwable $e) {
+            Log::error('[ChapterBuilderService::editChapterContent] Exception', [
+                'chapter_id' => $chapter->id,
+                'exception_class' => get_class($e),
+                'exception_message' => $e->getMessage(),
+            ]);
+
+            throw $e;
         }
     }
 }

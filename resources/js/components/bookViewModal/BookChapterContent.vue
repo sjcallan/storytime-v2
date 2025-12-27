@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Sparkles, ImageIcon, RefreshCw, ExternalLink } from 'lucide-vue-next';
+import { Sparkles, ImageIcon, RefreshCw, ExternalLink, PenLine } from 'lucide-vue-next';
 import type { Chapter, PageSpread, PageContentItem, BookType } from './types';
 import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
 
@@ -16,13 +16,21 @@ interface Props {
     spread: PageSpread;
     spreadIndex?: number;
     bookType?: BookType;
+    isLastChapter?: boolean;
+    isLastSpread?: boolean;
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
+    (e: 'editChapter'): void;
 }>();
+
+// Show edit button only on the last spread of the most recent chapter
+const showEditButton = computed(() => {
+    return props.isLastChapter && props.isLastSpread && !props.chapter.final_chapter;
+});
 
 const chapterLabel = computed(() => getChapterLabel(props.bookType));
 const isScript = computed(() => isSceneBasedBook(props.bookType));
@@ -236,6 +244,20 @@ const rightPageNumber = computed(() => {
                 </div>
             </div>
         </template>
+
+        <!-- Edit Chapter Button (shown on last spread of most recent chapter) -->
+        <div 
+            v-if="showEditButton" 
+            class="absolute bottom-16 left-0 right-0 flex justify-center px-8 z-20"
+        >
+            <button
+                @click.stop="emit('editChapter')"
+                class="group flex items-center gap-2 rounded-full bg-amber-100/90 px-4 py-2 text-sm font-medium text-amber-800 shadow-sm backdrop-blur-sm transition-all duration-300 hover:bg-amber-200/90 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] dark:bg-amber-900/80 dark:text-amber-200 dark:hover:bg-amber-800/90 cursor-pointer"
+            >
+                <PenLine class="h-4 w-4 transition-transform duration-300 group-hover:rotate-[-8deg]" />
+                <span>Need to make changes?</span>
+            </button>
+        </div>
 
         <!-- Page Number Footer -->
         <div 

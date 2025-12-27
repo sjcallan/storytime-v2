@@ -79,4 +79,15 @@ class ChapterRepository
             ->orderBy('sort', 'desc')
             ->first();
     }
+
+    /**
+     * Get the chapter with the highest sort order for a book (any status).
+     */
+    public function getMostRecentChapter(string $bookId): ?Chapter
+    {
+        return $this->model
+            ->where('book_id', $bookId)
+            ->orderBy('sort', 'desc')
+            ->first();
+    }
 }

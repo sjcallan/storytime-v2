@@ -455,7 +455,7 @@ onUnmounted(() => {
                 <span class="flex items-center justify-center gap-2">
                     <Wand2 :class="['h-5 w-5 transition-transform duration-300', isGenerating ? 'animate-pulse' : 'group-hover:rotate-12']" />
                     <span>{{ isGenerating 
-                        ? (isScript ? 'Writing your script...' : 'Crafting your story...') 
+                        ? (isScript ? 'Writing your script...' : 'Writing your chapter...') 
                         : `Create ${chapterLabel}` 
                     }}</span>
                 </span>

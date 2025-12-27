@@ -4,7 +4,7 @@ import BookPageTexture from './BookPageTexture.vue';
 import BookPageDecorative from './BookPageDecorative.vue';
 import CharacterGrid from './CharacterGrid.vue';
 import CreateChapterForm from './CreateChapterForm.vue';
-import { BookOpen, ImageIcon, Sparkles, RefreshCw } from 'lucide-vue-next';
+import { BookOpen, ImageIcon, Sparkles, RefreshCw, PenLine } from 'lucide-vue-next';
 import type { Chapter, PageSpread, ReadingView, Character, BookType, PageContentItem } from './types';
 import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
 
@@ -18,6 +18,7 @@ interface Props {
     hasNextChapter?: boolean;
     chapterEndsOnLeft?: boolean;
     isOnLastSpread?: boolean;
+    isLastChapter?: boolean;
     currentChapterNumber?: number;
     nextChapterPrompt?: string;
     suggestedIdea?: string | null;
@@ -38,6 +39,7 @@ const emit = defineEmits<{
     (e: 'textareaFocused', value: boolean): void;
     (e: 'requestIdea'): void;
     (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
+    (e: 'editChapter'): void;
 }>();
 
 // Calculate left page number
@@ -61,6 +63,15 @@ const showCreateFormOnLeft = computed(() => {
 
 const chapterLabel = computed(() => getChapterLabel(props.bookType));
 const isScript = computed(() => isSceneBasedBook(props.bookType));
+
+// Show edit button when chapter ends on left page, is last chapter, and on last spread
+const showEditButton = computed(() => {
+    return props.isLastChapter && 
+           props.chapterEndsOnLeft && 
+           props.isOnLastSpread && 
+           props.chapter && 
+           !props.chapter.final_chapter;
+});
 
 // Format content - applies script formatting for theatre/screenplay
 const formatContent = (content: string): string => {
@@ -177,6 +188,20 @@ const isValidImageUrl = (url: string | null | undefined): boolean => {
                                     </template>
                                 </figure>
                             </template>
+                        </div>
+                        
+                        <!-- Edit Chapter Button (shown on last spread of most recent chapter when ending on left) -->
+                        <div 
+                            v-if="showEditButton" 
+                            class="absolute bottom-16 left-0 right-0 flex justify-center px-8 z-20"
+                        >
+                            <button
+                                @click.stop="emit('editChapter')"
+                                class="group flex items-center gap-2 rounded-full bg-amber-100/90 px-4 py-2 text-sm font-medium text-amber-800 shadow-sm backdrop-blur-sm transition-all duration-300 hover:bg-amber-200/90 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] dark:bg-amber-900/80 dark:text-amber-200 dark:hover:bg-amber-800/90 cursor-pointer"
+                            >
+                                <PenLine class="h-4 w-4 transition-transform duration-300 group-hover:rotate-[-8deg]" />
+                                <span>Need to make changes?</span>
+                            </button>
                         </div>
                     </div>
                 </template>

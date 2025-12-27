@@ -121,6 +121,7 @@ export interface Chapter {
     sort: number;
     summary: string | null;
     final_chapter: boolean;
+    user_prompt?: string | null;
 }
 
 export interface ChapterResponse {

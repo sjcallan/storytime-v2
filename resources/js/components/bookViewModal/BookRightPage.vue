@@ -30,6 +30,7 @@ interface Props {
     actionError: string | null;
     chapterError: string | null;
     currentChapterNumber: number;
+    totalChapters: number;
     nextChapterPrompt: string;
     suggestedIdea?: string | null;
     isLoadingIdea?: boolean;
@@ -65,7 +66,13 @@ const emit = defineEmits<{
     (e: 'requestIdea'): void;
     (e: 'characterUpdated', character: Character): void;
     (e: 'textareaFocused', value: boolean): void;
+    (e: 'editChapter'): void;
 }>();
+
+// Check if current chapter is the last (most recent) chapter
+const isLastChapter = computed(() => {
+    return props.currentChapterNumber === props.totalChapters && props.totalChapters > 0;
+});
 
 // Show create form on right when in create-chapter view and chapter ended on left
 const showCreateFormOnRight = computed(() => {
@@ -184,7 +191,10 @@ const showInlineCreateForm = computed(() => {
                 :spread="spread"
                 :spread-index="spreadIndex"
                 :book-type="bookType"
+                :is-last-chapter="isLastChapter"
+                :is-last-spread="isOnLastSpread"
                 @regenerate-image="(item, chapterId) => emit('regenerateImage', item, chapterId)"
+                @edit-chapter="emit('editChapter')"
             />
         </template>
 

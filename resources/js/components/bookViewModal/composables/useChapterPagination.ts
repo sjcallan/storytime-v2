@@ -31,6 +31,7 @@ export type ChapterUpdatedPayload = {
     image_prompt: string | null;
     final_chapter: boolean;
     inline_images: InlineImage[] | null;
+    user_prompt: string | null;
     updated_at: string;
 };
 
@@ -639,9 +640,9 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
                     body: payload.body,
                     summary: payload.summary,
                     image: payload.image,
-                    image_prompt: payload.image_prompt,
                     final_chapter: payload.final_chapter,
                     inline_images: payload.inline_images,
+                    user_prompt: payload.user_prompt,
                 };
                 currentChapter.value = chapter;
                 currentChapterNumber.value = payload.sort;
@@ -662,9 +663,9 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
                     body: payload.body,
                     summary: payload.summary,
                     image: payload.image,
-                    image_prompt: payload.image_prompt,
                     final_chapter: payload.final_chapter,
                     inline_images: payload.inline_images,
+                    user_prompt: payload.user_prompt,
                 };
                 currentChapter.value = chapter;
                 currentSpreadIndex.value = 0;
@@ -680,9 +681,9 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
                     body: payload.body,
                     summary: payload.summary,
                     image: payload.image,
-                    image_prompt: payload.image_prompt,
                     final_chapter: payload.final_chapter,
                     inline_images: payload.inline_images,
+                    user_prompt: payload.user_prompt,
                 };
             }
             // Update next chapter data if it matches
@@ -693,9 +694,9 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
                     body: payload.body,
                     summary: payload.summary,
                     image: payload.image,
-                    image_prompt: payload.image_prompt,
                     final_chapter: payload.final_chapter,
                     inline_images: payload.inline_images,
+                    user_prompt: payload.user_prompt,
                 };
             }
         }

@@ -49,6 +49,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('books/{book}/chapters/generate', [ChapterController::class, 'generateNext'])->name('api.books.chapters.generate');
     Route::get('books/{book}/chapters/suggest-prompt', [ChapterController::class, 'suggestPrompt'])->name('api.books.chapters.suggest-prompt');
     Route::post('books/{book}/chapters/{chapter}/regenerate-image', [ChapterController::class, 'regenerateImage'])->name('api.books.chapters.regenerate-image');
+    Route::post('books/{book}/chapters/{chapter}/edit', [ChapterController::class, 'editContent'])->name('api.books.chapters.edit');
+    Route::post('books/{book}/chapters/{chapter}/rewrite', [ChapterController::class, 'rewriteContent'])->name('api.books.chapters.rewrite');
 
     // Reading history endpoints
     Route::post('books/{book}/reading-history/open', [ReadingHistoryController::class, 'open'])->name('api.books.reading-history.open');

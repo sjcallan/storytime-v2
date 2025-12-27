@@ -5,6 +5,7 @@ namespace App\Traits\Http;
 use App\Services\Ai\OpenAi\ModerationService;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 
 trait ValidatesModeration
 {
@@ -65,13 +66,29 @@ trait ValidatesModeration
             return;
         }
 
+        $source = $this->moderationSource();
+
+        Log::debug('[ValidatesModeration] Sending content for moderation', [
+            'source' => $source,
+            'fields' => $fields,
+            'text_length' => strlen($textToModerate),
+            'text_preview' => mb_substr($textToModerate, 0, 300).(strlen($textToModerate) > 300 ? '...' : ''),
+        ]);
+
         $result = $moderationService->moderate($textToModerate, [
             'user_id' => auth()->id(),
             'profile_id' => session('current_profile_id'),
-            'source' => $this->moderationSource(),
+            'source' => $source,
         ]);
 
         if ($result->failed()) {
+            Log::warning('[ValidatesModeration] Content failed moderation', [
+                'source' => $source,
+                'fields' => $fields,
+                'violation_message' => $result->getViolationMessage(),
+                'full_text' => $textToModerate,
+            ]);
+
             $validator->errors()->add(
                 'moderation',
                 $result->getViolationMessage()

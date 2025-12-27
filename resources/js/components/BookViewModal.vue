@@ -16,6 +16,7 @@ import {
     BookHeaderControls,
     BookLoadingOverlay,
     DeleteConfirmDialog,
+    ChapterEditModal,
 } from '@/components/bookViewModal';
 import type { 
     Book, 
@@ -94,6 +95,18 @@ const isTextareaFocused = ref(false);
 // Favorite state
 const isFavorite = ref(false);
 const isTogglingFavorite = ref(false);
+
+// Chapter edit modal state
+const showChapterEditModal = ref(false);
+const isChapterEditing = ref(false);
+const chapterEditError = ref<string | null>(null);
+const pendingEditChapterId = ref<string | null>(null);
+
+// Computed: is the current chapter the last chapter?
+const isLastChapter = computed(() => {
+    return chapters.totalChapters.value > 0 && 
+           chapters.currentChapterNumber.value === chapters.totalChapters.value;
+});
 
 // Echo channel for real-time book updates
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -216,6 +229,12 @@ const handleChapterCreatedEvent = (payload: ChapterCreatedPayload) => {
 const handleChapterUpdatedEvent = (payload: ChapterUpdatedPayload) => {
     if (!props.bookId || payload.book_id !== props.bookId) {
         return;
+    }
+    
+    // Check if this is the chapter we were editing
+    if (pendingEditChapterId.value === payload.id && payload.status === 'complete') {
+        isChapterEditing.value = false;
+        pendingEditChapterId.value = null;
     }
     
     // Delegate to the composable
@@ -731,6 +750,87 @@ const handleRequestIdea = () => {
     }
 };
 
+// Chapter edit handlers
+const handleOpenChapterEditModal = () => {
+    showChapterEditModal.value = true;
+    chapterEditError.value = null;
+};
+
+const handleCloseChapterEditModal = () => {
+    if (!isChapterEditing.value) {
+        showChapterEditModal.value = false;
+        chapterEditError.value = null;
+    }
+};
+
+const handleSubmitSmallChanges = async (instructions: string) => {
+    if (!props.bookId || !chapters.currentChapter.value || isChapterEditing.value) {
+        return;
+    }
+
+    const chapterId = chapters.currentChapter.value.id;
+    isChapterEditing.value = true;
+    chapterEditError.value = null;
+
+    try {
+        const { error } = await requestApiFetch(
+            `/api/books/${props.bookId}/chapters/${chapterId}/edit`,
+            'POST',
+            { instructions }
+        );
+
+        if (error) {
+            const message = extractErrorMessage(error) ?? 'Could not edit chapter.';
+            chapterEditError.value = message;
+            isChapterEditing.value = false;
+        } else {
+            // Close modal but keep editing state - wait for websocket update
+            showChapterEditModal.value = false;
+            chapterEditError.value = null;
+            pendingEditChapterId.value = chapterId;
+            // isChapterEditing stays true until websocket confirms update
+        }
+    } catch (err) {
+        const message = extractErrorMessage(err) ?? 'An error occurred editing the chapter.';
+        chapterEditError.value = message;
+        isChapterEditing.value = false;
+    }
+};
+
+const handleSubmitRewrite = async (newPrompt: string) => {
+    if (!props.bookId || !chapters.currentChapter.value || isChapterEditing.value) {
+        return;
+    }
+
+    const chapterId = chapters.currentChapter.value.id;
+    isChapterEditing.value = true;
+    chapterEditError.value = null;
+
+    try {
+        const { data, error } = await requestApiFetch(
+            `/api/books/${props.bookId}/chapters/${chapterId}/rewrite`,
+            'POST',
+            { user_prompt: newPrompt || null }
+        );
+
+        if (error) {
+            const message = extractErrorMessage(error) ?? 'Could not rewrite chapter.';
+            chapterEditError.value = message;
+            isChapterEditing.value = false;
+        } else if (data) {
+            // Close modal but keep editing state - wait for websocket update
+            showChapterEditModal.value = false;
+            chapterEditError.value = null;
+            pendingEditChapterId.value = chapterId;
+            // isChapterEditing stays true until websocket confirms update
+        }
+    } catch (err) {
+        const message = extractErrorMessage(err) ?? 'An error occurred rewriting the chapter.';
+        chapterEditError.value = message;
+        isChapterEditing.value = false;
+    }
+};
+
 // Handle right edge click - smarter navigation for title page in single-page mode
 const handleRightEdgeClick = () => {
     if (chapters.readingView.value === 'title') {
@@ -887,6 +987,10 @@ const resetAllState = () => {
     savedChapterNumber.value = null;
     isFavorite.value = false;
     isTogglingFavorite.value = false;
+    showChapterEditModal.value = false;
+    isChapterEditing.value = false;
+    chapterEditError.value = null;
+    pendingEditChapterId.value = null;
     resetEditFeedback();
 };
 
@@ -1009,6 +1113,19 @@ onBeforeUnmount(() => {
                         @confirm="confirmDelete"
                     />
 
+                    <!-- Chapter Edit Modal -->
+                    <ChapterEditModal
+                        :visible="showChapterEditModal"
+                        :chapter="chapters.currentChapter.value"
+                        :book-type="book?.type"
+                        :is-processing="isChapterEditing"
+                        :error="chapterEditError"
+                        @close="handleCloseChapterEditModal"
+                        @submit-small-changes="handleSubmitSmallChanges"
+                        @submit-rewrite="handleSubmitRewrite"
+                        @textarea-focused="isTextareaFocused = $event"
+                    />
+
                     <!-- Loading/Saving Overlay -->
                     <BookLoadingOverlay 
                         v-if="loading || isSaving || isDeleting"
@@ -1083,6 +1200,18 @@ onBeforeUnmount(() => {
                             </template>
                         </BookLoadingOverlay>
 
+                        <!-- Editing Chapter Overlay -->
+                        <BookLoadingOverlay 
+                            v-if="isChapterEditing"
+                            message="Updating your chapter..."
+                        >
+                            <template #subtitle>
+                                <p class="mt-2 text-sm text-amber-700 dark:text-amber-600 animate-pulse">
+                                    Making your changes ✨
+                                </p>
+                            </template>
+                        </BookLoadingOverlay>
+
                         <!-- Left Edge Click Zone (Go Back) -->
                         <button
                             v-if="canNavigateBack && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
@@ -1110,6 +1239,7 @@ onBeforeUnmount(() => {
                             :has-next-chapter="chapters.hasNextChapter.value"
                             :chapter-ends-on-left="chapters.chapterEndsOnLeft.value"
                             :is-on-last-spread="chapters.isOnLastSpread.value"
+                            :is-last-chapter="isLastChapter"
                             :current-chapter-number="chapters.currentChapterNumber.value"
                             :next-chapter-prompt="chapters.nextChapterPrompt.value"
                             :suggested-idea="chapters.suggestedIdea.value"
@@ -1125,6 +1255,7 @@ onBeforeUnmount(() => {
                             @textarea-focused="isTextareaFocused = $event"
                             @request-idea="handleRequestIdea"
                             @regenerate-image="(item, chapterId) => handleRegenerateImage(item, chapterId)"
+                            @edit-chapter="handleOpenChapterEditModal"
                         />
 
                         <!-- Book Spine (hidden in single-page mode) -->
@@ -1154,6 +1285,7 @@ onBeforeUnmount(() => {
                             :action-error="actionError"
                             :chapter-error="chapters.chapterError.value"
                             :current-chapter-number="chapters.currentChapterNumber.value"
+                            :total-chapters="chapters.totalChapters.value"
                             :next-chapter-prompt="chapters.nextChapterPrompt.value"
                             :suggested-idea="chapters.suggestedIdea.value"
                             :is-loading-idea="chapters.isLoadingIdea.value"
@@ -1182,6 +1314,7 @@ onBeforeUnmount(() => {
                             @regenerate-image="(item, chapterId) => handleRegenerateImage(item, chapterId)"
                             @request-idea="handleRequestIdea"
                             @character-updated="handleCharacterUpdated"
+                            @edit-chapter="handleOpenChapterEditModal"
                         />
 
                         <!-- Right Edge Click Zone (Go Forward / Start Reading) -->

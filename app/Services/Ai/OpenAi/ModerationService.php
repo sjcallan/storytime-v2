@@ -73,14 +73,77 @@ class ModerationService
         $categories = $result['categories'] ?? [];
         $categoryScores = $result['category_scores'] ?? [];
 
-        $anyFlaggedCategory = collect($categories)->contains(true);
-        $isFlagged = $flagged || $anyFlaggedCategory;
+        // Get our minimum threshold - ignore OpenAI's flags if scores are below this
+        $minThreshold = config('ai.moderation.min_threshold', 0.5);
+
+        // Filter categories: only consider flagged if score meets our minimum threshold
+        $categoriesAboveThreshold = collect($categories)
+            ->filter(function ($isFlagged, $category) use ($categoryScores, $minThreshold) {
+                if (! $isFlagged) {
+                    return false;
+                }
+                $score = $categoryScores[$category] ?? 0;
+
+                return $score >= $minThreshold;
+            })
+            ->toArray();
+
+        $anyFlaggedCategory = ! empty($categoriesAboveThreshold);
+        $isFlagged = $anyFlaggedCategory;
+
+        // Log when OpenAI flags content but we override due to low score
+        $openAiFlagged = $flagged || collect($categories)->contains(true);
+        if ($openAiFlagged && ! $isFlagged) {
+            $ignoredCategories = collect($categories)
+                ->filter(fn ($v) => $v === true)
+                ->keys()
+                ->mapWithKeys(fn ($cat) => [$cat => $categoryScores[$cat] ?? 0])
+                ->toArray();
+
+            Log::info('[ModerationService] Ignoring low-confidence moderation flag', [
+                'source' => $context['source'] ?? 'unknown',
+                'min_threshold' => $minThreshold,
+                'ignored_categories' => $ignoredCategories,
+                'input_preview' => mb_substr($input, 0, 200),
+            ]);
+        }
+
+        // Log detailed information when content is flagged
+        if ($isFlagged) {
+            $flaggedCategories = collect($categories)
+                ->filter(fn ($value) => $value === true)
+                ->keys()
+                ->toArray();
+
+            $topScores = collect($categoryScores)
+                ->sortDesc()
+                ->take(5)
+                ->toArray();
+
+            Log::warning('[ModerationService] Content flagged for moderation', [
+                'source' => $context['source'] ?? 'unknown',
+                'user_id' => $context['user_id'] ?? auth()->id(),
+                'profile_id' => $context['profile_id'] ?? session('current_profile_id'),
+                'flagged_categories' => $flaggedCategories,
+                'top_scores' => $topScores,
+                'input_length' => strlen($input),
+                'input_preview' => mb_substr($input, 0, 500).(strlen($input) > 500 ? '...' : ''),
+                'moderation_id' => $response['id'] ?? null,
+            ]);
+        }
+
+        // Use filtered categories (only those above threshold) for the result
+        $filteredCategories = collect($categories)
+            ->map(function ($originalFlag, $category) use ($categoriesAboveThreshold) {
+                return isset($categoriesAboveThreshold[$category]) && $categoriesAboveThreshold[$category];
+            })
+            ->toArray();
 
         $this->lastModeration = $this->recordModeration(
             input: $input,
             response: $response,
             flagged: $isFlagged,
-            categories: $categories,
+            categories: $filteredCategories,
             categoryScores: $categoryScores,
             moderationId: $response['id'] ?? null,
             model: $response['model'] ?? $this->model,
@@ -89,7 +152,7 @@ class ModerationService
 
         return new ModerationResult(
             flagged: $isFlagged,
-            categories: $categories,
+            categories: $filteredCategories,
             categoryScores: $categoryScores,
             moderationId: $response['id'] ?? null,
             model: $response['model'] ?? $this->model,

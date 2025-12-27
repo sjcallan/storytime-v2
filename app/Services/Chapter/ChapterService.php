@@ -74,4 +74,12 @@ class ChapterService
     {
         return $this->repository->getLastChapter($bookId);
     }
+
+    /**
+     * Get the chapter with the highest sort order (any status).
+     */
+    public function getMostRecentChapter(string $bookId): ?\App\Models\Chapter
+    {
+        return $this->repository->getMostRecentChapter($bookId);
+    }
 }
