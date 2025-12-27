@@ -13,9 +13,11 @@ import { useInitials } from '@/composables/useInitials';
 import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
 import { select as selectProfile, index as manageProfiles } from '@/routes/profiles';
-import type { Profile } from '@/types';
-import { Link, router } from '@inertiajs/vue3';
-import { ChevronDown, Settings, LogOut, Users, UserCircle } from 'lucide-vue-next';
+import { index as adminUsers } from '@/routes/admin/users';
+import type { AppPageProps, Profile } from '@/types';
+import { Link, router, usePage } from '@inertiajs/vue3';
+import { ChevronDown, Settings, LogOut, Users, UserCircle, ShieldCheck } from 'lucide-vue-next';
+import { computed } from 'vue';
 
 interface Props {
     profiles: Profile[];
@@ -23,6 +25,9 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+
+const page = usePage<AppPageProps>();
+const isAdmin = computed(() => page.props.auth.isAdmin);
 
 const { getInitials } = useInitials();
 
@@ -102,6 +107,19 @@ const handleLogout = () => {
                     </Link>
                 </DropdownMenuItem>
             </DropdownMenuGroup>
+
+            <!-- Admin Section -->
+            <template v-if="isAdmin">
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                    <DropdownMenuItem as-child>
+                        <Link :href="adminUsers()" class="cursor-pointer gap-3">
+                            <ShieldCheck class="h-4 w-4 text-rose-500" />
+                            Site Administration
+                        </Link>
+                    </DropdownMenuItem>
+                </DropdownMenuGroup>
+            </template>
 
             <DropdownMenuSeparator />
 

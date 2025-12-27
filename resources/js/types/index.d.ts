@@ -6,6 +6,7 @@ export interface Auth {
     profiles: Profile[];
     currentProfile: Profile | null;
     hasPin: boolean;
+    isAdmin: boolean;
 }
 
 export interface BreadcrumbItem {

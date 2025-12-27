@@ -27,6 +27,7 @@ import {
     Menu,
     Palette,
     Settings,
+    ShieldCheck,
     Sparkles,
     UserCircle,
     Wand2,
@@ -34,6 +35,7 @@ import {
 import { logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
 import { select as selectProfile } from '@/routes/profiles';
+import { index as adminUsers } from '@/routes/admin/users';
 
 // Initialize theme system and get active theme
 const { activeTheme } = useTheme();
@@ -42,6 +44,7 @@ const page = usePage();
 const profiles = computed(() => page.props.auth.profiles || []);
 const currentProfile = computed(() => page.props.auth.currentProfile);
 const auth = computed(() => page.props.auth);
+const isAdmin = computed(() => page.props.auth?.isAdmin ?? false);
 const mobileMenuOpen = ref(false);
 
 // Use shared composable for modal state
@@ -271,6 +274,15 @@ const handleLogout = () => {
                                         >
                                             <Settings class="h-5 w-5" />
                                             Settings
+                                        </Link>
+                                    </SheetClose>
+                                    <SheetClose v-if="isAdmin" :as-child="true">
+                                        <Link
+                                            :href="adminUsers()"
+                                            class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
+                                        >
+                                            <ShieldCheck class="h-5 w-5 text-rose-500" />
+                                            Site Administration
                                         </Link>
                                     </SheetClose>
                                     <SheetClose :as-child="true">
