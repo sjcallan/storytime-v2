@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ProfilesController from '@/actions/App/Http/Controllers/Settings/ProfilesController';
+import ProfileSettingsController from '@/actions/App/Http/Controllers/Settings/ProfileSettingsController';
 import HeadingSmall from '@/components/HeadingSmall.vue';
 import InputError from '@/components/InputError.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -25,14 +26,14 @@ import {
 import { useInitials } from '@/composables/useInitials';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
-import { Form, Head, router } from '@inertiajs/vue3';
+import { Form, Head, Link, router } from '@inertiajs/vue3';
 import { Textarea } from '@/components/ui/textarea';
 import {
     Collapsible,
     CollapsibleContent,
     CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Camera, ExternalLink, Image, Loader2, Pencil, Plus, Sparkles, Star, Trash2, Upload, UserCircle, Wand2 } from 'lucide-vue-next';
+import { Camera, ChevronRight, ExternalLink, Image, Loader2, Pencil, Plus, Settings, Sparkles, Star, Trash2, Upload, UserCircle, Wand2 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import axios from 'axios';
 
@@ -404,42 +405,33 @@ const useExamplePrompt = (prompt: string) => {
 
                 <!-- Profiles Grid -->
                 <div class="grid gap-4 sm:grid-cols-2">
-                    <div
+                    <Link
                         v-for="profile in profiles"
                         :key="profile.id"
-                        class="group relative rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md"
+                        :href="ProfileSettingsController.show.url(profile.id)"
+                        class="group relative rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md hover:border-violet-300 dark:hover:border-violet-700 cursor-pointer"
                         :class="{ 'ring-2 ring-orange-400 shadow-[0_0_12px_rgba(251,146,60,0.5)]': profile.is_default }"
                     >
                         <div class="flex items-start gap-4">
                             <!-- Profile Avatar -->
-                            <div class="relative">
-                                <Avatar class="h-16 w-16 rounded-full ring-2 ring-border">
+                            <div class="relative shrink-0">
+                                <Avatar class="h-16 w-16 rounded-full ring-2 ring-border group-hover:ring-violet-400 transition-all">
                                     <AvatarImage
                                         v-if="profile.avatar"
                                         :src="profile.avatar"
                                         :alt="profile.name"
                                         class="object-cover"
                                     />
-                                    <AvatarFallback class="text-lg font-medium bg-linear-to-br from-violet-500 to-purple-600 text-white">
+                                    <AvatarFallback class="text-lg font-medium bg-gradient-to-br from-violet-500 to-purple-600 text-white">
                                         {{ getInitials(profile.name) }}
                                     </AvatarFallback>
                                 </Avatar>
-
-                                <!-- Edit profile overlay -->
-                                <button
-                                    type="button"
-                                    @click="openEditDialog(profile)"
-                                    class="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-                                    aria-label="Edit profile"
-                                >
-                                    <Pencil class="h-5 w-5 text-white" />
-                                </button>
                             </div>
 
                             <!-- Profile Info -->
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2">
-                                    <h3 class="font-semibold truncate">{{ profile.name }}</h3>
+                                    <h3 class="font-semibold truncate group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">{{ profile.name }}</h3>
                                     <Badge v-if="profile.is_default" variant="secondary" class="shrink-0">
                                         <Star class="mr-1 h-3 w-3" />
                                         Default
@@ -449,49 +441,19 @@ const useExamplePrompt = (prompt: string) => {
                                     {{ getAgeGroupEmoji(profile.age_group) }} {{ profile.age_group_label }} ({{ ageGroups[profile.age_group]?.range }})
                                 </p>
 
-                                <!-- Action Buttons -->
-                                <div class="mt-3 flex flex-wrap items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        class="cursor-pointer"
-                                        @click="openEditDialog(profile)"
-                                    >
-                                        Edit
-                                    </Button>
-                                    <Button
-                                        v-if="!profile.is_default"
-                                        variant="outline"
-                                        size="sm"
-                                        class="cursor-pointer"
-                                        @click="setDefaultProfile(profile)"
-                                        :disabled="isSettingDefault"
-                                    >
-                                        <Star class="mr-1 h-3 w-3" />
-                                        Set Default
-                                    </Button>
-                                    <Button
-                                        v-if="profile.avatar"
-                                        variant="ghost"
-                                        size="sm"
-                                        class="text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
-                                        @click="deletePhoto(profile)"
-                                    >
-                                        Remove Photo
-                                    </Button>
-                                    <Button
-                                        v-if="!profile.is_default"
-                                        variant="ghost"
-                                        size="sm"
-                                        class="text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
-                                        @click="openDeleteDialog(profile)"
-                                    >
-                                        <Trash2 class="h-4 w-4" />
-                                    </Button>
-                                </div>
+                                <!-- Click to manage hint -->
+                                <p class="mt-2 text-xs text-muted-foreground flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Settings class="h-3 w-3" />
+                                    Click to manage profile settings
+                                </p>
+                            </div>
+
+                            <!-- Arrow indicator -->
+                            <div class="flex items-center self-center">
+                                <ChevronRight class="h-5 w-5 text-muted-foreground group-hover:text-violet-500 transition-colors" />
                             </div>
                         </div>
-                    </div>
+                    </Link>
                 </div>
 
                 <InputError v-if="photoError" :message="photoError" />

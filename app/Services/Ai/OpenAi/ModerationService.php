@@ -3,6 +3,7 @@
 namespace App\Services\Ai\OpenAi;
 
 use App\Models\Moderation;
+use App\Models\Profile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -31,6 +32,25 @@ class ModerationService
     public function isEnabled(): bool
     {
         return config('ai.moderation.enabled', false) === true;
+    }
+
+    /**
+     * Get the profile-specific thresholds or fall back to config defaults.
+     *
+     * @return array<string, float>
+     */
+    protected function getThresholdsForProfile(?string $profileId): array
+    {
+        if ($profileId) {
+            $profile = Profile::find($profileId);
+            if ($profile) {
+                return $profile->effective_moderation_thresholds;
+            }
+        }
+
+        $defaultThreshold = config('ai.moderation.min_threshold', 0.5);
+
+        return array_fill_keys(array_keys(Profile::MODERATION_CATEGORIES), $defaultThreshold);
     }
 
     /**
@@ -73,58 +93,60 @@ class ModerationService
         $categories = $result['categories'] ?? [];
         $categoryScores = $result['category_scores'] ?? [];
 
-        // Get our minimum threshold - ignore OpenAI's flags if scores are below this
-        $minThreshold = config('ai.moderation.min_threshold', 0.5);
+        $profileId = $context['profile_id'] ?? session('current_profile_id');
+        $thresholds = $this->getThresholdsForProfile($profileId);
 
-        // Filter categories: only consider flagged if score meets our minimum threshold
         $categoriesAboveThreshold = collect($categories)
-            ->filter(function ($isFlagged, $category) use ($categoryScores, $minThreshold) {
-                if (! $isFlagged) {
-                    return false;
-                }
+            ->filter(function ($isFlagged, $category) use ($categoryScores, $thresholds) {
                 $score = $categoryScores[$category] ?? 0;
+                $threshold = $thresholds[$category] ?? 0.5;
 
-                return $score >= $minThreshold;
+                return $score >= $threshold;
             })
             ->toArray();
 
         $anyFlaggedCategory = ! empty($categoriesAboveThreshold);
-        $isFlagged = $anyFlaggedCategory;
-
-        // Log when OpenAI flags content but we override due to low score
         $openAiFlagged = $flagged || collect($categories)->contains(true);
-        if ($openAiFlagged && ! $isFlagged) {
+        $isFlagged = $anyFlaggedCategory || $openAiFlagged;
+
+        if ($openAiFlagged && ! $anyFlaggedCategory) {
             $ignoredCategories = collect($categories)
                 ->filter(fn ($v) => $v === true)
                 ->keys()
-                ->mapWithKeys(fn ($cat) => [$cat => $categoryScores[$cat] ?? 0])
+                ->mapWithKeys(fn ($cat) => [$cat => [
+                    'score' => $categoryScores[$cat] ?? 0,
+                    'threshold' => $thresholds[$cat] ?? 0.5,
+                ]])
                 ->toArray();
 
             Log::info('[ModerationService] Ignoring low-confidence moderation flag', [
                 'source' => $context['source'] ?? 'unknown',
-                'min_threshold' => $minThreshold,
+                'profile_id' => $profileId,
                 'ignored_categories' => $ignoredCategories,
                 'input_preview' => mb_substr($input, 0, 200),
             ]);
         }
 
-        // Log detailed information when content is flagged
         if ($isFlagged) {
-            $flaggedCategories = collect($categories)
-                ->filter(fn ($value) => $value === true)
+            $flaggedCategories = collect($categoriesAboveThreshold)
                 ->keys()
                 ->toArray();
 
             $topScores = collect($categoryScores)
                 ->sortDesc()
                 ->take(5)
+                ->mapWithKeys(fn ($score, $cat) => [$cat => [
+                    'score' => $score,
+                    'threshold' => $thresholds[$cat] ?? 0.5,
+                ]])
                 ->toArray();
 
             Log::warning('[ModerationService] Content flagged for moderation', [
                 'source' => $context['source'] ?? 'unknown',
                 'user_id' => $context['user_id'] ?? auth()->id(),
-                'profile_id' => $context['profile_id'] ?? session('current_profile_id'),
+                'profile_id' => $profileId,
                 'flagged_categories' => $flaggedCategories,
+                'openai_flagged' => $openAiFlagged,
                 'top_scores' => $topScores,
                 'input_length' => strlen($input),
                 'input_preview' => mb_substr($input, 0, 500).(strlen($input) > 500 ? '...' : ''),
@@ -132,10 +154,12 @@ class ModerationService
             ]);
         }
 
-        // Use filtered categories (only those above threshold) for the result
-        $filteredCategories = collect($categories)
-            ->map(function ($originalFlag, $category) use ($categoriesAboveThreshold) {
-                return isset($categoriesAboveThreshold[$category]) && $categoriesAboveThreshold[$category];
+        $filteredCategories = collect($categoryScores)
+            ->map(function ($score, $category) use ($thresholds, $categories) {
+                $threshold = $thresholds[$category] ?? 0.5;
+                $openAiFlag = $categories[$category] ?? false;
+
+                return ($score >= $threshold) || ($openAiFlag === true);
             })
             ->toArray();
 

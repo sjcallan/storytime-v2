@@ -4,6 +4,7 @@ use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\PinController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\ProfilesController;
+use App\Http\Controllers\Settings\ProfileSettingsController;
 use App\Http\Controllers\Settings\ThemeController;
 use App\Http\Controllers\Settings\TwoFactorAuthenticationController;
 use App\Http\Controllers\Settings\UsageController;
@@ -54,6 +55,14 @@ Route::middleware('auth')->group(function () {
     Route::delete('settings/profiles/{profile}/image', [ProfilesController::class, 'destroyImage'])->name('profiles.image.destroy');
     Route::post('settings/profiles/{profile}/generate-image', [ProfilesController::class, 'generateImage'])->name('profiles.image.generate');
     Route::post('profiles/{profile}/switch', [ProfilesController::class, 'switchProfile'])->name('profiles.switch');
+
+    // Individual profile settings page
+    Route::get('settings/profiles/{profile}/settings', [ProfileSettingsController::class, 'show'])->name('profiles.settings.show');
+    Route::patch('settings/profiles/{profile}/settings', [ProfileSettingsController::class, 'update'])->name('profiles.settings.update');
+    Route::patch('settings/profiles/{profile}/moderation', [ProfileSettingsController::class, 'updateModeration'])->name('profiles.moderation.update');
+    Route::post('settings/profiles/{profile}/moderation/reset', [ProfileSettingsController::class, 'resetModeration'])->name('profiles.moderation.reset');
+    Route::post('settings/profiles/{profile}/settings/default', [ProfileSettingsController::class, 'setDefault'])->name('profiles.settings.set-default');
+    Route::delete('settings/profiles/{profile}/settings', [ProfileSettingsController::class, 'destroy'])->name('profiles.settings.destroy');
 
     // Theme customization routes
     Route::post('themes', [ThemeController::class, 'store'])->name('themes.store');

@@ -63,6 +63,8 @@ export interface Profile {
     active_theme_id: string | null;
     active_theme: ProfileTheme | null;
     background_image: string | null;
+    moderation_thresholds: Record<string, number> | null;
+    effective_moderation_thresholds: Record<string, number>;
     created_at: string;
     updated_at: string;
 }

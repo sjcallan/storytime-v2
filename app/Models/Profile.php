@@ -36,6 +36,7 @@ class Profile extends Model
         'themes',
         'active_theme_id',
         'background_image',
+        'moderation_thresholds',
     ];
 
     /**
@@ -47,6 +48,7 @@ class Profile extends Model
         'avatar',
         'age_group_label',
         'active_theme',
+        'effective_moderation_thresholds',
     ];
 
     protected function casts(): array
@@ -54,8 +56,152 @@ class Profile extends Model
         return [
             'is_default' => 'boolean',
             'themes' => 'array',
+            'moderation_thresholds' => 'array',
         ];
     }
+
+    /**
+     * Default moderation thresholds by age group.
+     * Lower values = more restrictive (blocks content more easily).
+     * Higher values = more permissive (allows more content through).
+     *
+     * @var array<string, array<string, float>>
+     */
+    public const AGE_GROUP_MODERATION_DEFAULTS = [
+        '8' => [ // Kids (7-10) - Most restrictive
+            'sexual' => 0.01,
+            'sexual/minors' => 0.01,
+            'harassment' => 0.3,
+            'harassment/threatening' => 0.2,
+            'hate' => 0.2,
+            'hate/threatening' => 0.1,
+            'illicit' => 0.2,
+            'illicit/violent' => 0.1,
+            'self-harm' => 0.1,
+            'self-harm/intent' => 0.1,
+            'self-harm/instructions' => 0.1,
+            'violence' => 0.3,
+            'violence/graphic' => 0.1,
+        ],
+        '12' => [ // Pre-Teen (11-13) - Moderately restrictive
+            'sexual' => 0.05,
+            'sexual/minors' => 0.01,
+            'harassment' => 0.4,
+            'harassment/threatening' => 0.3,
+            'hate' => 0.3,
+            'hate/threatening' => 0.2,
+            'illicit' => 0.3,
+            'illicit/violent' => 0.2,
+            'self-harm' => 0.2,
+            'self-harm/intent' => 0.2,
+            'self-harm/instructions' => 0.1,
+            'violence' => 0.5,
+            'violence/graphic' => 0.2,
+        ],
+        '16' => [ // Teen (14-17) - Moderate
+            'sexual' => 0.2,
+            'sexual/minors' => 0.01,
+            'harassment' => 0.5,
+            'harassment/threatening' => 0.4,
+            'hate' => 0.4,
+            'hate/threatening' => 0.3,
+            'illicit' => 0.4,
+            'illicit/violent' => 0.3,
+            'self-harm' => 0.3,
+            'self-harm/intent' => 0.3,
+            'self-harm/instructions' => 0.2,
+            'violence' => 0.7,
+            'violence/graphic' => 0.4,
+        ],
+        '18' => [ // Adult (18+) - Least restrictive
+            'sexual' => 0.5,
+            'sexual/minors' => 0.01, // Always very restrictive
+            'harassment' => 0.7,
+            'harassment/threatening' => 0.6,
+            'hate' => 0.6,
+            'hate/threatening' => 0.5,
+            'illicit' => 0.6,
+            'illicit/violent' => 0.5,
+            'self-harm' => 0.5,
+            'self-harm/intent' => 0.5,
+            'self-harm/instructions' => 0.4,
+            'violence' => 0.9,
+            'violence/graphic' => 0.7,
+        ],
+    ];
+
+    /**
+     * Category labels for display in the UI.
+     *
+     * @var array<string, array{label: string, description: string, icon: string}>
+     */
+    public const MODERATION_CATEGORIES = [
+        'sexual' => [
+            'label' => 'Sexual Content',
+            'description' => 'Adult or suggestive content',
+            'icon' => 'heart',
+        ],
+        'sexual/minors' => [
+            'label' => 'Sexual (Minors)',
+            'description' => 'Content involving minors - always strictly filtered',
+            'icon' => 'shield-alert',
+        ],
+        'harassment' => [
+            'label' => 'Harassment',
+            'description' => 'Bullying, insults, or hostile behavior',
+            'icon' => 'message-circle-warning',
+        ],
+        'harassment/threatening' => [
+            'label' => 'Threatening Harassment',
+            'description' => 'Harassment with threats of harm',
+            'icon' => 'alert-triangle',
+        ],
+        'hate' => [
+            'label' => 'Hate Speech',
+            'description' => 'Content targeting protected groups',
+            'icon' => 'ban',
+        ],
+        'hate/threatening' => [
+            'label' => 'Threatening Hate',
+            'description' => 'Hate speech with threats of violence',
+            'icon' => 'flame',
+        ],
+        'illicit' => [
+            'label' => 'Illicit Content',
+            'description' => 'Illegal activities or substance abuse',
+            'icon' => 'alert-octagon',
+        ],
+        'illicit/violent' => [
+            'label' => 'Violent Illicit',
+            'description' => 'Illegal activities involving violence',
+            'icon' => 'skull',
+        ],
+        'self-harm' => [
+            'label' => 'Self-Harm',
+            'description' => 'Content depicting self-harm',
+            'icon' => 'heart-crack',
+        ],
+        'self-harm/intent' => [
+            'label' => 'Self-Harm Intent',
+            'description' => 'Expression of intent to self-harm',
+            'icon' => 'circle-alert',
+        ],
+        'self-harm/instructions' => [
+            'label' => 'Self-Harm Instructions',
+            'description' => 'Instructions for self-harm',
+            'icon' => 'file-warning',
+        ],
+        'violence' => [
+            'label' => 'Violence',
+            'description' => 'Physical violence or fighting',
+            'icon' => 'swords',
+        ],
+        'violence/graphic' => [
+            'label' => 'Graphic Violence',
+            'description' => 'Detailed or gory depictions of violence',
+            'icon' => 'droplets',
+        ],
+    ];
 
     /**
      * Get the URL to the profile's avatar image.
@@ -77,6 +223,46 @@ class Profile extends Model
         return Attribute::make(
             get: fn () => self::AGE_GROUPS[$this->age_group]['label'] ?? 'Unknown',
         );
+    }
+
+    /**
+     * Get the effective moderation thresholds (user overrides + age defaults).
+     *
+     * @return array<string, float>
+     */
+    protected function effectiveModerationThresholds(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                $defaults = self::AGE_GROUP_MODERATION_DEFAULTS[$this->age_group]
+                    ?? self::AGE_GROUP_MODERATION_DEFAULTS['18'];
+
+                $customThresholds = $this->moderation_thresholds ?? [];
+
+                return array_merge($defaults, $customThresholds);
+            },
+        );
+    }
+
+    /**
+     * Get the default moderation thresholds for this profile's age group.
+     *
+     * @return array<string, float>
+     */
+    public function getDefaultModerationThresholds(): array
+    {
+        return self::AGE_GROUP_MODERATION_DEFAULTS[$this->age_group]
+            ?? self::AGE_GROUP_MODERATION_DEFAULTS['18'];
+    }
+
+    /**
+     * Check if a category score exceeds the profile's threshold.
+     */
+    public function exceedsModerationThreshold(string $category, float $score): bool
+    {
+        $thresholds = $this->effective_moderation_thresholds;
+
+        return $score >= ($thresholds[$category] ?? 0.5);
     }
 
     /**
