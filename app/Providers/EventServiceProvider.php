@@ -22,6 +22,9 @@ use App\Observers\GenreObserver;
 use App\Observers\ReadingLogObserver;
 use App\Observers\RequestLogObserver;
 use App\Observers\UserObserver;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Lockout;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
@@ -52,6 +55,15 @@ class EventServiceProvider extends ServiceProvider
         \App\Events\User\UserCreatedEvent::class => [
             \App\Listeners\User\CreateDefaultProfileListener::class,
             \App\Listeners\User\UserCreatedAdminNotificationListener::class,
+        ],
+        Login::class => [
+            \App\Listeners\Auth\LogSuccessfulLoginListener::class,
+        ],
+        Failed::class => [
+            \App\Listeners\Auth\LogFailedLoginListener::class,
+        ],
+        Lockout::class => [
+            \App\Listeners\Auth\LogLockoutListener::class,
         ],
     ];
 

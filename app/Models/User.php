@@ -135,4 +135,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(ReadingHistory::class);
     }
+
+    /**
+     * Get all login attempts for the user.
+     */
+    public function loginAttempts(): HasMany
+    {
+        return $this->hasMany(LoginAttempt::class);
+    }
 }
