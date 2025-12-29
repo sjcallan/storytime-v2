@@ -101,7 +101,7 @@ const emit = defineEmits<{
                             @select="emit('edit')"
                             :disabled="isEditing || isSaving || isDeleting"
                         >
-                            Edit Story
+                            Edit Story Details
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem

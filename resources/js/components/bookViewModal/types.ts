@@ -170,6 +170,7 @@ export interface BookEditFormData {
     age_level: string;
     author: string;
     plot: string;
+    type: string;
 }
 
 export type ReadingView = 'title' | 'chapter-image' | 'chapter-content' | 'create-chapter' | 'toc';

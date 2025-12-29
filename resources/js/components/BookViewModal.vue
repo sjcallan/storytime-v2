@@ -83,6 +83,7 @@ const editForm = ref<BookEditFormData>({
     age_level: '',
     author: '',
     plot: '',
+    type: '',
 });
 
 // Character selection state
@@ -464,6 +465,7 @@ const initializeEditForm = (bookData: Book) => {
         age_level: bookData.age_level ? String(bookData.age_level) : '',
         author: bookData.author ?? '',
         plot: bookData.plot ?? '',
+        type: bookData.type ?? '',
     };
 };
 
