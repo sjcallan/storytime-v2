@@ -73,9 +73,15 @@ const showHeader = computed(() => {
 
 // Show create form on left page when chapter ended on right and no next chapter
 const showCreateFormOnLeft = computed(() => {
-    return props.readingView === 'create-chapter' && 
-           !props.chapterEndsOnLeft && 
-           !props.hasNextChapter;
+    if (props.readingView !== 'create-chapter' || props.hasNextChapter) {
+        return false;
+    }
+    // In single page mode, always show the form when in create-chapter view
+    if (props.isSinglePageMode) {
+        return true;
+    }
+    // In dual page mode, show form on left when chapter ended on right
+    return !props.chapterEndsOnLeft;
 });
 
 const chapterLabel = computed(() => getChapterLabel(props.bookType));

@@ -87,13 +87,23 @@ const isLastChapter = computed(() => {
 
 // Show create form on right when in create-chapter view and chapter ended on left
 const showCreateFormOnRight = computed(() => {
-    return props.readingView === 'create-chapter' && 
-           props.chapterEndsOnLeft && 
-           !props.hasNextChapter;
+    if (props.readingView !== 'create-chapter' || props.hasNextChapter) {
+        return false;
+    }
+    // In single page mode, always show the form when in create-chapter view
+    if (props.isSinglePageMode) {
+        return true;
+    }
+    // In dual page mode, show form on right when chapter ended on left
+    return props.chapterEndsOnLeft;
 });
 
 // Show decorative on right when in create-chapter view and chapter ended on right
 const showDecorativeOnRight = computed(() => {
+    // In single page mode, never show decorative - always show the form
+    if (props.isSinglePageMode) {
+        return false;
+    }
     return props.readingView === 'create-chapter' && 
            !props.chapterEndsOnLeft && 
            !props.hasNextChapter;
