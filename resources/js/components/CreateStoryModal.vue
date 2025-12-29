@@ -1466,7 +1466,7 @@ watch(
                                 />
                             </div>
                         </div>
-                        <DialogDescription class="text-base text-white/90">
+                        <DialogDescription class="hidden text-base text-white/90 sm:block">
                             {{ stepInfo.description }}
                         </DialogDescription>
                     </DialogHeader>
@@ -2450,7 +2450,7 @@ watch(
                         >
                             <Spinner v-if="isSaving" class="h-5 w-5" />
                             <template v-if="isSaving && currentStep === 3">
-                                Getting your characters...
+                                <span class="hidden sm:inline">Getting your characters...</span>
                             </template>
                             <template v-else>
                                 Next
@@ -2469,8 +2469,10 @@ watch(
                         >
                             <Spinner v-if="processing" class="h-5 w-5" />
                             <Sparkles v-else class="h-5 w-5" />
-                            <template v-if="processing"> Creating... </template>
-                            <template v-else> Start Reading! </template>
+                            <template v-if="processing">
+                                <span class="hidden sm:inline">Creating...</span>
+                            </template>
+                            <template v-else> Let's Go! </template>
                         </Button>
                     </div>
                 </div>
