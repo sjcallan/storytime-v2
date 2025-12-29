@@ -48,7 +48,7 @@ const ideaButtonText = computed(() => {
     if (hasReceivedIdea.value) {
         return 'Give me a different idea';
     }
-    return 'Give me an idea';
+    return 'Inspire me';
 });
 
 // Watch for suggested idea and populate the prompt

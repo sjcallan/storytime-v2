@@ -22,6 +22,7 @@ import {
     Check,
     ChevronLeft,
     ChevronRight,
+    Lightbulb,
     Mic,
     Plus,
     Sparkles,
@@ -339,6 +340,154 @@ const PLOT_MAX_LENGTH = 2000;
 // Character generation state
 const hasAIGeneratedCharacters = ref(false);
 
+// Inspiration state for all fields
+const isLoadingInspiration = ref(false);
+const hasReceivedInspiration = ref(false);
+const isLoadingOpeningInspiration = ref(false);
+const hasReceivedOpeningInspiration = ref(false);
+const isLoadingLocationInspiration = ref(false);
+const hasReceivedLocationInspiration = ref(false);
+
+const inspirationButtonText = computed(() => {
+    if (isLoadingInspiration.value) {
+        return 'hmmm.... thinking... yes... that\'s it!';
+    }
+    if (hasReceivedInspiration.value) {
+        return 'Give me a different idea';
+    }
+    return 'Inspire me';
+});
+
+const openingInspirationButtonText = computed(() => {
+    if (isLoadingOpeningInspiration.value) {
+        return 'hmmm.... thinking... yes... that\'s it!';
+    }
+    if (hasReceivedOpeningInspiration.value) {
+        return 'Give me a different idea';
+    }
+    return 'Inspire me';
+});
+
+const locationInspirationButtonText = computed(() => {
+    if (isLoadingLocationInspiration.value) {
+        return 'hmmm.... thinking... yes... that\'s it!';
+    }
+    if (hasReceivedLocationInspiration.value) {
+        return 'Give me a different idea';
+    }
+    return 'Inspire me';
+});
+
+const requestPlotInspiration = async () => {
+    if (isLoadingInspiration.value) {
+        return;
+    }
+
+    if (!formData.value.type || !formData.value.genre || !formData.value.age_level) {
+        errors.value = { plot: 'Please complete Step 1 first (type, genre, and age level).' };
+        return;
+    }
+
+    isLoadingInspiration.value = true;
+    errors.value = {};
+
+    try {
+        const { data, error } = await requestApiFetch('/api/books/inspire-plot', 'POST', {
+            type: formData.value.type,
+            genre: formData.value.genre,
+            age_level: formData.value.age_level,
+            inspiration_type: 'plot',
+        });
+
+        if (!error && data) {
+            const response = data as { inspiration: string | null };
+            if (response.inspiration) {
+                hasReceivedInspiration.value = true;
+                formData.value.plot = response.inspiration;
+            } else {
+                errors.value = { plot: 'Could not generate an idea. Please try again.' };
+            }
+        } else {
+            errors.value = { plot: 'Could not generate an idea. Please try again.' };
+        }
+    } catch {
+        errors.value = { plot: 'Could not generate an idea. Please try again.' };
+    } finally {
+        isLoadingInspiration.value = false;
+    }
+};
+
+const requestOpeningInspiration = async () => {
+    if (isLoadingOpeningInspiration.value) {
+        return;
+    }
+
+    isLoadingOpeningInspiration.value = true;
+    errors.value = {};
+
+    try {
+        const { data, error } = await requestApiFetch('/api/books/inspire-plot', 'POST', {
+            type: formData.value.type,
+            genre: formData.value.genre,
+            age_level: formData.value.age_level,
+            inspiration_type: 'opening',
+            plot: formData.value.plot,
+        });
+
+        if (!error && data) {
+            const response = data as { inspiration: string | null };
+            if (response.inspiration) {
+                hasReceivedOpeningInspiration.value = true;
+                formData.value.first_chapter_prompt = response.inspiration;
+            } else {
+                errors.value = { first_chapter_prompt: 'Could not generate an idea. Please try again.' };
+            }
+        } else {
+            errors.value = { first_chapter_prompt: 'Could not generate an idea. Please try again.' };
+        }
+    } catch {
+        errors.value = { first_chapter_prompt: 'Could not generate an idea. Please try again.' };
+    } finally {
+        isLoadingOpeningInspiration.value = false;
+    }
+};
+
+const requestLocationInspiration = async () => {
+    if (isLoadingLocationInspiration.value) {
+        return;
+    }
+
+    isLoadingLocationInspiration.value = true;
+    errors.value = {};
+
+    try {
+        const { data, error } = await requestApiFetch('/api/books/inspire-plot', 'POST', {
+            type: formData.value.type,
+            genre: formData.value.genre,
+            age_level: formData.value.age_level,
+            inspiration_type: 'location',
+            plot: formData.value.plot,
+            first_chapter_prompt: formData.value.first_chapter_prompt,
+        });
+
+        if (!error && data) {
+            const response = data as { inspiration: string | null };
+            if (response.inspiration) {
+                hasReceivedLocationInspiration.value = true;
+                formData.value.scene = response.inspiration;
+            } else {
+                errors.value = { scene: 'Could not generate an idea. Please try again.' };
+            }
+        } else {
+            errors.value = { scene: 'Could not generate an idea. Please try again.' };
+        }
+    } catch {
+        errors.value = { scene: 'Could not generate an idea. Please try again.' };
+    } finally {
+        isLoadingLocationInspiration.value = false;
+    }
+};
+
 const bookTypes = [
     {
         value: 'chapter',
@@ -502,6 +651,12 @@ const resetForm = (
     bookId.value = null;
     isSaving.value = false;
     hasAIGeneratedCharacters.value = false;
+    hasReceivedInspiration.value = false;
+    isLoadingInspiration.value = false;
+    hasReceivedOpeningInspiration.value = false;
+    isLoadingOpeningInspiration.value = false;
+    hasReceivedLocationInspiration.value = false;
+    isLoadingLocationInspiration.value = false;
 };
 
 // Create book with all gathered data (after step 3)
@@ -1502,7 +1657,8 @@ watch(
                                         :disabled="
                                             processing ||
                                             isRecording ||
-                                            isTranscribing
+                                            isTranscribing ||
+                                            isLoadingInspiration
                                         "
                                         class="resize-none rounded-2xl border-2 border-gray-200 bg-white pb-8 text-base leading-relaxed text-gray-900 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                     />
@@ -1516,6 +1672,23 @@ watch(
                                         / {{ PLOT_MAX_LENGTH.toLocaleString() }}
                                     </div>
                                 </div>
+                                
+                                <!-- Inspire me button -->
+                                <button
+                                    type="button"
+                                    @click="requestPlotInspiration"
+                                    :disabled="processing || isRecording || isTranscribing || isLoadingInspiration"
+                                    class="group flex cursor-pointer items-center gap-1.5 text-sm font-medium text-orange-600 transition-all duration-200 hover:text-orange-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-orange-500 dark:hover:text-orange-400"
+                                >
+                                    <Lightbulb 
+                                        :class="[
+                                            'h-4 w-4 transition-all duration-300',
+                                            isLoadingInspiration ? 'animate-pulse text-orange-400' : 'group-hover:scale-110'
+                                        ]" 
+                                    />
+                                    <span :class="isLoadingInspiration ? 'animate-pulse' : ''">{{ inspirationButtonText }}</span>
+                                </button>
+                                
                                 <InputError :message="errors.plot" />
 
                                 <!-- Microphone Button -->
@@ -1627,9 +1800,26 @@ watch(
                                     v-model="formData.first_chapter_prompt"
                                     placeholder="Example: The story begins on a stormy night when our hero finds a mysterious letter on their doorstep..."
                                     rows="5"
-                                    :disabled="processing"
+                                    :disabled="processing || isLoadingOpeningInspiration"
                                     class="resize-none rounded-2xl border-2 border-gray-200 bg-white text-base leading-relaxed text-gray-900 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                 />
+                                
+                                <!-- Inspire me button for opening -->
+                                <button
+                                    type="button"
+                                    @click="requestOpeningInspiration"
+                                    :disabled="processing || isLoadingOpeningInspiration"
+                                    class="group flex cursor-pointer items-center gap-1.5 text-sm font-medium text-orange-600 transition-all duration-200 hover:text-orange-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-orange-500 dark:hover:text-orange-400"
+                                >
+                                    <Lightbulb 
+                                        :class="[
+                                            'h-4 w-4 transition-all duration-300',
+                                            isLoadingOpeningInspiration ? 'animate-pulse text-orange-400' : 'group-hover:scale-110'
+                                        ]" 
+                                    />
+                                    <span :class="isLoadingOpeningInspiration ? 'animate-pulse' : ''">{{ openingInspirationButtonText }}</span>
+                                </button>
+                                
                                 <InputError
                                     :message="errors.first_chapter_prompt"
                                 />
@@ -1652,9 +1842,26 @@ watch(
                                     v-model="formData.scene"
                                     placeholder="Example: A cozy cottage at the edge of an enchanted forest, where fireflies dance at night..."
                                     rows="4"
-                                    :disabled="processing"
+                                    :disabled="processing || isLoadingLocationInspiration"
                                     class="resize-none rounded-2xl border-2 border-gray-200 bg-white text-base leading-relaxed text-gray-900 focus:ring-2 focus:ring-orange-500/20 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                 />
+                                
+                                <!-- Inspire me button for location -->
+                                <button
+                                    type="button"
+                                    @click="requestLocationInspiration"
+                                    :disabled="processing || isLoadingLocationInspiration"
+                                    class="group flex cursor-pointer items-center gap-1.5 text-sm font-medium text-orange-600 transition-all duration-200 hover:text-orange-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-orange-500 dark:hover:text-orange-400"
+                                >
+                                    <Lightbulb 
+                                        :class="[
+                                            'h-4 w-4 transition-all duration-300',
+                                            isLoadingLocationInspiration ? 'animate-pulse text-orange-400' : 'group-hover:scale-110'
+                                        ]" 
+                                    />
+                                    <span :class="isLoadingLocationInspiration ? 'animate-pulse' : ''">{{ locationInspirationButtonText }}</span>
+                                </button>
+                                
                                 <InputError :message="errors.scene" />
                             </div>
                         </div>

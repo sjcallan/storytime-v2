@@ -42,6 +42,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Book cover regeneration
     Route::post('books/{book}/regenerate-cover', [BookController::class, 'regenerateCover'])->name('api.books.regenerate-cover');
 
+    // Plot inspiration generation
+    Route::post('books/inspire-plot', [BookController::class, 'inspirePlot'])->name('api.books.inspire-plot');
+
     // Chapter endpoints
     Route::get('books/{book}/chapters/{chapterNumber}', [ChapterController::class, 'getByBookAndSort'])
         ->whereNumber('chapterNumber')

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\InspirePlotRequest;
 use App\Http\Requests\StoreBookRequest;
 use App\Http\Requests\UpdateBookRequest;
 use App\Jobs\Book\GenerateBookCoverJob;
@@ -140,5 +141,17 @@ class BookController extends Controller
         $book->delete();
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Generate a creative plot inspiration based on book type, genre, and age level.
+     */
+    public function inspirePlot(InspirePlotRequest $request): JsonResponse
+    {
+        $inspiration = $this->bookService->generatePlotInspiration($request->validated());
+
+        return response()->json([
+            'inspiration' => $inspiration,
+        ]);
     }
 }
