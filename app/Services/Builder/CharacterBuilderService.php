@@ -50,7 +50,6 @@ class CharacterBuilderService extends BuilderService
         $systemPrompt .= 'Respond ONLY with valid JSON in this exact format: '.json_encode($characterTemplate);
 
         $this->chatService->resetMessages();
-        $this->chatService->setModel('gpt-4o-mini');
         $this->chatService->setTemperature(0.7);
         $this->chatService->setResponseFormat('json_object');
         $this->chatService->setContext($systemPrompt);
@@ -140,7 +139,6 @@ class CharacterBuilderService extends BuilderService
         ];
 
         $this->chatService->setContext($this->getPersonaPrompt($bookId).' Imagine no more than 4 primary characters based on the plot of this book, respond using json format: "'.json_encode($characterTemplate).'"');
-        $this->chatService->setModel('gpt-4.1');
         $this->chatService->setResponseFormat('json_object');
         $this->chatService->addUserMessage('Who are the characters?');
         $this->chatService->addAssistantMessage($userCharacters);

@@ -48,4 +48,3 @@ class ExtractChapterCharactersListener
         ExtractChapterCharactersJob::dispatch($chapter)->onQueue('default');
     }
 }
-

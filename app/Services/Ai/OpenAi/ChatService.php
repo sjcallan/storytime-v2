@@ -23,14 +23,11 @@ class ChatService implements AiChatServiceInterface
 
     protected int $totalTokens = 0;
 
-    protected string $model = 'gpt-4.1';
+    protected string $model;
 
     protected ?string $id = null;
 
     protected string $completion = '';
-
-    /** @var float Cost per 1000 tokens for GPT-4.1 */
-    protected const MODEL_COST_PER_1K_TOKENS = 0.002;
 
     protected RequestLogService $requestLogService;
 
@@ -38,7 +35,7 @@ class ChatService implements AiChatServiceInterface
     {
         $this->apiService = $apiService;
         $this->requestLogService = $requestLogService;
-        $this->apiService->setModel('gpt-4.1');
+        $this->model = config('ai.providers.openai.model', 'gpt-4.1');
     }
 
     public function setResponseFormat(string $responseFormat = 'text'): void
@@ -154,7 +151,7 @@ class ChatService implements AiChatServiceInterface
 
     public function getCostPerToken(): float
     {
-        return self::MODEL_COST_PER_1K_TOKENS;
+        return (float) config('ai.providers.openai.cost_per_1k_tokens', 0.002);
     }
 
     public function addAssistantMessage(?string $message = null): void

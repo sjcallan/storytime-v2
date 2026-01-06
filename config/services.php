@@ -50,6 +50,7 @@ return [
         'use_custom_model' => env('REPLICATE_USE_CUSTOM_MODEL', false),
         'custom_model_version' => env('REPLICATE_CUSTOM_MODEL_VERSION', ''),
         'custom_model_lora' => env('REPLICATE_CUSTOM_MODEL_LORA', ''),
+        'custom_model_lora_scale' => env('REPLICATE_CUSTOM_MODEL_LORA_SCALE', 1),
     ],
 
 ];

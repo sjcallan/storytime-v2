@@ -158,7 +158,6 @@ class BookCoverService
         Log::info('BookCoverService: Making AI request for cover image prompt');
 
         $this->chatService->resetMessages();
-        $this->chatService->setModel('gpt-4.1');
         $this->chatService->setTemperature(0.5);
         $this->chatService->setResponseFormat('text');
         $this->chatService->addSystemMessage($systemPrompt);

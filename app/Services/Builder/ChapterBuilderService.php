@@ -581,7 +581,6 @@ class ChapterBuilderService extends BuilderService
 
         try {
             $this->chatService->resetMessages();
-            $this->chatService->setModel('gpt-4.1-mini');
             $this->chatService->setMaxTokens(200);
             $this->chatService->setTemperature(0);
             $this->chatService->setResponseFormat('json_object');

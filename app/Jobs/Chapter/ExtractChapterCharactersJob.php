@@ -198,7 +198,6 @@ class ExtractChapterCharactersJob implements ShouldQueue
         $userPrompt .= "\n\nIdentify any NEW named characters in this chapter that are not in the existing character list.";
 
         $chatService->resetMessages();
-        $chatService->setModel('gpt-4o-mini');
         $chatService->setTemperature(0.3);
         $chatService->setMaxTokens(2000);
         $chatService->setResponseFormat('json_object');

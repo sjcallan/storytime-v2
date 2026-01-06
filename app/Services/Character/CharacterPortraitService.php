@@ -145,7 +145,6 @@ class CharacterPortraitService
         ]);
 
         $this->chatService->resetMessages();
-        $this->chatService->setModel('gpt-4.1');
         $this->chatService->setMaxTokens(500);
         $this->chatService->setTemperature(0.5);
 

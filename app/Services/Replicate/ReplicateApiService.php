@@ -23,11 +23,14 @@ class ReplicateApiService
 
     protected bool $useCustomModel;
 
+    protected float $customModelLoraScale;
+
     public function __construct()
     {
         $this->apiKey = config('services.replicate.api_key');
         $this->customModelVersion = config('services.replicate.custom_model_version');
         $this->customModelLora = config('services.replicate.custom_model_lora');
+        $this->customModelLoraScale = config('services.replicate.custom_model_lora_scale');
         $this->useCustomModel = (bool) config('services.replicate.use_custom_model', false);
     }
 
@@ -258,7 +261,7 @@ class ReplicateApiService
             'guidance_scale' => 2,
             'output_quality' => 80,
             'prompt_strength' => 0.8,
-            'extra_lora_scale' => 0.8,
+            'extra_lora_scale' => $this->customModelLoraScale,
             'num_inference_steps' => 30,
             'disable_safety_checker' => true,
         ];

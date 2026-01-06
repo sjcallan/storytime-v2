@@ -49,4 +49,3 @@ class ReadingHistory extends Model
         return $this->belongsTo(Chapter::class);
     }
 }
-

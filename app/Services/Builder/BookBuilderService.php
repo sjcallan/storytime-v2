@@ -97,7 +97,6 @@ class BookBuilderService extends BuilderService
             .' for backstory: What is this character\'s backstory in 3 sentences or less.';
 
         $this->chatService->setContext($this->getSystemPrompt($bookId).' DO NOT include any other text in your response. Respond using ONLY the following JSON Template: "'.json_encode($responseTemplate).'"');
-        $this->chatService->setModel('gpt-4.1');
         $this->chatService->setResponseFormat('json_object');
 
         if ($userCharacters) {
