@@ -45,6 +45,7 @@ class EventServiceProvider extends ServiceProvider
         ],
         \App\Events\Chapter\ChapterUpdatedEvent::class => [
             \App\Listeners\Chapter\ExtractChapterCharactersListener::class,
+            \App\Listeners\Chapter\CreateChapterImageListener::class,
         ],
         \App\Events\Character\CharacterCreatedEvent::class => [
             \App\Listeners\Character\GenerateCharacterPortraitListener::class,

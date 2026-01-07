@@ -160,19 +160,9 @@ const openImageInNewWindow = (url: string | null | undefined) => {
         
         <template v-else-if="(readingView === 'chapter-image' || readingView === 'chapter-content') && chapter && spread">
             <div class="flex h-full flex-col">
-                <!-- First spread: show chapter image or decorative -->
+                <!-- First spread: show decorative element (chapter image is now on right page) -->
                 <template v-if="spread.showImage">
-                    <div 
-                        v-if="chapter.image"
-                        class="flex-1 px-6 pt-24 pb-6"
-                    >
-                        <img
-                            :src="chapter.image"
-                            :alt="chapter.title || `${chapterLabel} ${chapter.sort}`"
-                            class="h-full w-full object-contain rounded-lg shadow-md"
-                        />
-                    </div>
-                    <div v-else class="flex h-full items-center justify-center p-12">
+                    <div class="flex h-full items-center justify-center p-12">
                         <div class="text-center opacity-40">
                             <div class="mx-auto mb-4 h-px w-24 bg-linear-to-r from-transparent via-amber-600 to-transparent dark:via-amber-400" />
                             <BookOpen class="mx-auto h-12 w-12 text-amber-500 dark:text-amber-400" />

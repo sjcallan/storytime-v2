@@ -5,7 +5,8 @@ namespace App\Services\Character;
 use App\Events\Character\AllCharactersPortraitsCreatedEvent;
 use App\Events\Character\CharacterPortraitCreatedEvent;
 use App\Models\Character;
-use App\Services\Ai\OpenAi\ChatService;
+use App\Services\Ai\AiManager;
+use App\Services\Ai\Contracts\AiChatServiceInterface;
 use App\Services\Replicate\ReplicateApiService;
 use App\Traits\Service\SavesImagesToS3;
 use Illuminate\Support\Facades\Log;
@@ -14,10 +15,14 @@ class CharacterPortraitService
 {
     use SavesImagesToS3;
 
+    protected AiChatServiceInterface $chatService;
+
     public function __construct(
         protected ReplicateApiService $replicateService,
-        protected ChatService $chatService
-    ) {}
+        AiManager $aiManager
+    ) {
+        $this->chatService = $aiManager->chat();
+    }
 
     /**
      * Generate and save a portrait for the given character.

@@ -13,7 +13,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class CreateChapterImageJob implements ShouldQueue
+class RegenerateChapterHeaderImageJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -30,23 +30,20 @@ class CreateChapterImageJob implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct(public Chapter $chapter)
-    {
-        //
-    }
+    public function __construct(public Chapter $chapter) {}
 
     /**
      * Execute the job.
      */
     public function handle(ChapterBuilderService $chapterBuilderService, ChapterService $chapterService): void
     {
-        Log::info('[CreateChapterImageJob] Starting', [
+        Log::info('[RegenerateChapterHeaderImageJob] Starting', [
             'chapter_id' => $this->chapter->id,
             'book_id' => $this->chapter->book_id,
         ]);
 
         if (empty($this->chapter->image_prompt)) {
-            Log::warning('[CreateChapterImageJob] No image prompt found, skipping', [
+            Log::warning('[RegenerateChapterHeaderImageJob] No image prompt found, skipping', [
                 'chapter_id' => $this->chapter->id,
             ]);
 
@@ -61,20 +58,18 @@ class CreateChapterImageJob implements ShouldQueue
 
         $chapterService->updateById($this->chapter->id, [
             'image' => $image['image'],
-            'image_prompt' => $chapterBuilderService->stripQuotes($image['image_prompt']),
         ], ['events' => false]);
 
-        Log::info('[CreateChapterImageJob] Completed successfully', [
+        Log::info('[RegenerateChapterHeaderImageJob] Completed successfully', [
             'chapter_id' => $this->chapter->id,
             'has_image' => ! empty($image['image']),
         ]);
 
-        // Broadcast update via websocket so frontend can display the new image
         if (! empty($image['image'])) {
             $this->chapter->refresh();
             ChapterUpdatedEvent::dispatch($this->chapter);
 
-            Log::info('[CreateChapterImageJob] Dispatched chapter updated event', [
+            Log::info('[RegenerateChapterHeaderImageJob] Dispatched chapter updated event', [
                 'chapter_id' => $this->chapter->id,
                 'book_id' => $this->chapter->book_id,
             ]);
@@ -86,7 +81,7 @@ class CreateChapterImageJob implements ShouldQueue
      */
     public function failed(?\Throwable $exception): void
     {
-        Log::error('[CreateChapterImageJob] Job failed', [
+        Log::error('[RegenerateChapterHeaderImageJob] Job failed', [
             'chapter_id' => $this->chapter->id,
             'book_id' => $this->chapter->book_id,
             'exception_class' => $exception ? get_class($exception) : 'unknown',

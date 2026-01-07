@@ -117,6 +117,7 @@ export interface Chapter {
     title: string | null;
     body: string | null;
     image: string | null;
+    image_prompt: string | null;
     inline_images: InlineImage[] | null;
     sort: number;
     summary: string | null;

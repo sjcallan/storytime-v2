@@ -4,7 +4,8 @@ namespace App\Jobs\Chapter;
 
 use App\Events\Character\CharacterCreatedEvent;
 use App\Models\Chapter;
-use App\Services\Ai\OpenAi\ChatService;
+use App\Services\Ai\AiManager;
+use App\Services\Ai\Contracts\AiChatServiceInterface;
 use App\Services\Character\CharacterService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -33,8 +34,9 @@ class ExtractChapterCharactersJob implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(ChatService $chatService, CharacterService $characterService): void
+    public function handle(AiManager $aiManager, CharacterService $characterService): void
     {
+        $chatService = $aiManager->chat();
         Log::info('[ExtractChapterCharactersJob] Starting character extraction', [
             'chapter_id' => $this->chapter->id,
             'book_id' => $this->chapter->book_id,
@@ -157,7 +159,7 @@ class ExtractChapterCharactersJob implements ShouldQueue
      * @return array<array{name: string, age: string, gender: string, description: string, backstory: string, nationality: string}>
      */
     protected function extractNewCharactersFromChapter(
-        ChatService $chatService,
+        AiChatServiceInterface $chatService,
         string $chapterBody,
         string $chapterSummary,
         array $existingCharacterNames,

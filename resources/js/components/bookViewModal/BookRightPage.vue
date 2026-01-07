@@ -64,6 +64,7 @@ const emit = defineEmits<{
     (e: 'clearSelectedCharacter'): void;
     (e: 'regenerateCover'): void;
     (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
+    (e: 'regenerateHeaderImage', chapterId: string): void;
     (e: 'requestIdea'): void;
     (e: 'characterUpdated', character: Character): void;
     (e: 'textareaFocused', value: boolean): void;
@@ -238,6 +239,7 @@ const showHeader = computed(() => {
                 :is-last-chapter="isLastChapter"
                 :is-last-spread="isOnLastSpread"
                 @regenerate-image="(item, chapterId) => emit('regenerateImage', item, chapterId)"
+                @regenerate-header-image="(chapterId) => emit('regenerateHeaderImage', chapterId)"
                 @edit-chapter="emit('editChapter')"
                 @scrolled-to-bottom="emit('scrolledToBottom')"
             />

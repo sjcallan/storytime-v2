@@ -952,6 +952,23 @@ const handleRegenerateImage = async (item: { imageIndex?: number }, chapterId: s
     // On success, the websocket will update the image when complete
 };
 
+// Chapter header image regeneration handler
+const handleRegenerateHeaderImage = async (chapterId: string) => {
+    if (!props.bookId || !book.value) {
+        return;
+    }
+    
+    const { error } = await requestApiFetch(
+        `/api/books/${props.bookId}/chapters/${chapterId}/regenerate-header-image`, 
+        'POST'
+    );
+    
+    if (error) {
+        actionError.value = 'Failed to start header image generation. Please try again.';
+    }
+    // On success, the websocket will update the image when complete
+};
+
 // Character update handler
 const handleCharacterUpdated = (updatedCharacter: Character) => {
     if (!book.value) {
@@ -1095,7 +1112,6 @@ onBeforeUnmount(() => {
                     'fixed inset-0 bg-black/80 backdrop-blur-sm z-9998',
                     { 'pointer-events-none': animation.isClosing.value }
                 ]"
-                @click="closeModal"
             />
         </Transition>
 
@@ -1367,6 +1383,7 @@ onBeforeUnmount(() => {
                             @textarea-focused="isTextareaFocused = $event"
                             @regenerate-cover="handleRegenerateCover"
                             @regenerate-image="(item, chapterId) => handleRegenerateImage(item, chapterId)"
+                            @regenerate-header-image="(chapterId) => handleRegenerateHeaderImage(chapterId)"
                             @request-idea="handleRequestIdea"
                             @character-updated="handleCharacterUpdated"
                             @edit-chapter="handleOpenChapterEditModal"

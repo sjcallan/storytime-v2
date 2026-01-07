@@ -9,6 +9,7 @@ use App\Http\Requests\RewriteChapterRequest;
 use App\Http\Requests\StoreChapterRequest;
 use App\Http\Requests\UpdateChapterRequest;
 use App\Jobs\Chapter\EditChapterJob;
+use App\Jobs\Chapter\RegenerateChapterHeaderImageJob;
 use App\Jobs\Chapter\RegenerateChapterInlineImageJob;
 use App\Models\Book;
 use App\Models\Chapter;
@@ -218,6 +219,29 @@ class ChapterController extends Controller
         return response()->json([
             'message' => 'Image regeneration started',
             'image_index' => $imageIndex,
+        ]);
+    }
+
+    /**
+     * Regenerate the header image for a chapter.
+     */
+    public function regenerateHeaderImage(Book $book, Chapter $chapter): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        if ($chapter->book_id !== $book->id) {
+            return response()->json(['message' => 'Chapter does not belong to this book.'], 404);
+        }
+
+        if (empty($chapter->image_prompt)) {
+            return response()->json(['message' => 'Chapter has no image prompt.'], 422);
+        }
+
+        RegenerateChapterHeaderImageJob::dispatch($chapter)->onQueue('images');
+
+        return response()->json([
+            'message' => 'Header image regeneration started',
+            'chapter_id' => $chapter->id,
         ]);
     }
 

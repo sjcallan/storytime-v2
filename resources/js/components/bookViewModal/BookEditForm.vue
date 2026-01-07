@@ -85,7 +85,7 @@ const getBookTypeDisplay = (value: string) => {
 </script>
 
 <template>
-    <div class="relative z-10 p-8 pt-16">
+    <div class="relative z-10 max-h-[calc(100vh-6rem)] overflow-y-auto p-8 pt-16">
         <form @submit.prevent="emit('submit')" class="space-y-6">
             <!-- Story Details Section -->
             <div class="space-y-4 rounded-2xl border-2 border-gray-200 bg-white/50 p-5 dark:border-gray-700 dark:bg-gray-900/50">

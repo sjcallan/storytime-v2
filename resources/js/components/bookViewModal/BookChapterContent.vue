@@ -18,15 +18,23 @@ interface Props {
     bookType?: BookType;
     isLastChapter?: boolean;
     isLastSpread?: boolean;
+    chapterImageStatus?: 'pending' | 'complete' | 'error' | null;
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
+    (e: 'regenerateHeaderImage', chapterId: string): void;
     (e: 'editChapter'): void;
     (e: 'scrolledToBottom'): void;
 }>();
+
+// Check if header image should show loading state
+const isHeaderImagePending = computed(() => {
+    return props.chapterImageStatus === 'pending' || 
+           (props.chapter.image_prompt && !props.chapter.image);
+});
 
 // Scroll detection
 const contentScrollArea = ref<HTMLElement | null>(null);
@@ -117,11 +125,68 @@ const rightPageNumber = computed(() => {
 
 <template>
     <div class="relative z-10 h-full overflow-hidden">
-        <!-- First spread: Title with 40% top margin + beginning of content -->
+        <!-- First spread: Header image + Title + beginning of content -->
         <template v-if="spread.isFirstSpread">
-            <div class="flex h-full flex-col px-16 pt-24 pb-6">
-                <!-- 40% top margin space -->
-                <div class="h-[40%] flex items-end justify-center pb-4">
+            <div class="flex h-full flex-col px-16 pt-6 pb-6">
+                <!-- Chapter Header Image Section -->
+                <div class="shrink-0 mb-4">
+                    <!-- Pending header image placeholder -->
+                    <div 
+                        v-if="isHeaderImagePending"
+                        class="group/header-image relative w-full aspect-16/7 rounded-lg bg-amber-50 dark:bg-amber-950/50 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-amber-600 dark:border-amber-500 image-placeholder"
+                    >
+                        <div class="relative">
+                            <ImageIcon class="w-10 h-10 text-amber-800 dark:text-amber-300" />
+                            <div class="absolute -top-1 -right-1">
+                                <Sparkles class="w-4 h-4 text-orange-600 dark:text-orange-400 animate-pulse" />
+                            </div>
+                        </div>
+                        <div class="text-center px-4">
+                            <p class="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                                Creating chapter illustration...
+                            </p>
+                        </div>
+                        <!-- Animated loading bar -->
+                        <div class="w-24 h-1 bg-amber-200 dark:bg-amber-800 rounded-full overflow-hidden">
+                            <div class="h-full bg-linear-to-r from-amber-600 to-orange-500 dark:from-amber-400 dark:to-orange-400 rounded-full animate-shimmer"></div>
+                        </div>
+                    </div>
+                    <!-- Loaded header image -->
+                    <figure 
+                        v-else-if="chapter.image && isValidImageUrl(chapter.image)"
+                        class="group/header-image relative w-full"
+                    >
+                        <!-- Regenerate Header Image Button -->
+                        <button
+                            @click.stop="emit('regenerateHeaderImage', chapter.id)"
+                            class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/header-image:opacity-100 cursor-pointer"
+                            title="Generate new chapter illustration"
+                        >
+                            <RefreshCw class="h-3.5 w-3.5" />
+                            <span>New image</span>
+                        </button>
+                        <!-- Open in new window button -->
+                        <button
+                            @click.stop="openImageInNewWindow(chapter.image)"
+                            class="absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/header-image:opacity-100 cursor-pointer"
+                            title="Open full image in new window"
+                        >
+                            <ExternalLink class="h-3.5 w-3.5" />
+                            <span>View full</span>
+                        </button>
+                        <img
+                            :src="chapter.image"
+                            :alt="`${chapterLabel} ${chapter.sort} illustration`"
+                            class="w-full h-auto rounded-lg shadow-md object-cover aspect-16/7 cursor-pointer transition-all hover:shadow-lg"
+                            loading="lazy"
+                            @click.stop="openImageInNewWindow(chapter.image)"
+                            title="Click to view full image"
+                        />
+                    </figure>
+                </div>
+                
+                <!-- Chapter Title Section -->
+                <div class="shrink-0 flex items-center justify-center py-3">
                     <div class="text-center">
                         <div class="text-xs uppercase tracking-widest text-amber-700 dark:text-amber-600 mb-2 font-medium">
                             {{ chapterLabel }} {{ chapter.sort }}
