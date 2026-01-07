@@ -1214,7 +1214,7 @@ onBeforeUnmount(() => {
 
                     <!-- Header Controls -->
                     <BookHeaderControls
-                        v-if="animation.animationPhase.value === 'complete' && !animation.isClosing.value && animation.isBookOpened.value"
+                        v-if="animation.animationPhase.value === 'complete' && !animation.isClosing.value"
                         :has-book="!!book"
                         :has-chapters="completedChapters.length > 0"
                         :chapters="completedChapters"

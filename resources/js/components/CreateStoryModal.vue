@@ -114,6 +114,7 @@ interface Character {
 
 interface PortraitCreatedPayload {
     id: string;
+    book_id: string;
     portrait_image: string;
 }
 
@@ -144,48 +145,44 @@ const newCharacter = ref<Character>({
 // Echo channel subscription for portrait updates
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const echoChannel = ref<any>(null);
-const activeListeners = ref<Set<string>>(new Set());
+const isListeningForPortraits = ref(false);
 
-const setupPortraitListener = (characterId: string) => {
-    // Don't set up listeners for temp IDs (characters not yet saved to backend)
-    if (characterId.startsWith('temp-')) {
-        console.log('[Echo] Skipping listener for temp ID:', characterId);
+const setupBookChannelListener = () => {
+    // Need a book ID to subscribe to the book channel
+    if (!bookId.value) {
+        console.log('[Echo] No book ID yet, skipping channel setup');
         return;
     }
 
-    // Don't add duplicate listeners
-    if (activeListeners.value.has(characterId)) {
-        console.log('[Echo] Listener already exists for:', characterId);
+    // Don't set up duplicate listeners
+    if (isListeningForPortraits.value && echoChannel.value) {
+        console.log('[Echo] Already listening for portrait updates');
         return;
     }
 
     try {
-        // Subscribe to the private characters channel if not already
-        if (!echoChannel.value) {
-            console.log('[Echo] Subscribing to private channel: characters');
-            echoChannel.value = echo().private('characters');
+        const channelName = `book.${bookId.value}`;
+        console.log('[Echo] Subscribing to private channel:', channelName);
+        echoChannel.value = echo().private(channelName);
 
-            // Log when successfully subscribed
-            echoChannel.value.subscribed(() => {
-                console.log(
-                    '[Echo] Successfully subscribed to characters channel',
-                );
-            });
+        // Log when successfully subscribed
+        echoChannel.value.subscribed(() => {
+            console.log('[Echo] Successfully subscribed to book channel');
+        });
 
-            // Log subscription errors
-            echoChannel.value.error((error: unknown) => {
-                console.error('[Echo] Channel subscription error:', error);
-            });
-        }
+        // Log subscription errors
+        echoChannel.value.error((error: unknown) => {
+            console.error('[Echo] Channel subscription error:', error);
+        });
 
-        // Listen for this character's portrait-created event
-        const eventName = `.character.${characterId}.portrait-created`;
+        // Listen for the portrait updated event (matches backend broadcastAs)
+        const eventName = '.character.portrait.updated';
         console.log('[Echo] Setting up listener for event:', eventName);
 
         echoChannel.value.listen(
             eventName,
             (payload: PortraitCreatedPayload) => {
-                console.log('[Echo] Received portrait-created event:', payload);
+                console.log('[Echo] Received portrait-updated event:', payload);
                 // Find and update the character's portrait_image
                 const charIndex = characters.value.findIndex(
                     (c) => c.id === payload.id,
@@ -194,9 +191,14 @@ const setupPortraitListener = (characterId: string) => {
                     console.log(
                         '[Echo] Updating character portrait at index:',
                         charIndex,
+                        'with image:',
+                        payload.portrait_image,
                     );
-                    characters.value[charIndex].portrait_image =
-                        payload.portrait_image;
+                    // Force reactivity by replacing the object
+                    characters.value[charIndex] = {
+                        ...characters.value[charIndex],
+                        portrait_image: payload.portrait_image,
+                    };
                 } else {
                     console.log(
                         '[Echo] Character not found in list for ID:',
@@ -206,75 +208,37 @@ const setupPortraitListener = (characterId: string) => {
             },
         );
 
-        activeListeners.value.add(characterId);
-        console.log('[Echo] Listener setup complete for:', characterId);
+        isListeningForPortraits.value = true;
+        console.log('[Echo] Portrait listener setup complete for book:', bookId.value);
     } catch (err) {
         console.error('[Echo] Failed to setup portrait listener:', err);
     }
 };
 
-const cleanupPortraitListener = (characterId: string) => {
-    if (!echoChannel.value || !activeListeners.value.has(characterId)) {
-        return;
-    }
-
-    try {
-        const eventName = `.character.${characterId}.portrait-created`;
-        echoChannel.value.stopListening(eventName);
-        activeListeners.value.delete(characterId);
-    } catch (err) {
-        console.error('Failed to cleanup portrait listener:', err);
-    }
-};
-
-const cleanupAllListeners = () => {
+const cleanupBookChannelListener = () => {
     if (echoChannel.value) {
-        activeListeners.value.forEach((characterId) => {
-            const eventName = `.character.${characterId}.portrait-created`;
-            try {
-                echoChannel.value?.stopListening(eventName);
-            } catch (err) {
-                // Ignore errors during cleanup
-            }
-        });
-        activeListeners.value.clear();
+        try {
+            echoChannel.value.stopListening('.character.portrait.updated');
+        } catch (err) {
+            // Ignore errors during cleanup
+        }
 
         try {
-            echo().leave('characters');
+            if (bookId.value) {
+                echo().leave(`book.${bookId.value}`);
+            }
         } catch (err) {
             // Ignore errors during cleanup
         }
         echoChannel.value = null;
+        isListeningForPortraits.value = false;
     }
 };
 
-// Watch for character changes to setup/cleanup listeners
-watch(
-    characters,
-    (newChars, oldChars) => {
-        // Setup listeners for new characters (only those with real IDs from backend)
-        newChars.forEach((char) => {
-            if (!char.id.startsWith('temp-')) {
-                setupPortraitListener(char.id);
-            }
-        });
-
-        // Cleanup listeners for removed characters
-        if (oldChars) {
-            const newIds = new Set(newChars.map((c) => c.id));
-            oldChars.forEach((char) => {
-                if (!newIds.has(char.id)) {
-                    cleanupPortraitListener(char.id);
-                }
-            });
-        }
-    },
-    { deep: true },
-);
 
 // Cleanup on unmount
 onUnmounted(() => {
-    cleanupAllListeners();
+    cleanupBookChannelListener();
 });
 
 const errors = ref<Record<string, string>>({});
@@ -283,6 +247,21 @@ const processing = ref(false);
 // Book ID for progressive saving
 const bookId = ref<string | null>(null);
 const isSaving = ref(false);
+
+// Watch for book ID to setup channel listener for portrait updates
+watch(
+    bookId,
+    (newBookId) => {
+        if (newBookId) {
+            // Small delay to ensure book is fully created
+            setTimeout(() => {
+                setupBookChannelListener();
+            }, 100);
+        } else {
+            cleanupBookChannelListener();
+        }
+    },
+);
 
 // Close confirmation state
 const showCloseConfirm = ref(false);
@@ -627,8 +606,8 @@ const resetForm = (
     genre: string | null = null,
     loadFromStorage: boolean = false,
 ) => {
-    // Clean up Echo listeners before resetting characters
-    cleanupAllListeners();
+    // Clean up Echo listeners before resetting
+    cleanupBookChannelListener();
 
     // Try to load saved preferences if requested
     const savedPrefs = loadFromStorage ? loadPreferences() : null;
