@@ -4,7 +4,7 @@ import BookPageTexture from './BookPageTexture.vue';
 import BookPageDecorative from './BookPageDecorative.vue';
 import CharacterGrid from './CharacterGrid.vue';
 import CreateChapterForm from './CreateChapterForm.vue';
-import { BookOpen, ImageIcon, Sparkles, RefreshCw, PenLine, ExternalLink } from 'lucide-vue-next';
+import { BookOpen, ImageIcon, Sparkles, RefreshCw, PenLine, ExternalLink, AlertTriangle, XCircle, Clock } from 'lucide-vue-next';
 import type { Chapter, PageSpread, ReadingView, Character, BookType, PageContentItem } from './types';
 import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
 import { useSwipeGesture } from './composables/useSwipeGesture';
@@ -41,6 +41,8 @@ const emit = defineEmits<{
     (e: 'textareaFocused', value: boolean): void;
     (e: 'requestIdea'): void;
     (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
+    (e: 'retryInlineImage', item: PageContentItem, chapterId: string): void;
+    (e: 'cancelInlineImage', item: PageContentItem, chapterId: string): void;
     (e: 'editChapter'): void;
     (e: 'swipeForward'): void;
     (e: 'swipeBack'): void;
@@ -110,6 +112,24 @@ const isValidImageUrl = (url: string | null | undefined): boolean => {
     return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/');
 };
 
+// Check if an image is in an error, timeout, or cancelled state
+const isImageError = (item: PageContentItem): boolean => {
+    return item.imageStatus === 'error';
+};
+
+const isImageTimeout = (item: PageContentItem): boolean => {
+    return item.imageStatus === 'timeout';
+};
+
+const isImageCancelled = (item: PageContentItem): boolean => {
+    return item.imageStatus === 'cancelled';
+};
+
+// Check if image is pending (loading)
+const isImagePending = (item: PageContentItem): boolean => {
+    return item.imageStatus === 'pending' || (!item.imageUrl && !isImageError(item) && !isImageTimeout(item) && !isImageCancelled(item));
+};
+
 // Open image in new window
 const openImageInNewWindow = (url: string | null | undefined) => {
     if (url && typeof url === 'string') {
@@ -141,7 +161,7 @@ const openImageInNewWindow = (url: string | null | undefined) => {
             class="absolute top-6 left-0 right-0 z-10 flex items-center justify-center gap-3 px-12"
         >
             <div class="h-px flex-1 bg-linear-to-r from-amber-600 via-amber-600 to-transparent dark:from-amber-400 dark:via-amber-400" />
-            <span class="text-xs font-medium text-amber-700 dark:text-amber-600 truncate max-w-[60%] text-center">
+            <span class="text-xs font-medium text-amber-700 truncate max-w-[60%] text-center">
                 {{ bookTitle }}
             </span>
             <div class="h-px flex-1 bg-linear-to-l from-amber-600 via-amber-600 to-transparent dark:from-amber-400 dark:via-amber-400" />
@@ -172,7 +192,7 @@ const openImageInNewWindow = (url: string | null | undefined) => {
                 </template>
                 <!-- Subsequent spreads: show content continuation on left page (full height) -->
                 <template v-else-if="spread.leftContent">
-                    <div class="relative h-full px-16 pt-24 pb-12 overflow-y-auto">
+                    <div class="h-full px-16 pt-24 pb-12 overflow-y-auto">
                         <div class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
                             <template v-for="(item, idx) in spread.leftContent" :key="idx">
                                 <p 
@@ -181,9 +201,87 @@ const openImageInNewWindow = (url: string | null | undefined) => {
                                     v-html="formatContent(item.content)"
                                 />
                                 <figure v-else-if="item.type === 'image'" class="group/image my-6 relative">
+                                    <!-- Error state placeholder -->
+                                    <div 
+                                        v-if="isImageError(item)"
+                                        class="w-full aspect-video rounded-lg bg-red-50 dark:bg-red-950/50 flex flex-col items-center justify-center gap-3 border-2 border-dashed border-red-400 dark:border-red-600"
+                                    >
+                                        <div class="relative">
+                                            <AlertTriangle class="w-12 h-12 text-red-600 dark:text-red-400" />
+                                        </div>
+                                        <div class="text-center px-4">
+                                            <p class="text-sm font-semibold text-red-800 dark:text-red-200">
+                                                Image generation failed
+                                            </p>
+                                            <p class="text-xs text-red-600 dark:text-red-400 mt-1 max-w-xs">
+                                                Something went wrong while creating this illustration
+                                            </p>
+                                        </div>
+                                        <div class="flex gap-2 mt-1">
+                                            <button
+                                                @click.stop="emit('retryInlineImage', item, chapter!.id)"
+                                                class="flex items-center gap-1.5 rounded-full bg-red-600 px-4 py-2 text-xs font-medium text-white transition-all hover:bg-red-700 active:scale-95 cursor-pointer"
+                                            >
+                                                <RefreshCw class="h-3.5 w-3.5" />
+                                                <span>Retry</span>
+                                            </button>
+                                            <button
+                                                @click.stop="emit('cancelInlineImage', item, chapter!.id)"
+                                                class="flex items-center gap-1.5 rounded-full bg-red-100 dark:bg-red-900/50 px-4 py-2 text-xs font-medium text-red-700 dark:text-red-300 transition-all hover:bg-red-200 dark:hover:bg-red-800/50 active:scale-95 cursor-pointer"
+                                            >
+                                                <XCircle class="h-3.5 w-3.5" />
+                                                <span>Remove</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <!-- Timeout state placeholder -->
+                                    <div 
+                                        v-else-if="isImageTimeout(item)"
+                                        class="w-full aspect-video rounded-lg bg-orange-50 dark:bg-orange-950/50 flex flex-col items-center justify-center gap-3 border-2 border-dashed border-orange-400 dark:border-orange-600"
+                                    >
+                                        <div class="relative">
+                                            <Clock class="w-12 h-12 text-orange-600 dark:text-orange-400" />
+                                        </div>
+                                        <div class="text-center px-4">
+                                            <p class="text-sm font-semibold text-orange-800 dark:text-orange-200">
+                                                Taking longer than expected
+                                            </p>
+                                            <p class="text-xs text-orange-600 dark:text-orange-400 mt-1 max-w-xs">
+                                                The image service is busy. You can retry or skip this image.
+                                            </p>
+                                        </div>
+                                        <div class="flex gap-2 mt-1">
+                                            <button
+                                                @click.stop="emit('retryInlineImage', item, chapter!.id)"
+                                                class="flex items-center gap-1.5 rounded-full bg-orange-600 px-4 py-2 text-xs font-medium text-white transition-all hover:bg-orange-700 active:scale-95 cursor-pointer"
+                                            >
+                                                <RefreshCw class="h-3.5 w-3.5" />
+                                                <span>Retry</span>
+                                            </button>
+                                            <button
+                                                @click.stop="emit('cancelInlineImage', item, chapter!.id)"
+                                                class="flex items-center gap-1.5 rounded-full bg-orange-100 dark:bg-orange-900/50 px-4 py-2 text-xs font-medium text-orange-700 dark:text-orange-300 transition-all hover:bg-orange-200 dark:hover:bg-orange-800/50 active:scale-95 cursor-pointer"
+                                            >
+                                                <XCircle class="h-3.5 w-3.5" />
+                                                <span>Skip</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <!-- Cancelled state placeholder - option to regenerate -->
+                                    <div
+                                        v-else-if="isImageCancelled(item)"
+                                        class="w-full aspect-video rounded-lg bg-amber-100/60 dark:bg-amber-900/30 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-amber-300 dark:border-amber-700 hover:border-amber-500 dark:hover:border-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors cursor-pointer"
+                                        @click.stop="emit('retryInlineImage', item, chapter!.id)"
+                                        title="Generate illustration"
+                                    >
+                                        <div class="flex items-center gap-2 text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 transition-colors">
+                                            <ImageIcon class="w-6 h-6" />
+                                            <span class="text-sm font-medium">Add illustration</span>
+                                        </div>
+                                    </div>
                                     <!-- Pending image placeholder (when generating or no valid URL) -->
                                     <div 
-                                        v-if="item.imageStatus === 'pending' || !item.imageUrl || !isValidImageUrl(item.imageUrl)"
+                                        v-else-if="isImagePending(item) || !isValidImageUrl(item.imageUrl)"
                                         class="image-placeholder w-full aspect-video rounded-lg bg-amber-50 dark:bg-amber-950/50 flex flex-col items-center justify-center gap-3 border-2 border-dashed border-amber-600 dark:border-amber-500"
                                     >
                                         <div class="relative">
@@ -204,6 +302,14 @@ const openImageInNewWindow = (url: string | null | undefined) => {
                                         <div class="w-32 h-1.5 bg-amber-200 dark:bg-amber-800 rounded-full overflow-hidden">
                                             <div class="h-full bg-linear-to-r from-amber-600 to-orange-500 dark:from-amber-400 dark:to-orange-400 rounded-full animate-shimmer"></div>
                                         </div>
+                                        <!-- Cancel button for long-running generation -->
+                                        <button
+                                            @click.stop="emit('cancelInlineImage', item, chapter!.id)"
+                                            class="mt-1 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 transition-colors cursor-pointer"
+                                        >
+                                            <XCircle class="h-3 w-3" />
+                                            <span>Cancel</span>
+                                        </button>
                                     </div>
                                     <!-- Loaded image (only when we have a valid URL) -->
                                     <template v-else>
@@ -241,7 +347,7 @@ const openImageInNewWindow = (url: string | null | undefined) => {
                         <!-- Edit Chapter Button (shown on last spread of most recent chapter when ending on left) -->
                         <div 
                             v-if="showEditButton" 
-                            class="absolute bottom-16 left-0 right-0 flex justify-center px-8 z-20"
+                            class="flex justify-center mt-8 pb-4"
                         >
                             <button
                                 @click.stop="emit('editChapter')"
@@ -287,7 +393,7 @@ const openImageInNewWindow = (url: string | null | undefined) => {
             class="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-3 px-12"
         >
             <div class="h-px flex-1 bg-linear-to-r from-transparent via-amber-600 to-amber-600 dark:via-amber-400 dark:to-amber-400" />
-            <span class="text-sm font-medium text-amber-700 dark:text-amber-600 tabular-nums">
+            <span class="text-sm font-medium text-amber-700 tabular-nums">
                 {{ leftPageNumber }}
             </span>
             <div class="h-px flex-1 bg-linear-to-l from-transparent via-amber-600 to-amber-600 dark:via-amber-400 dark:to-amber-400" />

@@ -45,6 +45,7 @@ interface Props {
     nextChapterData?: Chapter | null;
     nextChapterFirstPage?: PageContentItem[] | null;
     isSinglePageMode?: boolean;
+    chapterImageStatus?: 'pending' | 'complete' | 'error' | 'timeout' | null;
 }
 
 // Book type is derived from the book prop
@@ -65,6 +66,11 @@ const emit = defineEmits<{
     (e: 'regenerateCover'): void;
     (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
     (e: 'regenerateHeaderImage', chapterId: string): void;
+    (e: 'generateHeaderImage', chapterId: string): void;
+    (e: 'retryHeaderImage', chapterId: string): void;
+    (e: 'cancelHeaderImage', chapterId: string): void;
+    (e: 'retryInlineImage', item: PageContentItem, chapterId: string): void;
+    (e: 'cancelInlineImage', item: PageContentItem, chapterId: string): void;
     (e: 'requestIdea'): void;
     (e: 'characterUpdated', character: Character): void;
     (e: 'textareaFocused', value: boolean): void;
@@ -154,7 +160,7 @@ const showHeader = computed(() => {
             class="absolute top-6 left-0 right-0 z-10 flex items-center justify-center gap-3 px-12"
         >
             <div class="h-px flex-1 bg-linear-to-r from-transparent via-amber-600 to-amber-600 dark:via-amber-400 dark:to-amber-400" />
-            <span class="text-xs font-medium text-amber-700 dark:text-amber-600 truncate max-w-[60%] text-center">
+            <span class="text-xs font-medium text-amber-700 truncate max-w-[60%] text-center">
                 {{ chapter?.title }}
             </span>
             <div class="h-px flex-1 bg-linear-to-l from-transparent via-amber-600 to-amber-600 dark:via-amber-400 dark:to-amber-400" />
@@ -238,8 +244,14 @@ const showHeader = computed(() => {
                 :book-type="bookType"
                 :is-last-chapter="isLastChapter"
                 :is-last-spread="isOnLastSpread"
+                :chapter-image-status="chapterImageStatus"
                 @regenerate-image="(item, chapterId) => emit('regenerateImage', item, chapterId)"
                 @regenerate-header-image="(chapterId) => emit('regenerateHeaderImage', chapterId)"
+                @generate-header-image="(chapterId) => emit('generateHeaderImage', chapterId)"
+                @retry-header-image="(chapterId) => emit('retryHeaderImage', chapterId)"
+                @cancel-header-image="(chapterId) => emit('cancelHeaderImage', chapterId)"
+                @retry-inline-image="(item, chapterId) => emit('retryInlineImage', item, chapterId)"
+                @cancel-inline-image="(item, chapterId) => emit('cancelInlineImage', item, chapterId)"
                 @edit-chapter="emit('editChapter')"
                 @scrolled-to-bottom="emit('scrolledToBottom')"
             />

@@ -1,0 +1,180 @@
+<?php
+
+namespace App\Jobs\Chapter;
+
+use App\Events\Chapter\ChapterUpdatedEvent;
+use App\Models\Chapter;
+use App\Services\Builder\ChapterBuilderService;
+use App\Services\Chapter\ChapterService;
+use App\Services\OpenAI\ChatService;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+
+class GenerateChapterHeaderImageJob implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    /**
+     * The number of times the job may be attempted.
+     */
+    public int $tries = 3;
+
+    /**
+     * The number of seconds the job can run before timing out.
+     */
+    public int $timeout = 180;
+
+    /**
+     * Create a new job instance.
+     */
+    public function __construct(public Chapter $chapter) {}
+
+    /**
+     * Execute the job.
+     */
+    public function handle(
+        ChapterBuilderService $chapterBuilderService,
+        ChapterService $chapterService,
+        ChatService $chatService
+    ): void {
+        Log::info('[GenerateChapterHeaderImageJob] Starting', [
+            'chapter_id' => $this->chapter->id,
+            'book_id' => $this->chapter->book_id,
+        ]);
+
+        $book = $this->chapter->book;
+
+        if (! $book) {
+            Log::error('[GenerateChapterHeaderImageJob] Book not found', [
+                'chapter_id' => $this->chapter->id,
+            ]);
+
+            return;
+        }
+
+        // Determine chapter label based on book type
+        $chapterLabel = in_array($book->type, ['theatre', 'screenplay']) ? 'scene' : 'chapter';
+
+        // Build character description string for prompt
+        $characterInstructions = '';
+        $characters = $book->characters()->get();
+        if ($characters->count() > 0) {
+            $characterDescriptions = [];
+            foreach ($characters as $character) {
+                $desc = $character->name;
+                if ($character->age) {
+                    $desc .= " ({$character->age} years old)";
+                }
+                if ($character->gender) {
+                    $desc .= ", {$character->gender}";
+                }
+                if ($character->description) {
+                    $desc .= ": {$character->description}";
+                }
+                $characterDescriptions[] = $desc;
+            }
+            $characterInstructions = 'Characters: '.implode('; ', $characterDescriptions).'.';
+        }
+
+        // Generate image prompt using AI
+        $systemPrompt = 'You are an expert at creating detailed image generation prompts for story illustrations. Your prompts should be vivid, specific, and capture the essence of a scene.';
+
+        $userPrompt = "Based on this {$chapterLabel} content, create a single detailed image prompt for an illustration:\n\n";
+        $userPrompt .= "Title: {$this->chapter->title}\n\n";
+
+        if ($this->chapter->summary) {
+            $userPrompt .= "Summary: {$this->chapter->summary}\n\n";
+        }
+
+        // Include a portion of the body for context
+        $bodyPreview = substr($this->chapter->body ?? '', 0, 1000);
+        if ($bodyPreview) {
+            $userPrompt .= "Content Preview: {$bodyPreview}...\n\n";
+        }
+
+        if ($characterInstructions) {
+            $userPrompt .= "{$characterInstructions}\n\n";
+        }
+
+        $userPrompt .= "Create a detailed one-sentence prompt for an image generation service describing a key scene from this {$chapterLabel}. Include visual details about setting, lighting, mood, and any characters present. The image should be in 16:7 landscape format.";
+
+        $chatService->setSystemPrompt($systemPrompt);
+        $chatService->addUserMessage($userPrompt);
+
+        try {
+            $result = $chatService->chat();
+            $imagePrompt = trim($result['content'] ?? '');
+
+            if (empty($imagePrompt)) {
+                Log::error('[GenerateChapterHeaderImageJob] Empty image prompt generated', [
+                    'chapter_id' => $this->chapter->id,
+                ]);
+
+                return;
+            }
+
+            Log::info('[GenerateChapterHeaderImageJob] Generated image prompt', [
+                'chapter_id' => $this->chapter->id,
+                'prompt_preview' => substr($imagePrompt, 0, 200),
+            ]);
+
+            // Update chapter with the prompt
+            $chapterService->updateById($this->chapter->id, [
+                'image_prompt' => $chapterBuilderService->stripQuotes($imagePrompt),
+            ], ['events' => false]);
+
+            // Refresh chapter to get updated image_prompt
+            $this->chapter->refresh();
+
+            // Generate the image
+            $image = $chapterBuilderService->getImage(
+                $this->chapter->book_id,
+                $this->chapter->id,
+                $this->chapter->image_prompt
+            );
+
+            $chapterService->updateById($this->chapter->id, [
+                'image' => $image['image'],
+            ], ['events' => false]);
+
+            Log::info('[GenerateChapterHeaderImageJob] Completed successfully', [
+                'chapter_id' => $this->chapter->id,
+                'has_image' => ! empty($image['image']),
+            ]);
+
+            if (! empty($image['image'])) {
+                $this->chapter->refresh();
+                ChapterUpdatedEvent::dispatch($this->chapter);
+
+                Log::info('[GenerateChapterHeaderImageJob] Dispatched chapter updated event', [
+                    'chapter_id' => $this->chapter->id,
+                    'book_id' => $this->chapter->book_id,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('[GenerateChapterHeaderImageJob] Failed to generate image prompt', [
+                'chapter_id' => $this->chapter->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?\Throwable $exception): void
+    {
+        Log::error('[GenerateChapterHeaderImageJob] Job failed', [
+            'chapter_id' => $this->chapter->id,
+            'book_id' => $this->chapter->book_id,
+            'exception_class' => $exception ? get_class($exception) : 'unknown',
+            'exception_message' => $exception?->getMessage() ?? 'unknown',
+        ]);
+    }
+}

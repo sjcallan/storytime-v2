@@ -390,7 +390,11 @@ class ChapterBuilderService extends BuilderService
         ]);
 
         $book = $this->bookService->getById($bookId, null, ['with' => ['characters', 'chapters']]);
-        $style = $this->getSceneImageStylePrefix($book);
+        $isFlux2 = $this->isFlux2Model();
+
+        Log::debug('[ChapterBuilderService::generateChapterImages] Model check', [
+            'is_flux_2' => $isFlux2,
+        ]);
 
         $baseImages = [];
 
@@ -469,7 +473,13 @@ class ChapterBuilderService extends BuilderService
                 ? (int) $scene['paragraph_index']
                 : $index * 2;
 
-            $fullPrompt = trim($style.' '.$this->stripQuotes($scene['prompt']));
+            // Build prompt based on model type
+            if ($isFlux2) {
+                $fullPrompt = $this->buildFlux2JsonPrompt($book, $scene['prompt']);
+            } else {
+                $style = $this->getSceneImageStylePrefix($book);
+                $fullPrompt = trim($style.' '.$this->stripQuotes($scene['prompt']));
+            }
 
             // Identify which characters are present in this scene and get their portraits
             $sceneCharacterImages = $this->getCharacterImagesForScene(
@@ -490,7 +500,8 @@ class ChapterBuilderService extends BuilderService
             Log::debug('[ChapterBuilderService::generateChapterImages] Generating image', [
                 'scene_index' => $index,
                 'paragraph_index' => $paragraphIndex,
-                'prompt_preview' => substr($fullPrompt, 0, 100),
+                'prompt_preview' => substr($fullPrompt, 0, 200),
+                'is_json_prompt' => $isFlux2,
                 'base_images_count' => count($baseImages),
                 'scene_character_images_count' => count($sceneCharacterImages),
                 'total_input_images' => count($inputImages),
@@ -556,6 +567,315 @@ class ChapterBuilderService extends BuilderService
         ]);
 
         return $inlineImages;
+    }
+
+    /**
+     * Check if the current image generation model is FLUX 2.
+     */
+    protected function isFlux2Model(): bool
+    {
+        $useCustomModel = (bool) config('services.replicate.use_custom_model', false);
+
+        if ($useCustomModel) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Build a JSON-structured prompt for FLUX 2 model.
+     * This ensures consistent character descriptions and artistic style across all images.
+     */
+    protected function buildFlux2JsonPrompt(Book $book, string $sceneDescription): string
+    {
+        $characters = $book->characters ?? collect();
+
+        // Build subjects array from scene description and character data
+        $subjects = $this->extractSubjectsFromScene($sceneDescription, $characters);
+
+        // Get consistent artistic style for this book
+        $styleConfig = $this->getFlux2StyleConfig($book);
+
+        // Build the JSON prompt structure
+        $promptData = [
+            'scene' => $this->stripQuotes($sceneDescription),
+            'subjects' => $subjects,
+            'style' => $styleConfig['style'],
+            'color_palette' => $styleConfig['color_palette'],
+            'lighting' => $styleConfig['lighting'],
+            'mood' => $styleConfig['mood'],
+            'background' => $this->extractBackgroundFromScene($sceneDescription),
+            'composition' => '16:9 landscape, cinematic framing, balanced composition',
+            'camera' => [
+                'angle' => $styleConfig['camera_angle'],
+                'lens' => $styleConfig['lens'],
+                'depth_of_field' => $styleConfig['depth_of_field'],
+            ],
+        ];
+
+        $jsonPrompt = json_encode($promptData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        Log::debug('[ChapterBuilderService::buildFlux2JsonPrompt] Built JSON prompt', [
+            'book_id' => $book->id,
+            'subjects_count' => count($subjects),
+            'style' => $styleConfig['style'],
+        ]);
+
+        return $jsonPrompt;
+    }
+
+    /**
+     * Get consistent style configuration for FLUX 2 based on book attributes.
+     *
+     * @return array{style: string, color_palette: array<string>, lighting: string, mood: string, camera_angle: string, lens: string, depth_of_field: string}
+     */
+    protected function getFlux2StyleConfig(Book $book): array
+    {
+        // Age-based style determination
+        $isChildFriendly = $book->age_level <= 13;
+
+        if ($isChildFriendly) {
+            $baseStyle = 'Whimsical cartoon illustration in the style of Neil Gaiman and Dave McKean, hand-drawn aesthetic, rich textures, imaginative and dreamlike';
+            $defaultPalette = ['#FFB347', '#87CEEB', '#98D8AA', '#F5E6CC', '#E8B4BC'];
+            $defaultLighting = 'Warm, soft lighting with gentle shadows, storybook quality';
+            $defaultCameraAngle = 'eye-level or slightly low angle for wonder';
+            $defaultLens = 'standard lens, natural perspective';
+            $defaultDepthOfField = 'moderate depth, all elements visible';
+        } else {
+            $baseStyle = 'Photorealistic, professional quality, dramatic composition, cinematic';
+            $defaultPalette = ['#2C3E50', '#34495E', '#7F8C8D', '#ECF0F1', '#BDC3C7'];
+            $defaultLighting = 'Dramatic natural lighting with atmospheric depth';
+            $defaultCameraAngle = 'dynamic cinematic angle';
+            $defaultLens = '35mm cinematic lens';
+            $defaultDepthOfField = 'shallow depth of field, bokeh background';
+        }
+
+        // Genre-specific mood and palette adjustments
+        $genreConfig = match ($book->genre) {
+            'fantasy' => [
+                'mood' => 'magical, ethereal, mystical wonder',
+                'palette' => $isChildFriendly
+                    ? ['#9B59B6', '#3498DB', '#F39C12', '#1ABC9C', '#E8DAEF']
+                    : ['#4A235A', '#1A5276', '#7D3C98', '#2E4053', '#D4AC0D'],
+                'lighting' => 'Ethereal magical glow with shimmering highlights',
+            ],
+            'adventure' => [
+                'mood' => 'exciting, dynamic, sense of movement and discovery',
+                'palette' => $isChildFriendly
+                    ? ['#E74C3C', '#F39C12', '#27AE60', '#3498DB', '#F5B041']
+                    : ['#922B21', '#B9770E', '#1E8449', '#21618C', '#D68910'],
+                'lighting' => 'Bright, adventurous lighting with strong contrasts',
+            ],
+            'mystery' => [
+                'mood' => 'mysterious, intriguing, atmospheric suspense',
+                'palette' => $isChildFriendly
+                    ? ['#5D6D7E', '#85929E', '#ABB2B9', '#F4D03F', '#2E4053']
+                    : ['#1C2833', '#273746', '#566573', '#839192', '#F7DC6F'],
+                'lighting' => 'Dramatic shadows with pools of light, film noir inspired',
+            ],
+            'science_fiction' => [
+                'mood' => 'futuristic, technological wonder, otherworldly',
+                'palette' => $isChildFriendly
+                    ? ['#00BCD4', '#7C4DFF', '#00E676', '#FF4081', '#B388FF']
+                    : ['#0097A7', '#512DA8', '#00796B', '#C2185B', '#7B1FA2'],
+                'lighting' => 'Cool technological lighting with neon accents',
+            ],
+            'fairy_tale' => [
+                'mood' => 'enchanting, magical, wonder and imagination',
+                'palette' => ['#FADBD8', '#D5F5E3', '#FCF3CF', '#D4E6F1', '#F5EEF8'],
+                'lighting' => 'Soft, dreamy lighting with sparkles and glows',
+            ],
+            'historical' => [
+                'mood' => 'authentic, period-accurate, rich historical atmosphere',
+                'palette' => $isChildFriendly
+                    ? ['#D4AC0D', '#873600', '#1E8449', '#6E2C00', '#B7950B']
+                    : ['#7E5109', '#6E2C00', '#145A32', '#4A235A', '#7D6608'],
+                'lighting' => 'Natural period-appropriate lighting, warm tones',
+            ],
+            'comedy' => [
+                'mood' => 'fun, lighthearted, playful energy, expressive',
+                'palette' => ['#FF6B6B', '#4ECDC4', '#FFE66D', '#95E1D3', '#F38181'],
+                'lighting' => 'Bright, cheerful lighting with vibrant highlights',
+            ],
+            'animal_stories' => [
+                'mood' => 'heartwarming, expressive animals, natural setting',
+                'palette' => ['#81C784', '#A5D6A7', '#8D6E63', '#FFCC80', '#90CAF9'],
+                'lighting' => 'Warm natural lighting, golden hour quality',
+            ],
+            default => [
+                'mood' => 'engaging, story-driven, emotionally resonant',
+                'palette' => $defaultPalette,
+                'lighting' => $defaultLighting,
+            ],
+        };
+
+        return [
+            'style' => $baseStyle,
+            'color_palette' => $genreConfig['palette'] ?? $defaultPalette,
+            'lighting' => $genreConfig['lighting'] ?? $defaultLighting,
+            'mood' => $genreConfig['mood'] ?? 'engaging and story-driven',
+            'camera_angle' => $defaultCameraAngle,
+            'lens' => $defaultLens,
+            'depth_of_field' => $defaultDepthOfField,
+        ];
+    }
+
+    /**
+     * Extract subject descriptions from scene and map to character data.
+     *
+     * @param  \Illuminate\Support\Collection|null  $characters
+     * @return array<array{description: string, position: string, action: string}>
+     */
+    protected function extractSubjectsFromScene(string $sceneDescription, $characters): array
+    {
+        $subjects = [];
+        $scene = strtolower($sceneDescription);
+
+        // Map character identifiers to their full descriptions
+        $characterMap = [];
+        $maleCount = 0;
+        $femaleCount = 0;
+
+        if ($characters && $characters->count() > 0) {
+            foreach ($characters as $character) {
+                $gender = strtolower($character->gender ?? 'unknown');
+
+                if ($gender === 'male') {
+                    $maleCount++;
+                    $identifier = 'male '.$maleCount;
+                } elseif ($gender === 'female') {
+                    $femaleCount++;
+                    $identifier = 'female '.$femaleCount;
+                } else {
+                    continue;
+                }
+
+                // Build comprehensive character description
+                $description = [];
+
+                if ($character->age) {
+                    $description[] = "{$character->age} years old";
+                }
+
+                if ($character->gender) {
+                    $description[] = $character->gender;
+                }
+
+                if ($character->nationality) {
+                    $description[] = $character->nationality;
+                }
+
+                if ($character->description) {
+                    $description[] = $character->description;
+                }
+
+                $characterMap[$identifier] = [
+                    'name' => $character->name,
+                    'full_description' => implode(', ', $description),
+                ];
+            }
+        }
+
+        // Look for character identifiers in the scene and build subject entries
+        foreach ($characterMap as $identifier => $charData) {
+            if (str_contains($scene, $identifier)) {
+                // Try to extract action from scene description
+                $action = $this->extractActionForCharacter($sceneDescription, $identifier);
+
+                $subjects[] = [
+                    'description' => $charData['full_description'] ?: "A {$identifier} character",
+                    'position' => $this->estimatePositionFromScene($sceneDescription, $identifier, count($subjects)),
+                    'action' => $action ?: 'present in scene',
+                ];
+            }
+        }
+
+        // If no character identifiers found, create a generic subject from the scene
+        if (empty($subjects)) {
+            $subjects[] = [
+                'description' => 'Main subject of the scene',
+                'position' => 'center of frame',
+                'action' => 'as described in scene',
+            ];
+        }
+
+        return $subjects;
+    }
+
+    /**
+     * Extract background details from scene description.
+     */
+    protected function extractBackgroundFromScene(string $sceneDescription): string
+    {
+        // Common background keywords to look for
+        $backgroundKeywords = [
+            'forest', 'woods', 'trees', 'meadow', 'field', 'garden',
+            'castle', 'palace', 'house', 'room', 'kitchen', 'bedroom', 'library',
+            'city', 'street', 'town', 'village', 'market',
+            'mountain', 'hill', 'valley', 'river', 'lake', 'ocean', 'beach',
+            'sky', 'clouds', 'stars', 'moon', 'sun', 'sunset', 'sunrise',
+            'cave', 'dungeon', 'tower', 'bridge', 'path', 'road',
+        ];
+
+        $foundBackgrounds = [];
+        $sceneLower = strtolower($sceneDescription);
+
+        foreach ($backgroundKeywords as $keyword) {
+            if (str_contains($sceneLower, $keyword)) {
+                $foundBackgrounds[] = $keyword;
+            }
+        }
+
+        if (! empty($foundBackgrounds)) {
+            return 'Setting features: '.implode(', ', array_slice($foundBackgrounds, 0, 4));
+        }
+
+        return 'Contextual background matching the scene description';
+    }
+
+    /**
+     * Extract action description for a specific character from the scene.
+     */
+    protected function extractActionForCharacter(string $sceneDescription, string $characterIdentifier): string
+    {
+        // Action verbs to look for
+        $actionVerbs = [
+            'running', 'walking', 'standing', 'sitting', 'lying', 'jumping',
+            'looking', 'watching', 'staring', 'gazing', 'searching',
+            'holding', 'carrying', 'reaching', 'touching', 'grabbing',
+            'talking', 'speaking', 'whispering', 'shouting', 'laughing', 'crying',
+            'fighting', 'hiding', 'chasing', 'escaping', 'climbing',
+            'reading', 'writing', 'cooking', 'eating', 'drinking',
+            'flying', 'swimming', 'dancing', 'singing', 'playing',
+        ];
+
+        $sceneLower = strtolower($sceneDescription);
+
+        foreach ($actionVerbs as $verb) {
+            if (str_contains($sceneLower, $verb)) {
+                return ucfirst($verb);
+            }
+        }
+
+        return 'engaged in the scene';
+    }
+
+    /**
+     * Estimate character position based on scene description and order.
+     */
+    protected function estimatePositionFromScene(string $sceneDescription, string $characterIdentifier, int $subjectIndex): string
+    {
+        $positions = [
+            'left side of frame',
+            'center of frame',
+            'right side of frame',
+            'foreground',
+            'background',
+        ];
+
+        // Default position based on subject order
+        return $positions[$subjectIndex % count($positions)];
     }
 
     /**

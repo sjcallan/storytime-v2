@@ -100,13 +100,23 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
             
             const imageForParagraph = imagesByParagraph.get(i);
             if (imageForParagraph) {
-                const isPending = imageForParagraph.status === 'pending' || !imageForParagraph.url;
+                // Determine status: error, timeout, pending, or complete
+                let imageStatus: 'pending' | 'complete' | 'error' | 'timeout' = 'complete';
+                if (imageForParagraph.status === 'error') {
+                    imageStatus = 'error';
+                } else if (imageForParagraph.status === 'timeout') {
+                    imageStatus = 'timeout';
+                } else if (imageForParagraph.status === 'pending' || !imageForParagraph.url) {
+                    imageStatus = 'pending';
+                }
+                
                 contentItems.push({
                     type: 'image',
                     content: imageForParagraph.prompt,
                     imageUrl: imageForParagraph.url,
-                    imageStatus: isPending ? 'pending' : 'complete',
+                    imageStatus,
                     imageIndex: imageForParagraph.paragraph_index,
+                    imageStartedAt: imageForParagraph.started_at,
                 });
             }
         }
@@ -392,12 +402,19 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
             recordChapterAdvancement(bookId, nextChapterNumber, finishedChapterId);
             
             // When showing next chapter preview on right, advance to that chapter
-            // but start from spread index 1 (skip the title spread since we already showed the first page)
             currentChapter.value = nextChapterData.value;
             currentChapterNumber.value = nextChapterData.value.sort;
             nextChapterData.value = null;
-            currentSpreadIndex.value = 1;
             readingView.value = 'chapter-content';
+            
+            // Only skip to spread 1 if it exists (chapter has more than one spread)
+            // chapterSpreads computed will recalculate based on the new currentChapter
+            if (chapterSpreads.value.length > 1) {
+                currentSpreadIndex.value = 1;
+            } else {
+                // Short chapter with only one spread - show the full first spread
+                currentSpreadIndex.value = 0;
+            }
             
             // Pre-fetch the new next chapter
             if (currentChapterNumber.value < totalChapters.value) {
@@ -568,7 +585,7 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         }
     };
 
-    const updateImageStatus = (chapterId: string, imageIndex: number, status: 'pending' | 'complete' | 'error'): void => {
+    const updateImageStatus = (chapterId: string, imageIndex: number, status: 'pending' | 'complete' | 'error' | 'timeout'): void => {
         // Helper to update inline images array with new status
         const updateInlineImages = (chapter: Chapter): Chapter => {
             if (!chapter.inline_images) {
@@ -579,9 +596,11 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
                 if (img.paragraph_index === imageIndex) {
                     return {
                         ...img,
-                        status: status === 'error' ? 'complete' : status,
-                        // Clear URL if pending to show loading state
+                        status,
+                        // Clear URL if pending to show loading state, keep for error/timeout
                         url: status === 'pending' ? null : img.url,
+                        // Track when generation started for timeout detection
+                        started_at: status === 'pending' ? new Date().toISOString() : img.started_at,
                     };
                 }
                 return img;

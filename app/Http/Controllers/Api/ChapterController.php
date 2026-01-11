@@ -9,6 +9,7 @@ use App\Http\Requests\RewriteChapterRequest;
 use App\Http\Requests\StoreChapterRequest;
 use App\Http\Requests\UpdateChapterRequest;
 use App\Jobs\Chapter\EditChapterJob;
+use App\Jobs\Chapter\GenerateChapterHeaderImageJob;
 use App\Jobs\Chapter\RegenerateChapterHeaderImageJob;
 use App\Jobs\Chapter\RegenerateChapterInlineImageJob;
 use App\Models\Book;
@@ -242,6 +243,165 @@ class ChapterController extends Controller
         return response()->json([
             'message' => 'Header image regeneration started',
             'chapter_id' => $chapter->id,
+        ]);
+    }
+
+    /**
+     * Generate a new header image for a chapter that doesn't have one.
+     */
+    public function generateHeaderImage(Book $book, Chapter $chapter): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        if ($chapter->book_id !== $book->id) {
+            return response()->json(['message' => 'Chapter does not belong to this book.'], 404);
+        }
+
+        GenerateChapterHeaderImageJob::dispatch($chapter)->onQueue('images');
+
+        return response()->json([
+            'message' => 'Header image generation started',
+            'chapter_id' => $chapter->id,
+        ]);
+    }
+
+    /**
+     * Retry generating a header image that failed or timed out.
+     */
+    public function retryHeaderImage(Book $book, Chapter $chapter): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        if ($chapter->book_id !== $book->id) {
+            return response()->json(['message' => 'Chapter does not belong to this book.'], 404);
+        }
+
+        if (empty($chapter->image_prompt)) {
+            return response()->json(['message' => 'Chapter has no image prompt.'], 422);
+        }
+
+        // Clear the existing image to show pending state
+        $chapter->update(['image' => null]);
+
+        RegenerateChapterHeaderImageJob::dispatch($chapter)->onQueue('images');
+
+        return response()->json([
+            'message' => 'Header image retry started',
+            'chapter_id' => $chapter->id,
+        ]);
+    }
+
+    /**
+     * Cancel/remove the header image from a chapter.
+     */
+    public function cancelHeaderImage(Book $book, Chapter $chapter): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        if ($chapter->book_id !== $book->id) {
+            return response()->json(['message' => 'Chapter does not belong to this book.'], 404);
+        }
+
+        // Clear both the image and the prompt so no placeholder shows
+        $chapter->update([
+            'image' => null,
+            'image_prompt' => null,
+        ]);
+
+        return response()->json([
+            'message' => 'Header image cancelled and removed',
+            'chapter_id' => $chapter->id,
+        ]);
+    }
+
+    /**
+     * Retry generating an inline image that failed or timed out.
+     */
+    public function retryInlineImage(Request $request, Book $book, Chapter $chapter): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        if ($chapter->book_id !== $book->id) {
+            return response()->json(['message' => 'Chapter does not belong to this book.'], 404);
+        }
+
+        $imageIndex = $request->input('image_index');
+
+        if ($imageIndex === null || ! is_numeric($imageIndex)) {
+            return response()->json(['message' => 'image_index is required.'], 422);
+        }
+
+        $imageIndex = (int) $imageIndex;
+
+        $inlineImages = $chapter->inline_images ?? [];
+        $imageExists = false;
+
+        $updatedImages = [];
+        foreach ($inlineImages as $image) {
+            if (($image['paragraph_index'] ?? null) === $imageIndex) {
+                $imageExists = true;
+                $updatedImages[] = [
+                    ...$image,
+                    'status' => 'pending',
+                    'url' => null,
+                    'started_at' => now()->toISOString(),
+                ];
+            } else {
+                $updatedImages[] = $image;
+            }
+        }
+
+        if (! $imageExists) {
+            return response()->json(['message' => 'Image not found at specified index.'], 404);
+        }
+
+        $chapter->update(['inline_images' => $updatedImages]);
+
+        RegenerateChapterInlineImageJob::dispatch($chapter, $imageIndex);
+
+        return response()->json([
+            'message' => 'Image retry started',
+            'image_index' => $imageIndex,
+        ]);
+    }
+
+    /**
+     * Cancel/remove an inline image from a chapter.
+     */
+    public function cancelInlineImage(Request $request, Book $book, Chapter $chapter): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        if ($chapter->book_id !== $book->id) {
+            return response()->json(['message' => 'Chapter does not belong to this book.'], 404);
+        }
+
+        $imageIndex = $request->input('image_index');
+
+        if ($imageIndex === null || ! is_numeric($imageIndex)) {
+            return response()->json(['message' => 'image_index is required.'], 422);
+        }
+
+        $imageIndex = (int) $imageIndex;
+
+        $inlineImages = $chapter->inline_images ?? [];
+
+        // Set status to 'cancelled' instead of removing the image
+        $updatedImages = array_map(function ($image) use ($imageIndex) {
+            if (($image['paragraph_index'] ?? null) === $imageIndex) {
+                $image['status'] = 'cancelled';
+                $image['url'] = null;
+                $image['started_at'] = null;
+            }
+
+            return $image;
+        }, $inlineImages);
+
+        $chapter->update(['inline_images' => $updatedImages]);
+
+        return response()->json([
+            'message' => 'Image cancelled',
+            'image_index' => $imageIndex,
         ]);
     }
 

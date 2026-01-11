@@ -134,7 +134,7 @@ const isLastChapter = computed(() => {
 });
 
 // Echo channel for real-time book updates
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const bookChannel = ref<any>(null);
 
 type BookUpdatedPayload = {
@@ -952,10 +952,57 @@ const handleRegenerateImage = async (item: { imageIndex?: number }, chapterId: s
     // On success, the websocket will update the image when complete
 };
 
+// Retry inline image handler (when image generation failed or timed out)
+const handleRetryInlineImage = async (item: { imageIndex?: number }, chapterId: string) => {
+    if (!props.bookId || !book.value || item.imageIndex === undefined) {
+        return;
+    }
+    
+    // Optimistically update the image status to pending via the composable
+    chapters.updateImageStatus(chapterId, item.imageIndex, 'pending');
+    
+    const { error } = await requestApiFetch(
+        `/api/books/${props.bookId}/chapters/${chapterId}/retry-inline-image`, 
+        'POST',
+        { image_index: item.imageIndex }
+    );
+    
+    if (error) {
+        // Reset status on error
+        chapters.updateImageStatus(chapterId, item.imageIndex, 'error');
+        actionError.value = 'Failed to retry image generation. Please try again.';
+    }
+    // On success, the websocket will update the image when complete
+};
+
+// Cancel inline image handler (remove the pending/error image from the chapter)
+const handleCancelInlineImage = async (item: { imageIndex?: number }, chapterId: string) => {
+    if (!props.bookId || !book.value || item.imageIndex === undefined) {
+        return;
+    }
+    
+    const { error } = await requestApiFetch(
+        `/api/books/${props.bookId}/chapters/${chapterId}/cancel-inline-image`, 
+        'POST',
+        { image_index: item.imageIndex }
+    );
+    
+    if (error) {
+        actionError.value = 'Failed to cancel image. Please try again.';
+    }
+    // On success, the websocket will update the chapter's inline_images
+};
+
 // Chapter header image regeneration handler
 const handleRegenerateHeaderImage = async (chapterId: string) => {
     if (!props.bookId || !book.value) {
         return;
+    }
+    
+    // Optimistically clear the image to show pending state
+    const chapter = chapters.currentChapter.value;
+    if (chapter && chapter.id === chapterId) {
+        chapter.image = null;
     }
     
     const { error } = await requestApiFetch(
@@ -965,6 +1012,74 @@ const handleRegenerateHeaderImage = async (chapterId: string) => {
     
     if (error) {
         actionError.value = 'Failed to start header image generation. Please try again.';
+    }
+    // On success, the websocket will update the image when complete
+};
+
+// Retry chapter header image handler (when image generation failed or timed out)
+const handleRetryHeaderImage = async (chapterId: string) => {
+    if (!props.bookId || !book.value) {
+        return;
+    }
+    
+    // Optimistically clear the image to show pending state
+    const chapter = chapters.currentChapter.value;
+    if (chapter && chapter.id === chapterId) {
+        chapter.image = null;
+    }
+    
+    const { error } = await requestApiFetch(
+        `/api/books/${props.bookId}/chapters/${chapterId}/retry-header-image`, 
+        'POST'
+    );
+    
+    if (error) {
+        actionError.value = 'Failed to retry header image generation. Please try again.';
+    }
+    // On success, the websocket will update the image when complete
+};
+
+// Cancel chapter header image handler (remove the pending/error image prompt)
+const handleCancelHeaderImage = async (chapterId: string) => {
+    if (!props.bookId || !book.value) {
+        return;
+    }
+    
+    const { error } = await requestApiFetch(
+        `/api/books/${props.bookId}/chapters/${chapterId}/cancel-header-image`, 
+        'POST'
+    );
+    
+    if (error) {
+        actionError.value = 'Failed to cancel header image. Please try again.';
+    }
+    // On success, the websocket will update the chapter
+};
+
+// Generate a new header image for a chapter that doesn't have one
+const handleGenerateHeaderImage = async (chapterId: string) => {
+    if (!props.bookId || !book.value) {
+        return;
+    }
+    
+    // Optimistically set image_prompt to show pending state (image is already null)
+    const chapter = chapters.currentChapter.value;
+    if (chapter && chapter.id === chapterId) {
+        chapter.image_prompt = 'generating...';
+        chapter.image = null;
+    }
+    
+    const { error } = await requestApiFetch(
+        `/api/books/${props.bookId}/chapters/${chapterId}/generate-header-image`, 
+        'POST'
+    );
+    
+    if (error) {
+        actionError.value = 'Failed to start header image generation. Please try again.';
+        // Revert the optimistic update on error
+        if (chapter && chapter.id === chapterId) {
+            chapter.image_prompt = null;
+        }
     }
     // On success, the websocket will update the image when complete
 };
@@ -1206,7 +1321,7 @@ onBeforeUnmount(() => {
                         message="Creating your first chapter..."
                     >
                         <template #subtitle>
-                            <p class="mt-2 text-sm text-amber-700 dark:text-amber-600 animate-pulse">
+                            <p class="mt-2 text-sm text-amber-700 animate-pulse">
                                 The magic is happening 🪄
                             </p>
                         </template>
@@ -1223,6 +1338,7 @@ onBeforeUnmount(() => {
                         :is-saving="isSaving"
                         :is-deleting="isDeleting"
                         :is-page-turning="animation.isPageTurning.value"
+                        :is-book-opened="animation.isBookOpened.value"
                         :book-type="book?.type"
                         :is-favorite="isFavorite"
                         :is-toggling-favorite="isTogglingFavorite"
@@ -1262,7 +1378,7 @@ onBeforeUnmount(() => {
                             :message="chapters.isGeneratingChapter.value ? 'Crafting your story...' : 'Loading chapter...'"
                         >
                             <template #subtitle>
-                                <p v-if="chapters.isGeneratingChapter.value" class="mt-2 text-sm text-amber-700 dark:text-amber-600 animate-pulse">
+                                <p v-if="chapters.isGeneratingChapter.value" class="mt-2 text-sm text-amber-700 animate-pulse">
                                     The magic is happening 🪄
                                 </p>
                             </template>
@@ -1274,7 +1390,7 @@ onBeforeUnmount(() => {
                             message="Updating your chapter..."
                         >
                             <template #subtitle>
-                                <p class="mt-2 text-sm text-amber-700 dark:text-amber-600 animate-pulse">
+                                <p class="mt-2 text-sm text-amber-700 animate-pulse">
                                     Making your changes ✨
                                 </p>
                             </template>
@@ -1324,6 +1440,8 @@ onBeforeUnmount(() => {
                             @textarea-focused="isTextareaFocused = $event"
                             @request-idea="handleRequestIdea"
                             @regenerate-image="(item, chapterId) => handleRegenerateImage(item, chapterId)"
+                            @retry-inline-image="(item, chapterId) => handleRetryInlineImage(item, chapterId)"
+                            @cancel-inline-image="(item, chapterId) => handleCancelInlineImage(item, chapterId)"
                             @edit-chapter="handleOpenChapterEditModal"
                             @swipe-forward="handleSwipeForward"
                             @swipe-back="handleSwipeBack"
@@ -1384,6 +1502,11 @@ onBeforeUnmount(() => {
                             @regenerate-cover="handleRegenerateCover"
                             @regenerate-image="(item, chapterId) => handleRegenerateImage(item, chapterId)"
                             @regenerate-header-image="(chapterId) => handleRegenerateHeaderImage(chapterId)"
+                            @generate-header-image="(chapterId) => handleGenerateHeaderImage(chapterId)"
+                            @retry-header-image="(chapterId) => handleRetryHeaderImage(chapterId)"
+                            @cancel-header-image="(chapterId) => handleCancelHeaderImage(chapterId)"
+                            @retry-inline-image="(item, chapterId) => handleRetryInlineImage(item, chapterId)"
+                            @cancel-inline-image="(item, chapterId) => handleCancelInlineImage(item, chapterId)"
                             @request-idea="handleRequestIdea"
                             @character-updated="handleCharacterUpdated"
                             @edit-chapter="handleOpenChapterEditModal"

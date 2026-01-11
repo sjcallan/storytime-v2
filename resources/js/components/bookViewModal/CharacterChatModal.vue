@@ -38,7 +38,7 @@ const isSending = ref(false);
 const messagesContainer = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLTextAreaElement | null>(null);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const chatChannel = ref<any>(null);
 
 // Auto-resize textarea

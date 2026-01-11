@@ -18,6 +18,7 @@ interface Props {
     isSaving: boolean;
     isDeleting: boolean;
     isPageTurning: boolean;
+    isBookOpened: boolean;
     hasChapters?: boolean;
     chapters?: ChapterSummary[];
     currentChapterNumber?: number;
@@ -42,11 +43,11 @@ const emit = defineEmits<{
 </script>
 
 <template>
-    <div class="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-between px-6 pt-6">
-        <!-- Left side: Table of Contents and Actions -->
+    <div class="pointer-events-none absolute inset-x-0 top-0 z-50 flex justify-between px-6 pt-6">
+        <!-- Left side: Table of Contents and Actions (only when book is opened) -->
         <div class="pointer-events-auto flex items-center gap-2">
             <TableOfContents
-                v-if="hasBook && (hasChapters || hasCharacters)"
+                v-if="isBookOpened && hasBook && (hasChapters || hasCharacters)"
                 :chapters="chapters || []"
                 :current-chapter-number="currentChapterNumber || 0"
                 :book-type="bookType"
@@ -71,7 +72,7 @@ const emit = defineEmits<{
                     </DropdownMenuTrigger>
                 </template>
             </TableOfContents>
-            <DropdownMenu v-if="hasBook">
+            <DropdownMenu v-if="isBookOpened && hasBook">
                 <DropdownMenuTrigger :as-child="true">
                     <Button
                         variant="ghost"

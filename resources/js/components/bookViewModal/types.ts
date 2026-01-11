@@ -84,7 +84,7 @@ export function formatScriptDialogue(content: string, isScript: boolean): string
     if (stageMatch) {
         const direction = stageMatch[1];
         const restOfLine = content.slice(stageMatch[0].length);
-        return `<em class="italic text-amber-700 dark:text-amber-600">(${escapeHtml(direction)})</em> ${escapeHtml(restOfLine)}`;
+        return `<em class="italic text-amber-700">(${escapeHtml(direction)})</em> ${escapeHtml(restOfLine)}`;
     }
     
     return escapeHtml(content);
@@ -109,7 +109,8 @@ export interface InlineImage {
     paragraph_index: number;
     url: string | null;
     prompt: string;
-    status?: 'pending' | 'complete';
+    status?: 'pending' | 'complete' | 'error' | 'timeout' | 'cancelled';
+    started_at?: string | null;
 }
 
 export interface Chapter {
@@ -154,8 +155,9 @@ export interface PageContentItem {
     type: 'paragraph' | 'image';
     content: string;
     imageUrl?: string | null;
-    imageStatus?: 'pending' | 'complete';
+    imageStatus?: 'pending' | 'complete' | 'error' | 'timeout' | 'cancelled';
     imageIndex?: number;
+    imageStartedAt?: string | null;
 }
 
 export interface PageSpread {

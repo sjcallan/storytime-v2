@@ -94,6 +94,13 @@ class TrackImageRequestJob implements ShouldQueue
             ];
         }
 
+        if (str_contains($model, 'flux-2-max')) {
+            return [
+                'cost_per_input_image' => $imageConfig['flux_2_max']['cost_per_input_image'] ?? 0.015,
+                'cost_per_output_image' => $imageConfig['flux_2_max']['cost_per_output_image'] ?? 0.015,
+            ];
+        }
+
         if (str_contains($model, 'flux-krea')) {
             return [
                 'cost_per_input_image' => $imageConfig['flux_krea_dev']['cost_per_input_image'] ?? 0.0,

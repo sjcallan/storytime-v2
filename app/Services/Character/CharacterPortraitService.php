@@ -258,7 +258,7 @@ class CharacterPortraitService
      */
     protected function buildSystemPrompt(string $styleGuidance, int $ageLevel): string
     {
-        $modelType = $ageLevel > 15 ? 'flux-krea-dev (realistic photographic model)' : 'flux-2-pro (versatile illustration model)';
+        $modelType = $ageLevel > 15 ? 'flux-krea-dev (realistic photographic model)' : 'flux-2-max (versatile illustration model)';
 
         return "You are an expert at writing prompts for AI image generation models. Your task is to write a single, detailed description ofa character portrait headshot.
 {$styleGuidance}

@@ -37,7 +37,7 @@ const formatContent = (content: string): string => {
             <!-- 40% top margin space with chapter title -->
             <div class="h-[40%] flex items-end justify-center pb-4">
                 <div class="text-center">
-                    <div class="text-xs uppercase tracking-widest text-amber-700 dark:text-amber-600 mb-2 font-medium">
+                    <div class="text-xs uppercase tracking-widest text-amber-700 mb-2 font-medium">
                         {{ chapterLabel }} {{ chapter.sort }}
                     </div>
                     <h2 class="font-serif text-2xl md:text-3xl font-bold text-amber-950 dark:text-amber-900">

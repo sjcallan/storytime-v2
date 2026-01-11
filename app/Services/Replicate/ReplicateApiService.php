@@ -13,7 +13,7 @@ class ReplicateApiService
 
     protected string $baseUrl = 'https://api.replicate.com/v1';
 
-    protected string $defaultModel = 'black-forest-labs/flux-2-pro';
+    protected string $defaultModel = 'black-forest-labs/flux-2-max';
 
     protected string $kreaModel = 'black-forest-labs/flux-krea-dev';
 
@@ -152,7 +152,7 @@ class ReplicateApiService
             'prompt' => $prompt,
             'go_fast' => true,
             'guidance' => 2.5,
-            'megapixels' => '1',
+            'megapixels' => '.5',
             'num_outputs' => 1,
             'aspect_ratio' => $aspectRatio,
             'disable_safety_checker' => true,

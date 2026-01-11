@@ -275,7 +275,7 @@ onUnmounted(() => {
         <!-- Decorative top flourish -->
         <div class="absolute top-8 left-1/2 -translate-x-1/2 flex items-center gap-3 opacity-40">
             <div class="h-px w-16 bg-linear-to-r from-transparent to-amber-700 dark:to-amber-600" />
-            <Sparkles class="h-4 w-4 text-amber-700 dark:text-amber-600" />
+            <Sparkles class="h-4 w-4 text-amber-700" />
             <div class="h-px w-16 bg-linear-to-l from-transparent to-amber-700 dark:to-amber-600" />
         </div>
 

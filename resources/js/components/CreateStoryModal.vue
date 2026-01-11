@@ -143,7 +143,7 @@ const newCharacter = ref<Character>({
 });
 
 // Echo channel subscription for portrait updates
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const echoChannel = ref<any>(null);
 const isListeningForPortraits = ref(false);
 

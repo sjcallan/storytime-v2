@@ -63,6 +63,11 @@ return [
                 'cost_per_input_image' => 0.015,
                 'cost_per_output_image' => 0.015,
             ],
+            'flux_2_max' => [
+                'model' => 'black-forest-labs/flux-2-max',
+                'cost_per_input_image' => 0.03,
+                'cost_per_output_image' => 0.04,
+            ],
             'flux_krea_dev' => [
                 'model' => 'black-forest-labs/flux-krea-dev',
                 'cost_per_input_image' => 0.0,

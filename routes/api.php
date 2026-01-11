@@ -53,6 +53,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('books/{book}/chapters/suggest-prompt', [ChapterController::class, 'suggestPrompt'])->name('api.books.chapters.suggest-prompt');
     Route::post('books/{book}/chapters/{chapter}/regenerate-image', [ChapterController::class, 'regenerateImage'])->name('api.books.chapters.regenerate-image');
     Route::post('books/{book}/chapters/{chapter}/regenerate-header-image', [ChapterController::class, 'regenerateHeaderImage'])->name('api.books.chapters.regenerate-header-image');
+    Route::post('books/{book}/chapters/{chapter}/generate-header-image', [ChapterController::class, 'generateHeaderImage'])->name('api.books.chapters.generate-header-image');
+    Route::post('books/{book}/chapters/{chapter}/retry-header-image', [ChapterController::class, 'retryHeaderImage'])->name('api.books.chapters.retry-header-image');
+    Route::post('books/{book}/chapters/{chapter}/cancel-header-image', [ChapterController::class, 'cancelHeaderImage'])->name('api.books.chapters.cancel-header-image');
+    Route::post('books/{book}/chapters/{chapter}/retry-inline-image', [ChapterController::class, 'retryInlineImage'])->name('api.books.chapters.retry-inline-image');
+    Route::post('books/{book}/chapters/{chapter}/cancel-inline-image', [ChapterController::class, 'cancelInlineImage'])->name('api.books.chapters.cancel-inline-image');
     Route::post('books/{book}/chapters/{chapter}/edit', [ChapterController::class, 'editContent'])->name('api.books.chapters.edit');
     Route::post('books/{book}/chapters/{chapter}/rewrite', [ChapterController::class, 'rewriteContent'])->name('api.books.chapters.rewrite');
 
