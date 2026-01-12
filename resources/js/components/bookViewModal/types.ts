@@ -54,7 +54,9 @@ export interface Character {
     age: string | null;
     nationality: string | null;
     backstory: string | null;
-    portrait_image: string | null;
+    // Note: Laravel serializes 'portraitImage' relationship as 'portrait_image' (snake_case)
+    // So this can be either: a string (legacy field) OR an Image object (eager-loaded relationship)
+    portrait_image: string | Image | null;
     portrait_image_id: string | null;
     portraitImage?: Image | null;
 }

@@ -1606,8 +1606,9 @@ onBeforeUnmount(() => {
                         />
 
                         <!-- Right Edge Click Zone (Go Forward / Start Reading) -->
+                        <!-- Hidden when viewing character details to prevent accidental navigation -->
                         <button
-                            v-if="canNavigateForward && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value"
+                            v-if="canNavigateForward && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value && !selectedCharacter"
                             :class="[
                                 'edge-nav-zone edge-nav-right group absolute right-0 inset-y-0 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none',
                                 { 'nav-arrow-flash': isFlashingNextArrow }

@@ -90,4 +90,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Character portrait regeneration
     Route::post('characters/{character}/regenerate-portrait', [CharacterController::class, 'regeneratePortrait'])->name('api.characters.regenerate-portrait');
+
+    // Character portrait upload
+    Route::post('characters/{character}/upload-portrait', [CharacterController::class, 'uploadPortrait'])->name('api.characters.upload-portrait');
 });

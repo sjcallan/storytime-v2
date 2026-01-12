@@ -30,6 +30,15 @@ class Image extends Model
         'aspect_ratio',
     ];
 
+    /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array<string>
+     */
+    protected $appends = [
+        'full_url',
+    ];
+
     protected function casts(): array
     {
         return [

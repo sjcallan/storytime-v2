@@ -63,7 +63,7 @@ class BookController extends Controller
     {
         $this->authorize('view', $book);
 
-        $book->load(['user', 'chapters', 'characters', 'profile']);
+        $book->load(['user', 'chapters', 'characters.portraitImage', 'profile']);
 
         return response()->json($book);
     }
@@ -77,7 +77,7 @@ class BookController extends Controller
 
         $book->update($request->validated());
 
-        $book->load(['user', 'chapters', 'characters', 'profile']);
+        $book->load(['user', 'chapters', 'characters.portraitImage', 'profile']);
 
         return response()->json($book);
     }
@@ -106,7 +106,7 @@ class BookController extends Controller
         );
 
         $book->refresh();
-        $book->load(['characters']);
+        $book->load(['characters.portraitImage']);
 
         return response()->json([
             'title' => $metaData['title'] ?? $book->title,

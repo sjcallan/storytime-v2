@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { ArrowLeft, User, Calendar, MapPin, Sparkles, MessageCircle, Pencil, RefreshCw, X, Check } from 'lucide-vue-next';
+import { ArrowLeft, User, Calendar, MapPin, Sparkles, MessageCircle, Pencil, RefreshCw, X, Check, Upload } from 'lucide-vue-next';
 import { Spinner } from '@/components/ui/spinner';
 import { apiFetch } from '@/composables/ApiFetch';
 import type { Character } from './types';
@@ -32,7 +32,10 @@ const showChatModal = ref(false);
 const isEditing = ref(false);
 const isSaving = ref(false);
 const isRegeneratingPortrait = ref(false);
+const isUploadingPortrait = ref(false);
 const editErrors = ref<Record<string, string>>({});
+const portraitUploadError = ref<string | null>(null);
+const photoInput = ref<HTMLInputElement | null>(null);
 
 // Edit form data
 const editForm = ref({
@@ -137,18 +140,105 @@ const regeneratePortrait = async () => {
     }
 };
 
+// Trigger the hidden file input for portrait upload
+const triggerPhotoUpload = () => {
+    photoInput.value?.click();
+};
+
+// Handle file selection for portrait upload
+const handlePhotoSelected = () => {
+    const file = photoInput.value?.files?.[0];
+    if (!file) {
+        return;
+    }
+
+    portraitUploadError.value = null;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+        portraitUploadError.value = 'Please select a JPG, PNG, GIF, or WebP image.';
+        return;
+    }
+
+    // Validate file size (2MB max)
+    if (file.size > 2 * 1024 * 1024) {
+        portraitUploadError.value = 'The photo must not be larger than 2MB.';
+        return;
+    }
+
+    uploadPortrait(file);
+};
+
+// Upload the portrait image
+const uploadPortrait = async (file: File) => {
+    isUploadingPortrait.value = true;
+    portraitUploadError.value = null;
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+        const { data, error } = await requestApiFetch(
+            `/api/characters/${props.character.id}/upload-portrait`,
+            'POST',
+            formData,
+            true
+        );
+
+        if (error) {
+            const message = typeof error === 'object' && error !== null && 'message' in error
+                ? (error as { message: string }).message
+                : 'Failed to upload photo. Please try again.';
+            portraitUploadError.value = message;
+            return;
+        }
+
+        if (data && typeof data === 'object') {
+            // Emit the updated character to the parent
+            emit('characterUpdated', data as Character);
+        }
+    } catch {
+        portraitUploadError.value = 'An unexpected error occurred. Please try again.';
+    } finally {
+        isUploadingPortrait.value = false;
+        // Clear the file input
+        if (photoInput.value) {
+            photoInput.value.value = '';
+        }
+    }
+};
+
+// Helper to get portrait data as Image object (handles snake_case from API)
+// Laravel serializes 'portraitImage' relationship as 'portrait_image' (snake_case)
+// So portrait_image can be either an Image object or a string
+interface PortraitImageData {
+    full_url?: string | null;
+    status?: string;
+    error?: string | null;
+}
+
+const getPortraitImageData = (): PortraitImageData | null => {
+    const portraitData = props.character.portrait_image;
+    if (portraitData && typeof portraitData === 'object' && 'full_url' in portraitData) {
+        return portraitData as PortraitImageData;
+    }
+    return null;
+};
+
 // Watch for portrait image changes to clear regenerating state
-// Check both the new Image model and legacy field
 watch(
-    () => [props.character.portraitImage, props.character.portrait_image],
-    ([newPortraitImage, newLegacyImage]) => {
+    () => props.character.portrait_image,
+    (newPortraitData) => {
         // Clear regenerating state when image is complete
         if (isRegeneratingPortrait.value) {
-            const imageModel = newPortraitImage as typeof props.character.portraitImage;
-            if (imageModel?.status === 'complete' && imageModel?.full_url) {
-                isRegeneratingPortrait.value = false;
-            } else if (newLegacyImage && !imageModel) {
-                // Fallback: legacy field updated without Image model
+            if (newPortraitData && typeof newPortraitData === 'object' && 'status' in newPortraitData) {
+                const imageData = newPortraitData as PortraitImageData;
+                if (imageData.status === 'complete' && imageData.full_url) {
+                    isRegeneratingPortrait.value = false;
+                }
+            } else if (typeof newPortraitData === 'string' && newPortraitData) {
+                // Fallback: legacy string field updated
                 isRegeneratingPortrait.value = false;
             }
         }
@@ -195,34 +285,42 @@ const formatGender = (gender: string | null): string => {
 };
 
 // Get the portrait image URL from Image model or legacy field
+// Note: Laravel serializes 'portraitImage' relationship as 'portrait_image' (snake_case)
 const portraitImageUrl = computed(() => {
-    // Prefer the new Image model
-    if (props.character.portraitImage?.full_url) {
-        return props.character.portraitImage.full_url;
+    const imageData = getPortraitImageData();
+    if (imageData?.full_url) {
+        return imageData.full_url;
     }
-    // Fallback to legacy field
-    return props.character.portrait_image;
+    // Fallback to legacy string field
+    const portraitData = props.character.portrait_image;
+    if (typeof portraitData === 'string') {
+        return portraitData;
+    }
+    return null;
 });
 
 // Check if portrait has an error
 const portraitHasError = computed(() => {
-    return props.character.portraitImage?.status === 'error';
+    const imageData = getPortraitImageData();
+    return imageData?.status === 'error';
 });
 
 // Get portrait error message
 const portraitErrorMessage = computed(() => {
-    return props.character.portraitImage?.error || 'Failed to generate portrait';
+    const imageData = getPortraitImageData();
+    return imageData?.error || 'Failed to generate portrait';
 });
 
 // Check if portrait is processing (pending or processing status)
 const isPortraitProcessing = computed(() => {
-    const status = props.character.portraitImage?.status;
+    const imageData = getPortraitImageData();
+    const status = imageData?.status;
     return status === 'pending' || status === 'processing';
 });
 
 // Computed for showing portrait loading state
 const isPortraitLoading = computed(() => {
-    return isRegeneratingPortrait.value || isPortraitProcessing.value;
+    return isRegeneratingPortrait.value || isPortraitProcessing.value || isUploadingPortrait.value;
 });
 
 // Display values that update when editing or from props
@@ -253,7 +351,7 @@ const displayName = computed(() => isEditing.value ? editForm.value.name : props
                     class="h-full w-full object-cover"
                 />
             </template>
-            <!-- Loading/Regenerating state -->
+            <!-- Loading/Regenerating/Uploading state -->
             <template v-else-if="isPortraitLoading">
                 <div
                     :class="[
@@ -262,7 +360,7 @@ const displayName = computed(() => isEditing.value ? editForm.value.name : props
                     ]"
                 >
                     <Spinner class="h-12 w-12 text-white/80 mb-3" />
-                    <span class="text-white/90 font-medium text-sm">Creating portrait...</span>
+                    <span class="text-white/90 font-medium text-sm">{{ isUploadingPortrait ? 'Uploading photo...' : 'Creating portrait...' }}</span>
                 </div>
             </template>
             <!-- Error state -->
@@ -301,7 +399,16 @@ const displayName = computed(() => isEditing.value ? editForm.value.name : props
                 </div>
             </template>
             
-            <!-- Action Buttons Row (Edit + New Portrait) -->
+            <!-- Hidden file input for portrait upload -->
+            <input
+                ref="photoInput"
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                class="hidden"
+                @change="handlePhotoSelected"
+            />
+            
+            <!-- Action Buttons Row (Edit + Upload + New Portrait) -->
             <div class="absolute bottom-4 right-4 z-20 flex items-center gap-2">
                 <!-- Edit/Cancel Button -->
                 <button
@@ -321,6 +428,16 @@ const displayName = computed(() => isEditing.value ? editForm.value.name : props
                     <span>Cancel</span>
                 </button>
                 
+                <!-- Upload Portrait Button -->
+                <button
+                    v-if="!isPortraitLoading"
+                    @click="triggerPhotoUpload"
+                    class="flex items-center gap-1.5 rounded-full bg-white/90 dark:bg-gray-800/90 px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-200 shadow-lg backdrop-blur-sm transition-all hover:bg-white hover:scale-105 active:scale-95"
+                >
+                    <Upload class="h-4 w-4" />
+                    <span>Upload</span>
+                </button>
+                
                 <!-- Regenerate Portrait Button -->
                 <button
                     v-if="!isPortraitLoading"
@@ -334,6 +451,14 @@ const displayName = computed(() => isEditing.value ? editForm.value.name : props
             
             <!-- Gradient overlay for better text contrast -->
             <div class="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-amber-50 dark:from-amber-100 to-transparent pointer-events-none" />
+            
+            <!-- Portrait upload error message -->
+            <div 
+                v-if="portraitUploadError"
+                class="absolute top-4 left-4 right-16 z-20 rounded-lg bg-red-100/95 dark:bg-red-900/95 px-3 py-2 text-sm text-red-700 dark:text-red-200 shadow-lg backdrop-blur-sm"
+            >
+                {{ portraitUploadError }}
+            </div>
         </div>
 
         <!-- Character Details (Bottom Half) -->
