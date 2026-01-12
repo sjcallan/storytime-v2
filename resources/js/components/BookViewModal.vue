@@ -28,6 +28,7 @@ import type {
     ChapterCreatedPayload,
     ChapterUpdatedPayload,
     ReadingHistory,
+    ImageGeneratedPayload,
 } from '@/components/bookViewModal';
 
 interface Props {
@@ -240,6 +241,93 @@ const handleChapterInlineImagesEvent = (payload: ChapterInlineImagesPayload) => 
     chapters.updateChapterInlineImages(payload.chapter_id, payload.inline_images);
 };
 
+// Handle real-time image generated events (new unified image system)
+const handleImageGeneratedEvent = (payload: ImageGeneratedPayload) => {
+    if (!book.value) {
+        return;
+    }
+    
+    // Handle based on image type
+    switch (payload.type) {
+        case 'book_cover':
+            // Update book cover
+            if (payload.book_id === book.value.id && payload.status === 'complete' && payload.full_url) {
+                book.value.cover_image = payload.full_url;
+                book.value.cover_image_status = payload.status;
+                emit('updated', book.value);
+            }
+            break;
+            
+        case 'character_portrait':
+            // Update character portrait
+            if (payload.character_id) {
+                const character = book.value.characters?.find(c => c.id === payload.character_id);
+                if (character) {
+                    // Update the portraitImage object with all payload data
+                    character.portraitImage = {
+                        id: payload.id,
+                        book_id: payload.book_id,
+                        chapter_id: payload.chapter_id,
+                        character_id: payload.character_id,
+                        type: payload.type,
+                        image_url: payload.image_url,
+                        full_url: payload.full_url,
+                        prompt: payload.prompt,
+                        error: payload.error,
+                        status: payload.status,
+                        paragraph_index: payload.paragraph_index,
+                        aspect_ratio: payload.aspect_ratio,
+                    };
+                    // Also update legacy field for backwards compatibility
+                    if (payload.status === 'complete' && payload.full_url) {
+                        character.portrait_image = payload.full_url;
+                    }
+                }
+                // Also update selected character if it's the same one
+                if (selectedCharacter.value?.id === payload.character_id) {
+                    selectedCharacter.value.portraitImage = {
+                        id: payload.id,
+                        book_id: payload.book_id,
+                        chapter_id: payload.chapter_id,
+                        character_id: payload.character_id,
+                        type: payload.type,
+                        image_url: payload.image_url,
+                        full_url: payload.full_url,
+                        prompt: payload.prompt,
+                        error: payload.error,
+                        status: payload.status,
+                        paragraph_index: payload.paragraph_index,
+                        aspect_ratio: payload.aspect_ratio,
+                    };
+                    if (payload.status === 'complete' && payload.full_url) {
+                        selectedCharacter.value.portrait_image = payload.full_url;
+                    }
+                }
+            }
+            break;
+            
+        case 'chapter_header':
+            // Update chapter header image
+            if (payload.chapter_id) {
+                chapters.updateChapterHeaderImage(payload.chapter_id, payload.full_url, payload.status);
+            }
+            break;
+            
+        case 'chapter_inline':
+            // Update chapter inline image
+            if (payload.chapter_id && payload.paragraph_index !== null) {
+                chapters.updateChapterInlineImage(
+                    payload.chapter_id,
+                    payload.paragraph_index,
+                    payload.full_url,
+                    payload.status,
+                    payload.error
+                );
+            }
+            break;
+    }
+};
+
 // Handle real-time chapter created events
 const handleChapterCreatedEvent = (payload: ChapterCreatedPayload) => {
     if (!props.bookId || payload.book_id !== props.bookId) {
@@ -324,6 +412,7 @@ const subscribeToBookChannel = (bookId: string) => {
         channel.listen('.chapter.inline-images.created', handleChapterInlineImagesEvent);
         channel.listen('.character.created', handleCharacterCreatedEvent);
         channel.listen('.character.portrait.updated', handleCharacterPortraitEvent);
+        channel.listen('.image.generated', handleImageGeneratedEvent);
         bookChannel.value = channel;
     } catch (err) {
         console.error(`[Echo] Failed to subscribe to book.${bookId}:`, err);
@@ -343,6 +432,7 @@ const unsubscribeFromBookChannel = () => {
         bookChannel.value.stopListening('.chapter.inline-images.created');
         bookChannel.value.stopListening('.character.created');
         bookChannel.value.stopListening('.character.portrait.updated');
+        bookChannel.value.stopListening('.image.generated');
         echo().leave(`book.${props.bookId}`);
     } catch {
         // Ignore cleanup errors

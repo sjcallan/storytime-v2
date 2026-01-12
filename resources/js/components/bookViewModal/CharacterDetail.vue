@@ -137,14 +137,23 @@ const regeneratePortrait = async () => {
     }
 };
 
-// Watch for portrait_image changes to clear regenerating state
+// Watch for portrait image changes to clear regenerating state
+// Check both the new Image model and legacy field
 watch(
-    () => props.character.portrait_image,
-    (newImage) => {
-        if (newImage && isRegeneratingPortrait.value) {
-            isRegeneratingPortrait.value = false;
+    () => [props.character.portraitImage, props.character.portrait_image],
+    ([newPortraitImage, newLegacyImage]) => {
+        // Clear regenerating state when image is complete
+        if (isRegeneratingPortrait.value) {
+            const imageModel = newPortraitImage as typeof props.character.portraitImage;
+            if (imageModel?.status === 'complete' && imageModel?.full_url) {
+                isRegeneratingPortrait.value = false;
+            } else if (newLegacyImage && !imageModel) {
+                // Fallback: legacy field updated without Image model
+                isRegeneratingPortrait.value = false;
+            }
         }
-    }
+    },
+    { deep: true }
 );
 
 const openChat = () => {
@@ -185,9 +194,35 @@ const formatGender = (gender: string | null): string => {
     return gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase();
 };
 
+// Get the portrait image URL from Image model or legacy field
+const portraitImageUrl = computed(() => {
+    // Prefer the new Image model
+    if (props.character.portraitImage?.full_url) {
+        return props.character.portraitImage.full_url;
+    }
+    // Fallback to legacy field
+    return props.character.portrait_image;
+});
+
+// Check if portrait has an error
+const portraitHasError = computed(() => {
+    return props.character.portraitImage?.status === 'error';
+});
+
+// Get portrait error message
+const portraitErrorMessage = computed(() => {
+    return props.character.portraitImage?.error || 'Failed to generate portrait';
+});
+
+// Check if portrait is processing (pending or processing status)
+const isPortraitProcessing = computed(() => {
+    const status = props.character.portraitImage?.status;
+    return status === 'pending' || status === 'processing';
+});
+
 // Computed for showing portrait loading state
 const isPortraitLoading = computed(() => {
-    return isRegeneratingPortrait.value || !props.character.portrait_image;
+    return isRegeneratingPortrait.value || isPortraitProcessing.value;
 });
 
 // Display values that update when editing or from props
@@ -210,16 +245,16 @@ const displayName = computed(() => isEditing.value ? editForm.value.name : props
 
         <!-- Portrait Image Section (Top Half) -->
         <div class="relative h-1/2 w-full overflow-hidden">
-            <!-- Portrait Image or Loading State -->
-            <template v-if="!isPortraitLoading">
+            <!-- Portrait Image - show when we have a URL and not loading -->
+            <template v-if="portraitImageUrl && !isPortraitLoading && !portraitHasError">
                 <img
-                    :src="character.portrait_image!"
+                    :src="portraitImageUrl"
                     :alt="character.name"
                     class="h-full w-full object-cover"
                 />
             </template>
-            <template v-else-if="isRegeneratingPortrait">
-                <!-- Regenerating state -->
+            <!-- Loading/Regenerating state -->
+            <template v-else-if="isPortraitLoading">
                 <div
                     :class="[
                         'h-full w-full flex flex-col items-center justify-center bg-linear-to-br',
@@ -227,11 +262,29 @@ const displayName = computed(() => isEditing.value ? editForm.value.name : props
                     ]"
                 >
                     <Spinner class="h-12 w-12 text-white/80 mb-3" />
-                    <span class="text-white/90 font-medium text-sm">Creating new portrait...</span>
+                    <span class="text-white/90 font-medium text-sm">Creating portrait...</span>
                 </div>
             </template>
+            <!-- Error state -->
+            <template v-else-if="portraitHasError">
+                <div
+                    :class="[
+                        'h-full w-full flex flex-col items-center justify-center bg-linear-to-br',
+                        getAvatarGradient(character.id)
+                    ]"
+                >
+                    <span 
+                        v-if="character.name"
+                        class="text-6xl md:text-7xl font-bold text-white drop-shadow-lg mb-3"
+                    >
+                        {{ getInitials(character.name) }}
+                    </span>
+                    <User v-else class="h-24 w-24 text-white/80 mb-3" />
+                    <span class="text-white/80 text-sm text-center px-4">Portrait generation failed</span>
+                </div>
+            </template>
+            <!-- No portrait state -->
             <template v-else>
-                <!-- No portrait state -->
                 <div
                     :class="[
                         'h-full w-full flex items-center justify-center bg-linear-to-br',
@@ -270,12 +323,12 @@ const displayName = computed(() => isEditing.value ? editForm.value.name : props
                 
                 <!-- Regenerate Portrait Button -->
                 <button
-                    v-if="character.portrait_image && !isRegeneratingPortrait"
+                    v-if="!isPortraitLoading"
                     @click="regeneratePortrait"
                     class="flex items-center gap-1.5 rounded-full bg-white/90 dark:bg-gray-800/90 px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-200 shadow-lg backdrop-blur-sm transition-all hover:bg-white hover:scale-105 active:scale-95"
                 >
                     <RefreshCw class="h-4 w-4" />
-                    <span>New Portrait</span>
+                    <span>{{ portraitImageUrl && !portraitHasError ? 'New Portrait' : portraitHasError ? 'Retry Portrait' : 'Generate Portrait' }}</span>
                 </button>
             </div>
             

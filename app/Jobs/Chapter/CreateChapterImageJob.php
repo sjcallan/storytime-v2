@@ -3,9 +3,11 @@
 namespace App\Jobs\Chapter;
 
 use App\Events\Chapter\ChapterUpdatedEvent;
+use App\Events\Image\ImageGeneratedEvent;
 use App\Models\Chapter;
 use App\Services\Builder\ChapterBuilderService;
 use App\Services\Chapter\ChapterService;
+use App\Services\Image\ImageService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -30,16 +32,16 @@ class CreateChapterImageJob implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct(public Chapter $chapter)
-    {
-        //
-    }
+    public function __construct(public Chapter $chapter) {}
 
     /**
      * Execute the job.
      */
-    public function handle(ChapterBuilderService $chapterBuilderService, ChapterService $chapterService): void
-    {
+    public function handle(
+        ChapterBuilderService $chapterBuilderService,
+        ChapterService $chapterService,
+        ImageService $imageService
+    ): void {
         Log::info('[CreateChapterImageJob] Starting', [
             'chapter_id' => $this->chapter->id,
             'book_id' => $this->chapter->book_id,
@@ -53,31 +55,69 @@ class CreateChapterImageJob implements ShouldQueue
             return;
         }
 
-        $image = $chapterBuilderService->getImage(
-            $this->chapter->book_id,
-            $this->chapter->id,
-            $this->chapter->image_prompt
-        );
+        // Get or create Image record for this chapter header
+        $imageRecord = $imageService->getOrCreateChapterHeader($this->chapter);
+        $imageService->markProcessing($imageRecord);
 
-        $chapterService->updateById($this->chapter->id, [
-            'image' => $image['image'],
-            'image_prompt' => $chapterBuilderService->stripQuotes($image['image_prompt']),
-        ], ['events' => false]);
+        // Update Image record with the prompt
+        $imageService->updateById($imageRecord->id, ['prompt' => $this->chapter->image_prompt]);
 
-        Log::info('[CreateChapterImageJob] Completed successfully', [
-            'chapter_id' => $this->chapter->id,
-            'has_image' => ! empty($image['image']),
-        ]);
+        try {
+            $image = $chapterBuilderService->getImage(
+                $this->chapter->book_id,
+                $this->chapter->id,
+                $this->chapter->image_prompt
+            );
 
-        // Broadcast update via websocket so frontend can display the new image
-        if (! empty($image['image'])) {
-            $this->chapter->refresh();
-            ChapterUpdatedEvent::dispatch($this->chapter);
+            $strippedPrompt = $chapterBuilderService->stripQuotes($image['image_prompt']);
 
-            Log::info('[CreateChapterImageJob] Dispatched chapter updated event', [
+            if (! empty($image['image'])) {
+                // Update chapter with image (legacy)
+                $chapterService->updateById($this->chapter->id, [
+                    'image' => $image['image'],
+                    'image_prompt' => $strippedPrompt,
+                    'header_image_id' => $imageRecord->id,
+                ], ['events' => false]);
+
+                // Update Image record with the URL
+                $imageService->markComplete($imageRecord, $image['image']);
+
+                Log::info('[CreateChapterImageJob] Completed successfully', [
+                    'chapter_id' => $this->chapter->id,
+                    'image_id' => $imageRecord->id,
+                    'has_image' => true,
+                ]);
+
+                // Broadcast update via websocket so frontend can display the new image
+                $this->chapter->refresh();
+                ChapterUpdatedEvent::dispatch($this->chapter);
+                event(new ImageGeneratedEvent($imageRecord->fresh()));
+
+                Log::info('[CreateChapterImageJob] Dispatched events', [
+                    'chapter_id' => $this->chapter->id,
+                    'book_id' => $this->chapter->book_id,
+                    'image_id' => $imageRecord->id,
+                ]);
+            } else {
+                $imageService->markError($imageRecord, 'Image generation returned empty result');
+                event(new ImageGeneratedEvent($imageRecord->fresh()));
+
+                Log::error('[CreateChapterImageJob] Image generation failed', [
+                    'chapter_id' => $this->chapter->id,
+                    'image_id' => $imageRecord->id,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('[CreateChapterImageJob] Failed', [
                 'chapter_id' => $this->chapter->id,
-                'book_id' => $this->chapter->book_id,
+                'image_id' => $imageRecord->id,
+                'error' => $e->getMessage(),
             ]);
+
+            $imageService->markError($imageRecord, $e->getMessage());
+            event(new ImageGeneratedEvent($imageRecord->fresh()));
+
+            throw $e;
         }
     }
 

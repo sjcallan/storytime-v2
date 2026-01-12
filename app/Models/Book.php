@@ -21,6 +21,7 @@ class Book extends Model
         'cover_video',
         'cover_video_status',
         'cover_image_status',
+        'cover_image_id',
         'status',
         'age_level',
         'genre',
@@ -81,5 +82,35 @@ class Book extends Model
     public function readingHistory(): HasMany
     {
         return $this->hasMany(ReadingHistory::class);
+    }
+
+    /**
+     * Get the cover image for the book.
+     */
+    public function coverImage(): BelongsTo
+    {
+        return $this->belongsTo(Image::class, 'cover_image_id');
+    }
+
+    /**
+     * Get all images associated with this book.
+     */
+    public function images(): HasMany
+    {
+        return $this->hasMany(Image::class);
+    }
+
+    /**
+     * Get the cover image URL (from new Image model or legacy field).
+     */
+    public function getCoverImageUrlAttribute(): ?string
+    {
+        // First check the new Image relationship
+        if ($this->coverImage && $this->coverImage->image_url) {
+            return $this->coverImage->full_url;
+        }
+
+        // Fall back to legacy cover_image field
+        return $this->cover_image;
     }
 }

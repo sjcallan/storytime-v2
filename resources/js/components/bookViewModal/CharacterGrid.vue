@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { User } from 'lucide-vue-next';
+import { Spinner } from '@/components/ui/spinner';
 import type { Character } from './types';
 
 interface Props {
@@ -36,6 +37,22 @@ const getAvatarGradient = (characterId: string): string => {
     
     const hash = characterId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return gradients[hash % gradients.length];
+};
+
+// Get the portrait URL from Image model or legacy field
+const getPortraitUrl = (character: Character): string | null => {
+    // Prefer the new Image model
+    if (character.portraitImage?.full_url) {
+        return character.portraitImage.full_url;
+    }
+    // Fallback to legacy field
+    return character.portrait_image;
+};
+
+// Check if portrait is loading
+const isPortraitLoading = (character: Character): boolean => {
+    const status = character.portraitImage?.status;
+    return status === 'pending' || status === 'processing';
 };
 </script>
 
@@ -78,12 +95,24 @@ const getAvatarGradient = (characterId: string): string => {
                             'shadow-md transition-transform duration-200 group-hover:scale-[1.02]',
                         ]"
                     >
+                        <!-- Portrait image -->
                         <img
-                            v-if="character.portrait_image"
-                            :src="character.portrait_image"
+                            v-if="getPortraitUrl(character) && !isPortraitLoading(character)"
+                            :src="getPortraitUrl(character)!"
                             :alt="character.name"
                             class="h-full w-full object-cover"
                         />
+                        <!-- Loading state -->
+                        <div
+                            v-else-if="isPortraitLoading(character)"
+                            :class="[
+                                'h-full w-full flex items-center justify-center bg-gradient-to-br',
+                                getAvatarGradient(character.id)
+                            ]"
+                        >
+                            <Spinner class="h-8 w-8 text-white/80" />
+                        </div>
+                        <!-- No portrait / error state -->
                         <div
                             v-else
                             :class="[

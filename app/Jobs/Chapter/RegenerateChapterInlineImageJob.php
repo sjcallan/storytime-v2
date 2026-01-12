@@ -3,9 +3,11 @@
 namespace App\Jobs\Chapter;
 
 use App\Events\Chapter\ChapterInlineImagesCreatedEvent;
+use App\Events\Image\ImageGeneratedEvent;
 use App\Models\Chapter;
 use App\Services\Builder\ChapterBuilderService;
 use App\Services\Chapter\ChapterService;
+use App\Services\Image\ImageService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -38,8 +40,11 @@ class RegenerateChapterInlineImageJob implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(ChapterBuilderService $chapterBuilderService, ChapterService $chapterService): void
-    {
+    public function handle(
+        ChapterBuilderService $chapterBuilderService,
+        ChapterService $chapterService,
+        ImageService $imageService
+    ): void {
         Log::info('[RegenerateChapterInlineImageJob] Starting', [
             'chapter_id' => $this->chapter->id,
             'book_id' => $this->chapter->book_id,
@@ -48,15 +53,16 @@ class RegenerateChapterInlineImageJob implements ShouldQueue
 
         $inlineImages = $this->chapter->inline_images ?? [];
 
-        $existingImage = null;
+        // Find existing image data from legacy inline_images array
+        $existingImageData = null;
         foreach ($inlineImages as $image) {
             if (($image['paragraph_index'] ?? null) === $this->imageIndex) {
-                $existingImage = $image;
+                $existingImageData = $image;
                 break;
             }
         }
 
-        if (! $existingImage || empty($existingImage['prompt'])) {
+        if (! $existingImageData || empty($existingImageData['prompt'])) {
             Log::warning('[RegenerateChapterInlineImageJob] No existing image or prompt found', [
                 'chapter_id' => $this->chapter->id,
                 'image_index' => $this->imageIndex,
@@ -65,72 +71,110 @@ class RegenerateChapterInlineImageJob implements ShouldQueue
             return;
         }
 
+        // Always create a NEW Image record for regeneration to preserve history
+        $imageRecord = $imageService->createChapterInlineImage(
+            $this->chapter,
+            $this->imageIndex,
+            $existingImageData['prompt']
+        );
+        $imageService->markProcessing($imageRecord);
+
         $scenePrompts = [
             [
                 'paragraph_index' => $this->imageIndex,
-                'prompt' => $existingImage['prompt'],
+                'prompt' => $existingImageData['prompt'],
             ],
         ];
 
-        $generatedImages = $chapterBuilderService->generateChapterImages(
-            $this->chapter->book_id,
-            $this->chapter->id,
-            $scenePrompts
-        );
+        try {
+            $generatedImages = $chapterBuilderService->generateChapterImages(
+                $this->chapter->book_id,
+                $this->chapter->id,
+                $scenePrompts
+            );
 
-        if (empty($generatedImages)) {
-            Log::warning('[RegenerateChapterInlineImageJob] No image generated', [
-                'chapter_id' => $this->chapter->id,
-                'image_index' => $this->imageIndex,
-            ]);
+            if (empty($generatedImages)) {
+                Log::warning('[RegenerateChapterInlineImageJob] No image generated', [
+                    'chapter_id' => $this->chapter->id,
+                    'image_index' => $this->imageIndex,
+                    'image_id' => $imageRecord->id,
+                ]);
 
-            return;
-        }
+                $imageService->markError($imageRecord, 'No image generated');
+                event(new ImageGeneratedEvent($imageRecord->fresh()));
 
-        $newImage = $generatedImages[0];
+                return;
+            }
 
-        $updatedImages = [];
-        $replaced = false;
-        foreach ($inlineImages as $image) {
-            if (($image['paragraph_index'] ?? null) === $this->imageIndex) {
+            $newImage = $generatedImages[0];
+
+            // Update Image record
+            if (! empty($newImage['url'])) {
+                $imageService->markComplete($imageRecord, $newImage['url']);
+            } else {
+                $imageService->markError($imageRecord, 'Image generation returned empty URL');
+            }
+
+            event(new ImageGeneratedEvent($imageRecord->fresh()));
+
+            // Update legacy inline_images array
+            $updatedImages = [];
+            $replaced = false;
+            foreach ($inlineImages as $image) {
+                if (($image['paragraph_index'] ?? null) === $this->imageIndex) {
+                    $updatedImages[] = [
+                        'paragraph_index' => $this->imageIndex,
+                        'url' => $newImage['url'],
+                        'prompt' => $existingImageData['prompt'],
+                        'status' => 'complete',
+                    ];
+                    $replaced = true;
+                } else {
+                    $updatedImages[] = $image;
+                }
+            }
+
+            if (! $replaced) {
                 $updatedImages[] = [
                     'paragraph_index' => $this->imageIndex,
                     'url' => $newImage['url'],
-                    'prompt' => $existingImage['prompt'],
+                    'prompt' => $existingImageData['prompt'],
                     'status' => 'complete',
                 ];
-                $replaced = true;
-            } else {
-                $updatedImages[] = $image;
             }
+
+            $chapterService->updateById($this->chapter->id, [
+                'inline_images' => $updatedImages,
+            ], ['events' => false]);
+
+            Log::info('[RegenerateChapterInlineImageJob] Completed successfully', [
+                'chapter_id' => $this->chapter->id,
+                'image_index' => $this->imageIndex,
+                'image_id' => $imageRecord->id,
+                'new_url' => $newImage['url'],
+            ]);
+
+            $this->chapter->refresh();
+            ChapterInlineImagesCreatedEvent::dispatch($this->chapter);
+
+            Log::info('[RegenerateChapterInlineImageJob] Dispatched events', [
+                'chapter_id' => $this->chapter->id,
+                'book_id' => $this->chapter->book_id,
+                'image_id' => $imageRecord->id,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('[RegenerateChapterInlineImageJob] Failed', [
+                'chapter_id' => $this->chapter->id,
+                'image_index' => $this->imageIndex,
+                'image_id' => $imageRecord->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            $imageService->markError($imageRecord, $e->getMessage());
+            event(new ImageGeneratedEvent($imageRecord->fresh()));
+
+            throw $e;
         }
-
-        if (! $replaced) {
-            $updatedImages[] = [
-                'paragraph_index' => $this->imageIndex,
-                'url' => $newImage['url'],
-                'prompt' => $existingImage['prompt'],
-                'status' => 'complete',
-            ];
-        }
-
-        $chapterService->updateById($this->chapter->id, [
-            'inline_images' => $updatedImages,
-        ], ['events' => false]);
-
-        Log::info('[RegenerateChapterInlineImageJob] Completed successfully', [
-            'chapter_id' => $this->chapter->id,
-            'image_index' => $this->imageIndex,
-            'new_url' => $newImage['url'],
-        ]);
-
-        $this->chapter->refresh();
-        ChapterInlineImagesCreatedEvent::dispatch($this->chapter);
-
-        Log::info('[RegenerateChapterInlineImageJob] Dispatched inline images updated event', [
-            'chapter_id' => $this->chapter->id,
-            'book_id' => $this->chapter->book_id,
-        ]);
     }
 
     /**

@@ -152,7 +152,7 @@ class ReplicateApiService
             'prompt' => $prompt,
             'go_fast' => true,
             'guidance' => 2.5,
-            'megapixels' => '.5',
+            'megapixels' => '1',
             'num_outputs' => 1,
             'aspect_ratio' => $aspectRatio,
             'disable_safety_checker' => true,

@@ -3,6 +3,48 @@ export interface Profile {
     name: string;
 }
 
+/**
+ * Centralized Image model for all image types in the system.
+ */
+export interface Image {
+    id: string;
+    book_id: string | null;
+    chapter_id: string | null;
+    character_id: string | null;
+    type: 'book_cover' | 'character_portrait' | 'chapter_header' | 'chapter_inline';
+    image_url: string | null;
+    full_url: string | null;
+    prompt: string | null;
+    error: string | null;
+    status: 'pending' | 'processing' | 'complete' | 'error' | 'cancelled';
+    paragraph_index: number | null;
+    aspect_ratio: string;
+    is_ready?: boolean;
+    is_processing?: boolean;
+    has_error?: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
+/**
+ * Payload for image.generated broadcast event.
+ */
+export interface ImageGeneratedPayload {
+    id: string;
+    book_id: string | null;
+    chapter_id: string | null;
+    character_id: string | null;
+    type: 'book_cover' | 'character_portrait' | 'chapter_header' | 'chapter_inline';
+    image_url: string | null;
+    full_url: string | null;
+    prompt: string | null;
+    error: string | null;
+    status: 'pending' | 'processing' | 'complete' | 'error' | 'cancelled';
+    paragraph_index: number | null;
+    aspect_ratio: string;
+    updated_at: string | null;
+}
+
 export interface Character {
     id: string;
     name: string;
@@ -13,6 +55,8 @@ export interface Character {
     nationality: string | null;
     backstory: string | null;
     portrait_image: string | null;
+    portrait_image_id: string | null;
+    portraitImage?: Image | null;
 }
 
 export interface ChapterSummary {
@@ -34,11 +78,14 @@ export interface Book {
     plot: string | null;
     cover_image: string | null;
     cover_image_status: string | null;
+    cover_image_id: string | null;
+    coverImage?: Image | null;
     status: string;
     created_at: string;
     profile?: Profile | null;
     characters?: Character[];
     chapters?: ChapterSummary[];
+    images?: Image[];
 }
 
 /**
@@ -119,7 +166,10 @@ export interface Chapter {
     body: string | null;
     image: string | null;
     image_prompt: string | null;
+    header_image_id: string | null;
+    headerImage?: Image | null;
     inline_images: InlineImage[] | null;
+    inlineImages?: Image[];
     sort: number;
     summary: string | null;
     final_chapter: boolean;

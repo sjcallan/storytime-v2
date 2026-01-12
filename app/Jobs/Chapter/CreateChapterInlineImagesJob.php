@@ -3,9 +3,11 @@
 namespace App\Jobs\Chapter;
 
 use App\Events\Chapter\ChapterInlineImagesCreatedEvent;
+use App\Events\Image\ImageGeneratedEvent;
 use App\Models\Chapter;
 use App\Services\Builder\ChapterBuilderService;
 use App\Services\Chapter\ChapterService;
+use App\Services\Image\ImageService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -35,15 +37,16 @@ class CreateChapterInlineImagesJob implements ShouldQueue
     public function __construct(
         public Chapter $chapter,
         public array $scenePrompts
-    ) {
-        //
-    }
+    ) {}
 
     /**
      * Execute the job.
      */
-    public function handle(ChapterBuilderService $chapterBuilderService, ChapterService $chapterService): void
-    {
+    public function handle(
+        ChapterBuilderService $chapterBuilderService,
+        ChapterService $chapterService,
+        ImageService $imageService
+    ): void {
         Log::info('[CreateChapterInlineImagesJob] Starting', [
             'chapter_id' => $this->chapter->id,
             'book_id' => $this->chapter->book_id,
@@ -58,12 +61,51 @@ class CreateChapterInlineImagesJob implements ShouldQueue
             return;
         }
 
+        // Create Image records for each scene prompt
+        $imageRecords = [];
+        foreach ($this->scenePrompts as $scenePrompt) {
+            $paragraphIndex = (int) $scenePrompt['paragraph_index'];
+            $prompt = $scenePrompt['prompt'];
+
+            // Check for existing image at this paragraph index
+            $existingImage = $imageService->getInlineImageByParagraphIndex($this->chapter->id, $paragraphIndex);
+
+            if ($existingImage) {
+                $imageService->resetForRegeneration($existingImage);
+                $imageService->markProcessing($existingImage);
+                $imageService->updateById($existingImage->id, ['prompt' => $prompt]);
+                $imageRecords[$paragraphIndex] = $existingImage;
+            } else {
+                $imageRecord = $imageService->createChapterInlineImage($this->chapter, $paragraphIndex, $prompt);
+                $imageService->markProcessing($imageRecord);
+                $imageRecords[$paragraphIndex] = $imageRecord;
+            }
+        }
+
         $inlineImages = $chapterBuilderService->generateChapterImages(
             $this->chapter->book_id,
             $this->chapter->id,
             $this->scenePrompts
         );
 
+        // Update Image records with generated URLs
+        foreach ($inlineImages as $inlineImage) {
+            $paragraphIndex = (int) $inlineImage['paragraph_index'];
+
+            if (isset($imageRecords[$paragraphIndex])) {
+                $imageRecord = $imageRecords[$paragraphIndex];
+
+                if (! empty($inlineImage['url']) && ($inlineImage['status'] ?? 'complete') === 'complete') {
+                    $imageService->markComplete($imageRecord, $inlineImage['url']);
+                } else {
+                    $imageService->markError($imageRecord, $inlineImage['error'] ?? 'Image generation failed');
+                }
+
+                event(new ImageGeneratedEvent($imageRecord->fresh()));
+            }
+        }
+
+        // Update chapter with inline images (legacy)
         $chapterService->updateById($this->chapter->id, [
             'inline_images' => ! empty($inlineImages) ? $inlineImages : null,
         ], ['events' => false]);

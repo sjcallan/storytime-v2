@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCharacterRequest;
 use App\Http\Requests\UpdateCharacterRequest;
-use App\Jobs\Character\CreateCharacterPortraitJob;
+use App\Jobs\Image\GenerateImageJob;
 use App\Models\Character;
+use App\Services\Image\ImageService;
 use Illuminate\Http\JsonResponse;
 
 class CharacterController extends Controller
 {
+    public function __construct(protected ImageService $imageService) {}
+
     /**
      * Display a listing of the resource.
      */
@@ -80,18 +83,34 @@ class CharacterController extends Controller
 
     /**
      * Regenerate the character's portrait image.
+     * Always creates a new Image record to preserve history.
      */
     public function regeneratePortrait(Character $character): JsonResponse
     {
         $this->authorize('update', $character);
 
-        $character->update(['portrait_image' => null]);
+        // Check for existing portrait image to copy prompt from
+        $existingImage = $this->imageService->getCharacterPortrait($character->id);
 
-        CreateCharacterPortraitJob::dispatch($character)->onQueue('images');
+        // Always create a new image record
+        $image = $this->imageService->createCharacterPortraitImage(
+            $character,
+            $existingImage?->prompt
+        );
+
+        // Update character's portrait_image_id to point to new image
+        $character->update(['portrait_image_id' => $image->id]);
+
+        // Dispatch the generation job
+        GenerateImageJob::dispatch($image)->onQueue('images');
 
         return response()->json([
             'message' => 'Portrait regeneration started',
             'id' => $character->id,
+            'image' => [
+                'id' => $image->id,
+                'status' => $image->status->value,
+            ],
         ]);
     }
 }

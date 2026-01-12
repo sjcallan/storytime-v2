@@ -25,7 +25,7 @@ class BookController extends Controller
     public function index(): JsonResponse
     {
         $books = Book::query()
-            ->with(['user', 'chapters', 'characters', 'profile'])
+            ->with(['user', 'chapters', 'characters.portraitImage', 'profile'])
             ->where('user_id', auth()->id())
             ->latest()
             ->get();
@@ -50,7 +50,7 @@ class BookController extends Controller
             $this->bookService->createBookMetaDataByBookId($book->id);
 
             $book->refresh();
-            $book->load(['user', 'chapters', 'characters', 'profile']);
+            $book->load(['user', 'chapters', 'characters.portraitImage', 'profile']);
 
             return response()->json($book, 201);
         });

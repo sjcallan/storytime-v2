@@ -19,19 +19,19 @@ export type ChapterCreatedPayload = {
     created_at: string;
 };
 
+/**
+ * Lightweight payload broadcast from ChapterUpdatedEvent.
+ * Large text fields (body, summary, inline_images, etc.) are omitted
+ * to stay within Pusher's 10KB limit. Frontend fetches full data via API.
+ */
 export type ChapterUpdatedPayload = {
     id: string;
     book_id: string;
     title: string | null;
     sort: number;
     status: string | null;
-    body: string | null;
-    summary: string | null;
     image: string | null;
-    image_prompt: string | null;
     final_chapter: boolean;
-    inline_images: InlineImage[] | null;
-    user_prompt: string | null;
     updated_at: string;
 };
 
@@ -623,6 +623,89 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         }
     };
 
+    /**
+     * Update chapter header image from image.generated event.
+     */
+    const updateChapterHeaderImage = (
+        chapterId: string,
+        imageUrl: string | null,
+        status: string
+    ): void => {
+        // Helper to update chapter header image
+        const updateChapter = (chapter: Chapter): Chapter => {
+            return {
+                ...chapter,
+                image: status === 'complete' ? imageUrl : chapter.image,
+            };
+        };
+        
+        // Update current chapter if it matches
+        if (currentChapter.value && currentChapter.value.id === chapterId) {
+            currentChapter.value = updateChapter(currentChapter.value);
+        }
+        
+        // Update next chapter data if it matches
+        if (nextChapterData.value && nextChapterData.value.id === chapterId) {
+            nextChapterData.value = updateChapter(nextChapterData.value);
+        }
+    };
+
+    /**
+     * Update a specific chapter inline image from image.generated event.
+     */
+    const updateChapterInlineImage = (
+        chapterId: string,
+        paragraphIndex: number,
+        imageUrl: string | null,
+        status: string,
+        error: string | null
+    ): void => {
+        // Map status from Image model to InlineImage status
+        const mappedStatus = ((): 'pending' | 'complete' | 'error' | 'timeout' | 'cancelled' => {
+            switch (status) {
+                case 'complete': return 'complete';
+                case 'error': return 'error';
+                case 'cancelled': return 'cancelled';
+                case 'pending':
+                case 'processing':
+                default: return 'pending';
+            }
+        })();
+
+        // Helper to update inline images array
+        const updateInlineImages = (chapter: Chapter): Chapter => {
+            if (!chapter.inline_images) {
+                return chapter;
+            }
+            
+            const updatedImages = chapter.inline_images.map(img => {
+                if (img.paragraph_index === paragraphIndex) {
+                    return {
+                        ...img,
+                        url: imageUrl,
+                        status: mappedStatus,
+                    };
+                }
+                return img;
+            });
+            
+            return {
+                ...chapter,
+                inline_images: updatedImages,
+            };
+        };
+        
+        // Update current chapter if it matches
+        if (currentChapter.value && currentChapter.value.id === chapterId) {
+            currentChapter.value = updateInlineImages(currentChapter.value);
+        }
+        
+        // Update next chapter data if it matches
+        if (nextChapterData.value && nextChapterData.value.id === chapterId) {
+            nextChapterData.value = updateInlineImages(nextChapterData.value);
+        }
+    };
+
     // Handle chapter created event from broadcast
     const handleChapterCreated = (payload: ChapterCreatedPayload): void => {
         // A chapter was created - track it as pending if it doesn't have 'complete' status
@@ -632,8 +715,31 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         }
     };
 
+    /**
+     * Fetch full chapter data from API.
+     * Used to get complete chapter details after receiving a lightweight broadcast event.
+     */
+    const fetchChapterById = async (bookId: string, chapterId: string): Promise<Chapter | null> => {
+        try {
+            const { data, error } = await requestApiFetch(
+                `/api/chapters/${chapterId}`,
+                'GET'
+            );
+
+            if (error || !data) {
+                console.error('[ChapterUpdate] Failed to fetch chapter:', chapterId, error);
+                return null;
+            }
+
+            return data as Chapter;
+        } catch (err) {
+            console.error('[ChapterUpdate] Exception fetching chapter:', err);
+            return null;
+        }
+    };
+
     // Handle chapter updated event from broadcast
-    const handleChapterUpdated = (payload: ChapterUpdatedPayload, bookId: string): void => {
+    const handleChapterUpdated = async (payload: ChapterUpdatedPayload, bookId: string): Promise<void> => {
         // If this chapter just became complete, update state and load it
         if (payload.status === 'complete') {
             // Clear the awaiting state if:
@@ -651,71 +757,67 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
 
             // If we're on the title page or waiting for chapter 1, auto-navigate
             if (readingView.value === 'title' && payload.sort === 1) {
-                // Convert payload to Chapter type and load it
-                const chapter: Chapter = {
-                    id: payload.id,
-                    title: payload.title,
-                    sort: payload.sort,
-                    body: payload.body,
-                    summary: payload.summary,
-                    image: payload.image,
-                    final_chapter: payload.final_chapter,
-                    inline_images: payload.inline_images,
-                    user_prompt: payload.user_prompt,
-                };
-                currentChapter.value = chapter;
-                currentChapterNumber.value = payload.sort;
-                currentSpreadIndex.value = 0;
-                readingView.value = 'chapter-image';
-                
-                // Pre-fetch next chapter if available
-                if (payload.sort < totalChapters.value) {
-                    loadNextChapterData(bookId, payload.sort + 1);
+                // Fetch full chapter data from API
+                const chapter = await fetchChapterById(bookId, payload.id);
+                if (chapter) {
+                    currentChapter.value = chapter;
+                    currentChapterNumber.value = payload.sort;
+                    currentSpreadIndex.value = 0;
+                    readingView.value = 'chapter-image';
+                    
+                    // Pre-fetch next chapter if available
+                    if (payload.sort < totalChapters.value) {
+                        loadNextChapterData(bookId, payload.sort + 1);
+                    }
                 }
             }
             // If we're on the create-chapter view and this is the chapter we're waiting for
             else if (readingView.value === 'create-chapter' && payload.sort === currentChapterNumber.value) {
-                const chapter: Chapter = {
-                    id: payload.id,
-                    title: payload.title,
-                    sort: payload.sort,
-                    body: payload.body,
-                    summary: payload.summary,
-                    image: payload.image,
-                    final_chapter: payload.final_chapter,
-                    inline_images: payload.inline_images,
-                    user_prompt: payload.user_prompt,
-                };
-                currentChapter.value = chapter;
-                currentSpreadIndex.value = 0;
-                readingView.value = 'chapter-image';
-                nextChapterPrompt.value = '';
-                isFinalChapter.value = false;
+                // Fetch full chapter data from API
+                const chapter = await fetchChapterById(bookId, payload.id);
+                if (chapter) {
+                    currentChapter.value = chapter;
+                    currentSpreadIndex.value = 0;
+                    readingView.value = 'chapter-image';
+                    nextChapterPrompt.value = '';
+                    isFinalChapter.value = false;
+                }
             }
             // Update current chapter if viewing the same one
             else if (currentChapter.value && currentChapter.value.id === payload.id) {
+                // Fetch full chapter data from API to get updated content
+                const chapter = await fetchChapterById(bookId, payload.id);
+                if (chapter) {
+                    currentChapter.value = chapter;
+                }
+            }
+            // Update next chapter data if it matches
+            else if (nextChapterData.value && nextChapterData.value.id === payload.id) {
+                // Fetch full chapter data from API
+                const chapter = await fetchChapterById(bookId, payload.id);
+                if (chapter) {
+                    nextChapterData.value = chapter;
+                }
+            }
+        }
+        // For non-complete status updates, just update the lightweight fields we have
+        else {
+            // Update current chapter metadata if viewing the same one
+            if (currentChapter.value && currentChapter.value.id === payload.id) {
                 currentChapter.value = {
                     ...currentChapter.value,
                     title: payload.title,
-                    body: payload.body,
-                    summary: payload.summary,
                     image: payload.image,
                     final_chapter: payload.final_chapter,
-                    inline_images: payload.inline_images,
-                    user_prompt: payload.user_prompt,
                 };
             }
-            // Update next chapter data if it matches
+            // Update next chapter metadata if it matches
             else if (nextChapterData.value && nextChapterData.value.id === payload.id) {
                 nextChapterData.value = {
                     ...nextChapterData.value,
                     title: payload.title,
-                    body: payload.body,
-                    summary: payload.summary,
                     image: payload.image,
                     final_chapter: payload.final_chapter,
-                    inline_images: payload.inline_images,
-                    user_prompt: payload.user_prompt,
                 };
             }
         }
@@ -840,6 +942,8 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         resetChapterState,
         updateChapterInlineImages,
         updateImageStatus,
+        updateChapterHeaderImage,
+        updateChapterInlineImage,
         handleChapterCreated,
         handleChapterUpdated,
         setAwaitingChapterGeneration,

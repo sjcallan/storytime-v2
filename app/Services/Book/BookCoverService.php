@@ -2,9 +2,11 @@
 
 namespace App\Services\Book;
 
+use App\Events\Image\ImageGeneratedEvent;
 use App\Models\Book;
 use App\Services\Ai\AiManager;
 use App\Services\Ai\Contracts\AiChatServiceInterface;
+use App\Services\Image\ImageService;
 use App\Services\Replicate\ReplicateApiService;
 use App\Traits\Service\SavesImagesToS3;
 use Illuminate\Support\Facades\Log;
@@ -18,6 +20,7 @@ class BookCoverService
     public function __construct(
         protected ReplicateApiService $replicateService,
         protected BookService $bookService,
+        protected ImageService $imageService,
         AiManager $aiManager
     ) {
         $this->chatService = $aiManager->chat();
@@ -38,6 +41,10 @@ class BookCoverService
             return false;
         }
 
+        // Get or create Image record
+        $image = $this->imageService->getOrCreateBookCover($book);
+        $this->imageService->markProcessing($image);
+
         try {
             // Set status to pending
             $this->bookService->updateById($bookId, ['cover_image_status' => 'pending']);
@@ -47,6 +54,8 @@ class BookCoverService
 
             if (! $coverImagePrompt) {
                 $this->bookService->updateById($bookId, ['cover_image_status' => 'error']);
+                $this->imageService->markError($image, 'Failed to generate cover image prompt');
+                event(new ImageGeneratedEvent($image->fresh()));
 
                 return false;
             }
@@ -61,6 +70,9 @@ class BookCoverService
                 'cover_image_prompt' => $coverImagePrompt,
             ]);
 
+            // Update Image record with prompt
+            $this->imageService->updateById($image->id, ['prompt' => $coverImagePrompt]);
+
             // Generate cover image using Replicate Flux 2
             $coverImagePath = $this->generateCoverImage($book, $coverImagePrompt);
 
@@ -68,9 +80,16 @@ class BookCoverService
                 $this->bookService->updateById($bookId, [
                     'cover_image' => $coverImagePath,
                     'cover_image_status' => 'complete',
+                    'cover_image_id' => $image->id,
                 ]);
+
+                // Update Image record
+                $this->imageService->markComplete($image, $coverImagePath);
+                event(new ImageGeneratedEvent($image->fresh()));
             } else {
                 $this->bookService->updateById($bookId, ['cover_image_status' => 'error']);
+                $this->imageService->markError($image, 'Failed to generate cover image');
+                event(new ImageGeneratedEvent($image->fresh()));
 
                 return false;
             }
@@ -86,6 +105,8 @@ class BookCoverService
             ]);
 
             $this->bookService->updateById($bookId, ['cover_image_status' => 'error']);
+            $this->imageService->markError($image, $e->getMessage());
+            event(new ImageGeneratedEvent($image->fresh()));
 
             return false;
         }

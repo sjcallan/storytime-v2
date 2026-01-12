@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\ConversationMessageController;
 use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\GenreController;
+use App\Http\Controllers\Api\ImageController;
 use App\Http\Controllers\Api\ReadingHistoryController;
 use App\Http\Controllers\Api\ReadingLogController;
 use App\Http\Controllers\Api\RequestLogController;
@@ -31,6 +32,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('genres', GenreController::class);
     Route::apiResource('reading-logs', ReadingLogController::class);
     Route::apiResource('request-logs', RequestLogController::class);
+
+    // Image resource and custom endpoints
+    Route::apiResource('images', ImageController::class)->only(['index', 'show', 'destroy']);
+    Route::post('images/{image}/regenerate', [ImageController::class, 'regenerate'])->name('api.images.regenerate');
+    Route::post('images/{image}/cancel', [ImageController::class, 'cancel'])->name('api.images.cancel');
+    Route::patch('images/{image}/prompt', [ImageController::class, 'updatePrompt'])->name('api.images.update-prompt');
+
+    // Create images for entities
+    Route::post('books/{book}/images/cover', [ImageController::class, 'createBookCover'])->name('api.books.images.cover');
+    Route::post('chapters/{chapter}/images/header', [ImageController::class, 'createChapterHeader'])->name('api.chapters.images.header');
+    Route::post('chapters/{chapter}/images/inline', [ImageController::class, 'createChapterInline'])->name('api.chapters.images.inline');
+    Route::post('characters/{character}/images/portrait', [ImageController::class, 'createCharacterPortrait'])->name('api.characters.images.portrait');
 
     // Custom endpoints
     Route::post('transcribe', [TranscribeController::class, 'transcribe'])->name('api.transcribe');

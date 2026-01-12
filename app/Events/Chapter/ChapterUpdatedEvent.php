@@ -45,6 +45,9 @@ class ChapterUpdatedEvent implements ShouldBroadcast
     /**
      * Get the data to broadcast.
      *
+     * Broadcasts only lightweight metadata to stay within Pusher's 10KB limit.
+     * The frontend fetches full chapter data via API when needed.
+     *
      * @return array<string, mixed>
      */
     public function broadcastWith(): array
@@ -55,13 +58,8 @@ class ChapterUpdatedEvent implements ShouldBroadcast
             'title' => $this->chapter->title,
             'sort' => $this->chapter->sort,
             'status' => $this->chapter->status,
-            'body' => $this->chapter->body,
-            'summary' => $this->chapter->summary,
             'image' => $this->chapter->image,
-            'image_prompt' => $this->chapter->image_prompt,
             'final_chapter' => $this->chapter->final_chapter,
-            'inline_images' => $this->chapter->inline_images,
-            'user_prompt' => $this->chapter->user_prompt,
             'updated_at' => $this->chapter->updated_at,
         ];
     }

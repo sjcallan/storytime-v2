@@ -4,9 +4,11 @@ namespace App\Services\Character;
 
 use App\Events\Character\AllCharactersPortraitsCreatedEvent;
 use App\Events\Character\CharacterPortraitCreatedEvent;
+use App\Events\Image\ImageGeneratedEvent;
 use App\Models\Character;
 use App\Services\Ai\AiManager;
 use App\Services\Ai\Contracts\AiChatServiceInterface;
+use App\Services\Image\ImageService;
 use App\Services\Replicate\ReplicateApiService;
 use App\Traits\Service\SavesImagesToS3;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +21,7 @@ class CharacterPortraitService
 
     public function __construct(
         protected ReplicateApiService $replicateService,
+        protected ImageService $imageService,
         AiManager $aiManager
     ) {
         $this->chatService = $aiManager->chat();
@@ -37,14 +40,22 @@ class CharacterPortraitService
             return false;
         }
 
+        // Get or create Image record
+        $image = $this->imageService->getOrCreateCharacterPortrait($character);
+        $this->imageService->markProcessing($image);
+
         $prompt = $this->buildPortraitPrompt($character);
         $ageLevel = $character->book->age_level ?? 18;
         $useKreaModel = $ageLevel > 15;
 
         $character->update(['portrait_image_prompt' => $prompt]);
 
+        // Update Image record with prompt
+        $this->imageService->updateById($image->id, ['prompt' => $prompt]);
+
         Log::info("Generating portrait for character: {$character->name}", [
             'character_id' => $character->id,
+            'image_id' => $image->id,
             'prompt' => $prompt,
             'age_level' => $ageLevel,
             'using_krea_model' => $useKreaModel,
@@ -77,6 +88,9 @@ class CharacterPortraitService
                 'error' => $result['error'],
             ]);
 
+            $this->imageService->markError($image, $result['error']);
+            event(new ImageGeneratedEvent($image->fresh()));
+
             return false;
         }
 
@@ -84,12 +98,20 @@ class CharacterPortraitService
             $s3Path = $this->saveImageToS3($result['url'], 'portraits', $character->id);
 
             if ($s3Path) {
-                $character->update(['portrait_image' => $s3Path]);
+                $character->update([
+                    'portrait_image' => $s3Path,
+                    'portrait_image_id' => $image->id,
+                ]);
+
+                // Update Image record
+                $this->imageService->markComplete($image, $s3Path);
+                event(new ImageGeneratedEvent($image->fresh()));
 
                 event(new CharacterPortraitCreatedEvent($character));
 
                 Log::info("Portrait generated and saved to S3 for character: {$character->name}", [
                     'character_id' => $character->id,
+                    'image_id' => $image->id,
                     's3_path' => $s3Path,
                 ]);
 
@@ -123,8 +145,14 @@ class CharacterPortraitService
                 'remote_url' => $result['url'],
             ]);
 
+            $this->imageService->markError($image, 'Failed to save image to S3');
+            event(new ImageGeneratedEvent($image->fresh()));
+
             return false;
         }
+
+        $this->imageService->markError($image, 'No URL returned from image generation');
+        event(new ImageGeneratedEvent($image->fresh()));
 
         return false;
     }

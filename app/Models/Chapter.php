@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ImageType;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -29,6 +30,7 @@ class Chapter extends Model
         'cta_total_cost',
         'image_prompt',
         'image',
+        'header_image_id',
         'inline_images',
         'book_summary',
         'status',
@@ -78,5 +80,70 @@ class Chapter extends Model
     public function requestLogs(): HasMany
     {
         return $this->hasMany(RequestLog::class);
+    }
+
+    /**
+     * Get the header image for this chapter.
+     */
+    public function headerImage(): BelongsTo
+    {
+        return $this->belongsTo(Image::class, 'header_image_id');
+    }
+
+    /**
+     * Get all inline images for this chapter.
+     */
+    public function inlineImages(): HasMany
+    {
+        return $this->hasMany(Image::class)
+            ->where('type', ImageType::ChapterInline)
+            ->orderBy('paragraph_index');
+    }
+
+    /**
+     * Get all images associated with this chapter.
+     */
+    public function images(): HasMany
+    {
+        return $this->hasMany(Image::class);
+    }
+
+    /**
+     * Get the header image URL (from new Image model or legacy field).
+     */
+    public function getHeaderImageUrlAttribute(): ?string
+    {
+        // First check the new Image relationship
+        if ($this->headerImage && $this->headerImage->image_url) {
+            return $this->headerImage->full_url;
+        }
+
+        // Fall back to legacy image field
+        return $this->image;
+    }
+
+    /**
+     * Get inline images as array (from new Image model or legacy field).
+     */
+    public function getInlineImagesArrayAttribute(): array
+    {
+        // First check the new Image relationship
+        $newImages = $this->inlineImages()->get();
+
+        if ($newImages->isNotEmpty()) {
+            return $newImages->map(function ($image) {
+                return [
+                    'id' => $image->id,
+                    'paragraph_index' => $image->paragraph_index,
+                    'url' => $image->full_url,
+                    'prompt' => $image->prompt,
+                    'status' => $image->status->value,
+                    'error' => $image->error,
+                ];
+            })->toArray();
+        }
+
+        // Fall back to legacy inline_images field
+        return $this->inline_images ?? [];
     }
 }

@@ -3,9 +3,11 @@
 namespace App\Jobs\Chapter;
 
 use App\Events\Chapter\ChapterUpdatedEvent;
+use App\Events\Image\ImageGeneratedEvent;
 use App\Models\Chapter;
 use App\Services\Builder\ChapterBuilderService;
 use App\Services\Chapter\ChapterService;
+use App\Services\Image\ImageService;
 use App\Services\OpenAI\ChatService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -39,7 +41,8 @@ class GenerateChapterHeaderImageJob implements ShouldQueue
     public function handle(
         ChapterBuilderService $chapterBuilderService,
         ChapterService $chapterService,
-        ChatService $chatService
+        ChatService $chatService,
+        ImageService $imageService
     ): void {
         Log::info('[GenerateChapterHeaderImageJob] Starting', [
             'chapter_id' => $this->chapter->id,
@@ -55,6 +58,10 @@ class GenerateChapterHeaderImageJob implements ShouldQueue
 
             return;
         }
+
+        // Get or create Image record for this chapter header
+        $imageRecord = $imageService->getOrCreateChapterHeader($this->chapter);
+        $imageService->markProcessing($imageRecord);
 
         // Determine chapter label based on book type
         $chapterLabel = in_array($book->type, ['theatre', 'screenplay']) ? 'scene' : 'chapter';
@@ -102,30 +109,40 @@ class GenerateChapterHeaderImageJob implements ShouldQueue
 
         $userPrompt .= "Create a detailed one-sentence prompt for an image generation service describing a key scene from this {$chapterLabel}. Include visual details about setting, lighting, mood, and any characters present. The image should be in 16:7 landscape format.";
 
-        $chatService->setSystemPrompt($systemPrompt);
+        $chatService->resetMessages();
+        $chatService->addSystemMessage($systemPrompt);
         $chatService->addUserMessage($userPrompt);
 
         try {
             $result = $chatService->chat();
-            $imagePrompt = trim($result['content'] ?? '');
+            $imagePrompt = trim($result['completion'] ?? '');
 
             if (empty($imagePrompt)) {
                 Log::error('[GenerateChapterHeaderImageJob] Empty image prompt generated', [
                     'chapter_id' => $this->chapter->id,
                 ]);
 
+                $imageService->markError($imageRecord, 'Empty image prompt generated');
+                event(new ImageGeneratedEvent($imageRecord->fresh()));
+
                 return;
             }
 
+            $strippedPrompt = $chapterBuilderService->stripQuotes($imagePrompt);
+
             Log::info('[GenerateChapterHeaderImageJob] Generated image prompt', [
                 'chapter_id' => $this->chapter->id,
-                'prompt_preview' => substr($imagePrompt, 0, 200),
+                'image_id' => $imageRecord->id,
+                'prompt_preview' => substr($strippedPrompt, 0, 200),
             ]);
 
-            // Update chapter with the prompt
+            // Update chapter with the prompt (legacy)
             $chapterService->updateById($this->chapter->id, [
-                'image_prompt' => $chapterBuilderService->stripQuotes($imagePrompt),
+                'image_prompt' => $strippedPrompt,
             ], ['events' => false]);
+
+            // Update Image record with the prompt
+            $imageService->updateById($imageRecord->id, ['prompt' => $strippedPrompt]);
 
             // Refresh chapter to get updated image_prompt
             $this->chapter->refresh();
@@ -137,29 +154,49 @@ class GenerateChapterHeaderImageJob implements ShouldQueue
                 $this->chapter->image_prompt
             );
 
-            $chapterService->updateById($this->chapter->id, [
-                'image' => $image['image'],
-            ], ['events' => false]);
-
-            Log::info('[GenerateChapterHeaderImageJob] Completed successfully', [
-                'chapter_id' => $this->chapter->id,
-                'has_image' => ! empty($image['image']),
-            ]);
-
             if (! empty($image['image'])) {
+                // Update chapter with image (legacy)
+                $chapterService->updateById($this->chapter->id, [
+                    'image' => $image['image'],
+                    'header_image_id' => $imageRecord->id,
+                ], ['events' => false]);
+
+                // Update Image record with the URL
+                $imageService->markComplete($imageRecord, $image['image']);
+
+                Log::info('[GenerateChapterHeaderImageJob] Completed successfully', [
+                    'chapter_id' => $this->chapter->id,
+                    'image_id' => $imageRecord->id,
+                    'has_image' => true,
+                ]);
+
                 $this->chapter->refresh();
                 ChapterUpdatedEvent::dispatch($this->chapter);
+                event(new ImageGeneratedEvent($imageRecord->fresh()));
 
-                Log::info('[GenerateChapterHeaderImageJob] Dispatched chapter updated event', [
+                Log::info('[GenerateChapterHeaderImageJob] Dispatched events', [
                     'chapter_id' => $this->chapter->id,
                     'book_id' => $this->chapter->book_id,
+                    'image_id' => $imageRecord->id,
+                ]);
+            } else {
+                $imageService->markError($imageRecord, 'Image generation returned empty result');
+                event(new ImageGeneratedEvent($imageRecord->fresh()));
+
+                Log::error('[GenerateChapterHeaderImageJob] Image generation failed', [
+                    'chapter_id' => $this->chapter->id,
+                    'image_id' => $imageRecord->id,
                 ]);
             }
         } catch (\Exception $e) {
-            Log::error('[GenerateChapterHeaderImageJob] Failed to generate image prompt', [
+            Log::error('[GenerateChapterHeaderImageJob] Failed to generate image', [
                 'chapter_id' => $this->chapter->id,
+                'image_id' => $imageRecord->id,
                 'error' => $e->getMessage(),
             ]);
+
+            $imageService->markError($imageRecord, $e->getMessage());
+            event(new ImageGeneratedEvent($imageRecord->fresh()));
 
             throw $e;
         }
