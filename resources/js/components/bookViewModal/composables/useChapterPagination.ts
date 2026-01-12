@@ -30,7 +30,8 @@ export type ChapterUpdatedPayload = {
     title: string | null;
     sort: number;
     status: string | null;
-    image: string | null;
+    header_image_id: string | null;
+    header_image_url: string | null;
     final_chapter: boolean;
     updated_at: string;
 };
@@ -85,7 +86,7 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
             return [];
         }
 
-        const inlineImages = chapter.inline_images || [];
+        const inlineImages = chapter.inline_images_array || chapter.inlineImages || [];
         const imagesByParagraph = new Map<number, InlineImage>();
         for (const img of inlineImages) {
             imagesByParagraph.set(img.paragraph_index, img);
@@ -572,7 +573,7 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         if (currentChapter.value && currentChapter.value.id === chapterId) {
             currentChapter.value = {
                 ...currentChapter.value,
-                inline_images: inlineImages,
+                inline_images_array: inlineImages,
             };
         }
         
@@ -580,27 +581,26 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         if (nextChapterData.value && nextChapterData.value.id === chapterId) {
             nextChapterData.value = {
                 ...nextChapterData.value,
-                inline_images: inlineImages,
+                inline_images_array: inlineImages,
             };
         }
     };
 
-    const updateImageStatus = (chapterId: string, imageIndex: number, status: 'pending' | 'complete' | 'error' | 'timeout'): void => {
+    const updateImageStatus = (chapterId: string, imageIndex: number, status: 'pending' | 'complete' | 'error' | 'timeout' | 'cancelled'): void => {
         // Helper to update inline images array with new status
         const updateInlineImages = (chapter: Chapter): Chapter => {
-            if (!chapter.inline_images) {
+            const images = chapter.inline_images_array || chapter.inlineImages || [];
+            if (!images.length) {
                 return chapter;
             }
             
-            const updatedImages = chapter.inline_images.map(img => {
+            const updatedImages = images.map(img => {
                 if (img.paragraph_index === imageIndex) {
                     return {
                         ...img,
-                        status,
+                        status: status as InlineImage['status'],
                         // Clear URL if pending to show loading state, keep for error/timeout
                         url: status === 'pending' ? null : img.url,
-                        // Track when generation started for timeout detection
-                        started_at: status === 'pending' ? new Date().toISOString() : img.started_at,
                     };
                 }
                 return img;
@@ -608,7 +608,7 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
             
             return {
                 ...chapter,
-                inline_images: updatedImages,
+                inline_images_array: updatedImages,
             };
         };
         
@@ -631,11 +631,31 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         imageUrl: string | null,
         status: string
     ): void => {
+        // Map status from Image model to the status type we use
+        const mappedStatus = ((): 'pending' | 'complete' | 'error' | 'timeout' | 'cancelled' => {
+            switch (status) {
+                case 'complete': return 'complete';
+                case 'error': return 'error';
+                case 'cancelled': return 'cancelled';
+                case 'timeout': return 'timeout';
+                case 'pending':
+                case 'processing':
+                default: return 'pending';
+            }
+        })();
+
         // Helper to update chapter header image
         const updateChapter = (chapter: Chapter): Chapter => {
             return {
                 ...chapter,
-                image: status === 'complete' ? imageUrl : chapter.image,
+                header_image_url: status === 'complete' ? imageUrl : chapter.header_image_url,
+                headerImage: {
+                    ...(chapter.headerImage || {}),
+                    id: chapter.headerImage?.id || chapter.header_image_id || '',
+                    status: mappedStatus,
+                    image_url: status === 'complete' ? imageUrl : chapter.headerImage?.image_url,
+                    full_url: status === 'complete' ? imageUrl : chapter.headerImage?.full_url,
+                } as Chapter['headerImage'],
             };
         };
         
@@ -674,11 +694,12 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
 
         // Helper to update inline images array
         const updateInlineImages = (chapter: Chapter): Chapter => {
-            if (!chapter.inline_images) {
+            const images = chapter.inline_images_array || chapter.inlineImages || [];
+            if (!images.length) {
                 return chapter;
             }
             
-            const updatedImages = chapter.inline_images.map(img => {
+            const updatedImages = images.map(img => {
                 if (img.paragraph_index === paragraphIndex) {
                     return {
                         ...img,
@@ -691,7 +712,7 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
             
             return {
                 ...chapter,
-                inline_images: updatedImages,
+                inline_images_array: updatedImages,
             };
         };
         
@@ -902,6 +923,48 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         return null;
     };
 
+    /**
+     * Computed property for the current chapter's header image status.
+     * Returns 'pending', 'complete', 'error', 'timeout', or null.
+     */
+    const currentChapterImageStatus = computed((): 'pending' | 'complete' | 'error' | 'timeout' | null => {
+        const chapter = currentChapter.value;
+        if (!chapter) {
+            return null;
+        }
+
+        // If we have a headerImage object with status, use that
+        if (chapter.headerImage && chapter.headerImage.status) {
+            const status = chapter.headerImage.status;
+            if (status === 'complete') {
+                return 'complete';
+            }
+            if (status === 'error') {
+                return 'error';
+            }
+            if (status === 'timeout') {
+                return 'timeout';
+            }
+            if (status === 'pending' || status === 'processing') {
+                return 'pending';
+            }
+        }
+
+        // Fallback: infer status from other fields
+        // If there's an image URL, it's complete
+        if (chapter.header_image_url) {
+            return 'complete';
+        }
+
+        // If there's a header_image_id but no URL, the image is pending
+        if (chapter.header_image_id) {
+            return 'pending';
+        }
+
+        // No header image at all
+        return null;
+    });
+
     return {
         currentChapterNumber,
         currentChapter,
@@ -931,6 +994,7 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         isOnLastSpread,
         nextChapterFirstPage,
         shouldShowNextChapterOnRight,
+        currentChapterImageStatus,
         loadChapter,
         generateNextChapter,
         goToChapter1,

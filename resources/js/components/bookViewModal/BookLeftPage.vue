@@ -292,7 +292,7 @@ const openImageInNewWindow = (url: string | null | undefined) => {
                                         </div>
                                         <div class="text-center px-4">
                                             <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">
-                                                Creating illustration...
+                                                Creating image...
                                             </p>
                                             <p class="text-xs text-amber-700 dark:text-amber-400 mt-1 max-w-xs">
                                                 The magic is happening ✨

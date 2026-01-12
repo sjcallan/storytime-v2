@@ -2,7 +2,6 @@
 
 namespace App\Listeners\Chapter;
 
-use App\Events\Chapter\ChapterUpdatedEvent;
 use App\Jobs\Chapter\ExtractChapterCharactersJob;
 use Illuminate\Support\Facades\Log;
 
@@ -14,7 +13,7 @@ class ExtractChapterCharactersListener
      * Extracts new characters when a chapter is completed (status changes to 'complete').
      * This ensures character extraction only happens after the chapter content is fully generated.
      */
-    public function handle(ChapterUpdatedEvent $event): void
+    public function handle(object $event): void
     {
         $chapter = $event->chapter;
         $originalData = $chapter->getOriginal();

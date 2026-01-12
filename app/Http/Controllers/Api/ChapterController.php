@@ -100,7 +100,7 @@ class ChapterController extends Controller
             $book->id,
             $chapterNumber,
             null,
-            ['with' => ['characters']]
+            ['with' => ['characters', 'headerImage', 'inlineImages']]
         );
 
         if (! $chapter) {
@@ -193,27 +193,15 @@ class ChapterController extends Controller
 
         $imageIndex = (int) $imageIndex;
 
-        $inlineImages = $chapter->inline_images ?? [];
-        $imageExists = false;
+        $imageService = app(\App\Services\Image\ImageService::class);
+        $existingImage = $imageService->getInlineImageByParagraphIndex($chapter->id, $imageIndex);
 
-        $updatedImages = [];
-        foreach ($inlineImages as $image) {
-            if (($image['paragraph_index'] ?? null) === $imageIndex) {
-                $imageExists = true;
-                $updatedImages[] = [
-                    ...$image,
-                    'status' => 'pending',
-                ];
-            } else {
-                $updatedImages[] = $image;
-            }
-        }
-
-        if (! $imageExists) {
+        if (! $existingImage) {
             return response()->json(['message' => 'Image not found at specified index.'], 404);
         }
 
-        $chapter->update(['inline_images' => $updatedImages]);
+        // Reset the existing image for regeneration
+        $imageService->resetForRegeneration($existingImage);
 
         RegenerateChapterInlineImageJob::dispatch($chapter, $imageIndex);
 
@@ -234,7 +222,11 @@ class ChapterController extends Controller
             return response()->json(['message' => 'Chapter does not belong to this book.'], 404);
         }
 
-        if (empty($chapter->image_prompt)) {
+        // Get prompt from the existing header image
+        $imageService = app(\App\Services\Image\ImageService::class);
+        $existingImage = $imageService->getChapterHeader($chapter->id);
+
+        if (empty($existingImage?->prompt)) {
             return response()->json(['message' => 'Chapter has no image prompt.'], 422);
         }
 
@@ -276,12 +268,16 @@ class ChapterController extends Controller
             return response()->json(['message' => 'Chapter does not belong to this book.'], 404);
         }
 
-        if (empty($chapter->image_prompt)) {
+        // Get prompt from the existing header image
+        $imageService = app(\App\Services\Image\ImageService::class);
+        $existingImage = $imageService->getChapterHeader($chapter->id);
+
+        if (empty($existingImage?->prompt)) {
             return response()->json(['message' => 'Chapter has no image prompt.'], 422);
         }
 
-        // Clear the existing image to show pending state
-        $chapter->update(['image' => null]);
+        // Reset the existing image for regeneration
+        $imageService->resetForRegeneration($existingImage);
 
         RegenerateChapterHeaderImageJob::dispatch($chapter)->onQueue('images');
 
@@ -302,11 +298,15 @@ class ChapterController extends Controller
             return response()->json(['message' => 'Chapter does not belong to this book.'], 404);
         }
 
-        // Clear both the image and the prompt so no placeholder shows
-        $chapter->update([
-            'image' => null,
-            'image_prompt' => null,
-        ]);
+        // Clear the header image reference and cancel the image
+        $imageService = app(\App\Services\Image\ImageService::class);
+        $existingImage = $imageService->getChapterHeader($chapter->id);
+
+        if ($existingImage) {
+            $imageService->markCancelled($existingImage);
+        }
+
+        $chapter->update(['header_image_id' => null]);
 
         return response()->json([
             'message' => 'Header image cancelled and removed',
@@ -333,29 +333,15 @@ class ChapterController extends Controller
 
         $imageIndex = (int) $imageIndex;
 
-        $inlineImages = $chapter->inline_images ?? [];
-        $imageExists = false;
+        $imageService = app(\App\Services\Image\ImageService::class);
+        $existingImage = $imageService->getInlineImageByParagraphIndex($chapter->id, $imageIndex);
 
-        $updatedImages = [];
-        foreach ($inlineImages as $image) {
-            if (($image['paragraph_index'] ?? null) === $imageIndex) {
-                $imageExists = true;
-                $updatedImages[] = [
-                    ...$image,
-                    'status' => 'pending',
-                    'url' => null,
-                    'started_at' => now()->toISOString(),
-                ];
-            } else {
-                $updatedImages[] = $image;
-            }
-        }
-
-        if (! $imageExists) {
+        if (! $existingImage) {
             return response()->json(['message' => 'Image not found at specified index.'], 404);
         }
 
-        $chapter->update(['inline_images' => $updatedImages]);
+        // Reset the existing image for regeneration
+        $imageService->resetForRegeneration($existingImage);
 
         RegenerateChapterInlineImageJob::dispatch($chapter, $imageIndex);
 
@@ -384,20 +370,12 @@ class ChapterController extends Controller
 
         $imageIndex = (int) $imageIndex;
 
-        $inlineImages = $chapter->inline_images ?? [];
+        $imageService = app(\App\Services\Image\ImageService::class);
+        $existingImage = $imageService->getInlineImageByParagraphIndex($chapter->id, $imageIndex);
 
-        // Set status to 'cancelled' instead of removing the image
-        $updatedImages = array_map(function ($image) use ($imageIndex) {
-            if (($image['paragraph_index'] ?? null) === $imageIndex) {
-                $image['status'] = 'cancelled';
-                $image['url'] = null;
-                $image['started_at'] = null;
-            }
-
-            return $image;
-        }, $inlineImages);
-
-        $chapter->update(['inline_images' => $updatedImages]);
+        if ($existingImage) {
+            $imageService->markCancelled($existingImage);
+        }
 
         return response()->json([
             'message' => 'Image cancelled',

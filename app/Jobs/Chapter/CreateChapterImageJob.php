@@ -47,7 +47,10 @@ class CreateChapterImageJob implements ShouldQueue
             'book_id' => $this->chapter->book_id,
         ]);
 
-        if (empty($this->chapter->image_prompt)) {
+        // Get or create Image record for this chapter header
+        $imageRecord = $imageService->getOrCreateChapterHeader($this->chapter);
+
+        if (empty($imageRecord->prompt)) {
             Log::warning('[CreateChapterImageJob] No image prompt found, skipping', [
                 'chapter_id' => $this->chapter->id,
             ]);
@@ -55,27 +58,18 @@ class CreateChapterImageJob implements ShouldQueue
             return;
         }
 
-        // Get or create Image record for this chapter header
-        $imageRecord = $imageService->getOrCreateChapterHeader($this->chapter);
         $imageService->markProcessing($imageRecord);
-
-        // Update Image record with the prompt
-        $imageService->updateById($imageRecord->id, ['prompt' => $this->chapter->image_prompt]);
 
         try {
             $image = $chapterBuilderService->getImage(
                 $this->chapter->book_id,
                 $this->chapter->id,
-                $this->chapter->image_prompt
+                $imageRecord->prompt
             );
 
-            $strippedPrompt = $chapterBuilderService->stripQuotes($image['image_prompt']);
-
             if (! empty($image['image'])) {
-                // Update chapter with image (legacy)
+                // Update chapter to point to new image record
                 $chapterService->updateById($this->chapter->id, [
-                    'image' => $image['image'],
-                    'image_prompt' => $strippedPrompt,
                     'header_image_id' => $imageRecord->id,
                 ], ['events' => false]);
 

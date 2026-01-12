@@ -494,13 +494,33 @@ class ReplicateApiService
      */
     protected function makeRequest(string $model, array $input): Response
     {
-        return Http::withHeaders([
+        $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->apiKey,
             'Content-Type' => 'application/json',
             'Prefer' => 'wait',
         ])->timeout(120)->post("{$this->baseUrl}/models/{$model}/predictions", [
             'input' => $input,
         ]);
+
+        // If we got a response but no output, the prediction might still be processing
+        // Poll for completion if we have a prediction ID
+        if ($response->successful()) {
+            $data = $response->json();
+            $status = $data['status'] ?? null;
+            $predictionId = $data['id'] ?? null;
+
+            if ($predictionId && in_array($status, ['starting', 'processing'])) {
+                Log::info('Replicate API: Prediction still processing, polling for completion', [
+                    'model' => $model,
+                    'prediction_id' => $predictionId,
+                    'status' => $status,
+                ]);
+
+                return $this->pollForCompletion($predictionId);
+            }
+        }
+
+        return $response;
     }
 
     /**
@@ -510,7 +530,7 @@ class ReplicateApiService
      */
     protected function makeCustomModelRequest(array $input): Response
     {
-        return Http::withHeaders([
+        $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->apiKey,
             'Content-Type' => 'application/json',
             'Prefer' => 'wait',
@@ -518,5 +538,98 @@ class ReplicateApiService
             'version' => $this->customModelVersion,
             'input' => $input,
         ]);
+
+        // If we got a response but no output, the prediction might still be processing
+        // Poll for completion if we have a prediction ID
+        if ($response->successful()) {
+            $data = $response->json();
+            $status = $data['status'] ?? null;
+            $predictionId = $data['id'] ?? null;
+
+            if ($predictionId && in_array($status, ['starting', 'processing'])) {
+                Log::info('Replicate API: Custom model prediction still processing, polling for completion', [
+                    'model_version' => $this->customModelVersion,
+                    'prediction_id' => $predictionId,
+                    'status' => $status,
+                ]);
+
+                return $this->pollForCompletion($predictionId);
+            }
+        }
+
+        return $response;
+    }
+
+    /**
+     * Poll a prediction until it completes or fails.
+     *
+     * @param  string  $predictionId  The prediction ID to poll
+     * @param  int  $maxAttempts  Maximum number of polling attempts (default 60 = ~5 minutes)
+     * @param  int  $intervalSeconds  Seconds between polls (default 5)
+     */
+    protected function pollForCompletion(string $predictionId, int $maxAttempts = 60, int $intervalSeconds = 5): Response
+    {
+        $attempts = 0;
+
+        while ($attempts < $maxAttempts) {
+            sleep($intervalSeconds);
+            $attempts++;
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer '.$this->apiKey,
+                'Content-Type' => 'application/json',
+            ])->timeout(30)->get("{$this->baseUrl}/predictions/{$predictionId}");
+
+            if ($response->failed()) {
+                Log::error('Replicate API: Polling request failed', [
+                    'prediction_id' => $predictionId,
+                    'attempt' => $attempts,
+                    'status' => $response->status(),
+                ]);
+
+                return $response;
+            }
+
+            $data = $response->json();
+            $status = $data['status'] ?? null;
+
+            Log::debug('Replicate API: Polling prediction status', [
+                'prediction_id' => $predictionId,
+                'attempt' => $attempts,
+                'status' => $status,
+            ]);
+
+            if ($status === 'succeeded') {
+                Log::info('Replicate API: Prediction completed successfully', [
+                    'prediction_id' => $predictionId,
+                    'attempts' => $attempts,
+                    'total_wait_seconds' => $attempts * $intervalSeconds,
+                ]);
+
+                return $response;
+            }
+
+            if (in_array($status, ['failed', 'canceled'])) {
+                Log::error('Replicate API: Prediction failed or was canceled', [
+                    'prediction_id' => $predictionId,
+                    'status' => $status,
+                    'error' => $data['error'] ?? null,
+                ]);
+
+                return $response;
+            }
+        }
+
+        Log::error('Replicate API: Polling timeout - prediction did not complete', [
+            'prediction_id' => $predictionId,
+            'max_attempts' => $maxAttempts,
+            'total_wait_seconds' => $maxAttempts * $intervalSeconds,
+        ]);
+
+        // Return the last response we got
+        return Http::withHeaders([
+            'Authorization' => 'Bearer '.$this->apiKey,
+            'Content-Type' => 'application/json',
+        ])->timeout(30)->get("{$this->baseUrl}/predictions/{$predictionId}");
     }
 }

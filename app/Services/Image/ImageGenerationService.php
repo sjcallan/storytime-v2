@@ -90,7 +90,7 @@ class ImageGenerationService
             return null;
         }
 
-        $book->load('characters');
+        $book->load(['characters.portraitImage', 'coverImage']);
 
         // Generate prompt if not already set
         $prompt = $image->prompt;
@@ -196,11 +196,10 @@ class ImageGenerationService
             return null;
         }
 
-        $chapter->load('book.characters');
+        $chapter->load(['book.characters.portraitImage', 'book.coverImage']);
         $book = $chapter->book;
 
-        // Use existing prompt or generate from image_prompt field
-        $prompt = $image->prompt ?: $chapter->image_prompt;
+        $prompt = $image->prompt;
 
         if (! $prompt) {
             return null;
@@ -211,26 +210,18 @@ class ImageGenerationService
 
         // Get reference images
         $inputImages = [];
-        if ($book->cover_image) {
-            $coverUrl = $book->cover_image;
-            if (! str_starts_with($coverUrl, 'http')) {
-                $coverUrl = $this->getCloudFrontImageUrl($coverUrl);
-            }
-            if ($coverUrl) {
-                $inputImages[] = $coverUrl;
-            }
+
+        // Use the cover_image_url accessor which prioritizes Image model over legacy field
+        $coverUrl = $book->cover_image_url;
+        if ($coverUrl) {
+            $inputImages[] = $coverUrl;
         }
 
-        // Add character portraits
+        // Add character portraits using portrait_image_url accessor
         foreach ($book->characters ?? [] as $character) {
-            if ($character->portrait_image) {
-                $portraitUrl = $character->portrait_image;
-                if (! str_starts_with($portraitUrl, 'http')) {
-                    $portraitUrl = $this->getCloudFrontImageUrl($portraitUrl);
-                }
-                if ($portraitUrl) {
-                    $inputImages[] = $portraitUrl;
-                }
+            $portraitUrl = $character->portrait_image_url;
+            if ($portraitUrl) {
+                $inputImages[] = $portraitUrl;
             }
         }
 
@@ -271,7 +262,7 @@ class ImageGenerationService
             return null;
         }
 
-        $chapter->load('book.characters');
+        $chapter->load(['book.characters.portraitImage', 'book.coverImage']);
         $book = $chapter->book;
 
         $prompt = $image->prompt;
@@ -292,27 +283,19 @@ class ImageGenerationService
 
         // Collect base images for style consistency
         $baseImages = [];
-        if ($book->cover_image) {
-            $coverUrl = $book->cover_image;
-            if (! str_starts_with($coverUrl, 'http')) {
-                $coverUrl = $this->getCloudFrontImageUrl($coverUrl);
-            }
-            if ($coverUrl) {
-                $baseImages[] = $coverUrl;
-            }
+
+        // Use the cover_image_url accessor which prioritizes Image model over legacy field
+        $coverUrl = $book->cover_image_url;
+        if ($coverUrl) {
+            $baseImages[] = $coverUrl;
         }
 
-        // Build character portrait map
+        // Build character portrait map using portrait_image_url accessor
         $characterPortraits = [];
         foreach ($book->characters ?? [] as $character) {
-            if ($character->portrait_image) {
-                $portraitUrl = $character->portrait_image;
-                if (! str_starts_with($portraitUrl, 'http')) {
-                    $portraitUrl = $this->getCloudFrontImageUrl($portraitUrl);
-                }
-                if ($portraitUrl) {
-                    $characterPortraits[$character->name] = $portraitUrl;
-                }
+            $portraitUrl = $character->portrait_image_url;
+            if ($portraitUrl) {
+                $characterPortraits[$character->name] = $portraitUrl;
             }
         }
 
@@ -635,14 +618,10 @@ Be specific and descriptive. Write only the description itself, no explanations 
         $characters = $book->characters ?? $book->characters()->get();
 
         foreach ($characters as $character) {
-            if ($character->portrait_image) {
-                $portraitUrl = $character->portrait_image;
-                if (! str_starts_with($portraitUrl, 'http')) {
-                    $portraitUrl = $this->getCloudFrontImageUrl($portraitUrl);
-                }
-                if ($portraitUrl) {
-                    $characterImages[] = $portraitUrl;
-                }
+            // Use the portrait_image_url accessor which prioritizes Image model over legacy field
+            $portraitUrl = $character->portrait_image_url;
+            if ($portraitUrl) {
+                $characterImages[] = $portraitUrl;
             }
         }
 

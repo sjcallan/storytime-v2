@@ -58,7 +58,8 @@ class ChapterUpdatedEvent implements ShouldBroadcast
             'title' => $this->chapter->title,
             'sort' => $this->chapter->sort,
             'status' => $this->chapter->status,
-            'image' => $this->chapter->image,
+            'header_image_id' => $this->chapter->header_image_id,
+            'header_image_url' => $this->chapter->header_image_url,
             'final_chapter' => $this->chapter->final_chapter,
             'updated_at' => $this->chapter->updated_at,
         ];

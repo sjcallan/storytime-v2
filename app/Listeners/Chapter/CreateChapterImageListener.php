@@ -29,19 +29,23 @@ class CreateChapterImageListener
             return;
         }
 
-        // Only process complete chapters that have an image prompt but no image yet
+        // Only process complete chapters
         if ($chapter->status !== 'complete') {
             return;
         }
 
-        // Dispatch main chapter header image job if we have an image prompt but no image
-        if (! empty($chapter->image_prompt) && empty($chapter->image)) {
-            Log::info('[CreateChapterImageListener] Dispatching chapter header image job', [
-                'chapter_id' => $chapter->id,
-                'book_id' => $chapter->book_id,
-            ]);
+        // Dispatch main chapter header image job if we have a header image that needs generation
+        if ($chapter->header_image_id) {
+            $headerImage = $chapter->headerImage;
+            if ($headerImage && $headerImage->status->value === 'pending' && $headerImage->prompt) {
+                Log::info('[CreateChapterImageListener] Dispatching chapter header image job', [
+                    'chapter_id' => $chapter->id,
+                    'book_id' => $chapter->book_id,
+                    'image_id' => $headerImage->id,
+                ]);
 
-            CreateChapterImageJob::dispatch($chapter)->onQueue('images');
+                CreateChapterImageJob::dispatch($chapter)->onQueue('images');
+            }
         }
 
         // Dispatch inline images job if scene prompts are provided in the event

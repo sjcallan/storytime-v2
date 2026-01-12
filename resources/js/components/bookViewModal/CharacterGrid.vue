@@ -39,35 +39,29 @@ const getAvatarGradient = (characterId: string): string => {
     return gradients[hash % gradients.length];
 };
 
-// Get the portrait URL from Image model or legacy field
-// Note: Laravel serializes the 'portraitImage' relationship as 'portrait_image' (snake_case)
-// So portrait_image can be either an Image object (relationship) or a string (legacy field)
+// Get the portrait URL from the Image model
 const getPortraitUrl = (character: Character): string | null => {
-    const portraitData = character.portrait_image;
-    
-    // Check if portrait_image is an Image object (new relationship)
-    if (portraitData && typeof portraitData === 'object' && 'full_url' in portraitData) {
-        return (portraitData as { full_url: string | null }).full_url;
+    // Use portrait_image_url accessor from backend
+    if (character.portrait_image_url) {
+        return character.portrait_image_url;
     }
-    
-    // Fallback: portrait_image is a string (legacy field)
-    if (typeof portraitData === 'string') {
-        return portraitData;
+
+    // Check portraitImage relationship
+    if (character.portraitImage?.full_url) {
+        return character.portraitImage.full_url;
     }
-    
+
     return null;
 };
 
 // Check if portrait is loading
 const isPortraitLoading = (character: Character): boolean => {
-    const portraitData = character.portrait_image;
-    
-    // Check if it's an Image object with status
-    if (portraitData && typeof portraitData === 'object' && 'status' in portraitData) {
-        const status = (portraitData as { status: string }).status;
+    // Check portraitImage relationship status
+    if (character.portraitImage) {
+        const status = character.portraitImage.status;
         return status === 'pending' || status === 'processing';
     }
-    
+
     return false;
 };
 </script>

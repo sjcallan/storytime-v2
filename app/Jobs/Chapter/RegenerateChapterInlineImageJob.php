@@ -51,18 +51,13 @@ class RegenerateChapterInlineImageJob implements ShouldQueue
             'image_index' => $this->imageIndex,
         ]);
 
-        $inlineImages = $this->chapter->inline_images ?? [];
+        // Find existing Image record from the images table
+        $existingImage = $imageService->getInlineImageByParagraphIndex(
+            $this->chapter->id,
+            $this->imageIndex
+        );
 
-        // Find existing image data from legacy inline_images array
-        $existingImageData = null;
-        foreach ($inlineImages as $image) {
-            if (($image['paragraph_index'] ?? null) === $this->imageIndex) {
-                $existingImageData = $image;
-                break;
-            }
-        }
-
-        if (! $existingImageData || empty($existingImageData['prompt'])) {
+        if (! $existingImage || empty($existingImage->prompt)) {
             Log::warning('[RegenerateChapterInlineImageJob] No existing image or prompt found', [
                 'chapter_id' => $this->chapter->id,
                 'image_index' => $this->imageIndex,
@@ -71,18 +66,23 @@ class RegenerateChapterInlineImageJob implements ShouldQueue
             return;
         }
 
+        $prompt = $existingImage->prompt;
+
         // Always create a NEW Image record for regeneration to preserve history
         $imageRecord = $imageService->createChapterInlineImage(
             $this->chapter,
             $this->imageIndex,
-            $existingImageData['prompt']
+            $prompt
         );
         $imageService->markProcessing($imageRecord);
+
+        // Update the inline_images JSON to reference the new Image record
+        $this->updateInlineImagesReference($chapterService, $imageRecord->id);
 
         $scenePrompts = [
             [
                 'paragraph_index' => $this->imageIndex,
-                'prompt' => $existingImageData['prompt'],
+                'prompt' => $prompt,
             ],
         ];
 
@@ -117,41 +117,11 @@ class RegenerateChapterInlineImageJob implements ShouldQueue
 
             event(new ImageGeneratedEvent($imageRecord->fresh()));
 
-            // Update legacy inline_images array
-            $updatedImages = [];
-            $replaced = false;
-            foreach ($inlineImages as $image) {
-                if (($image['paragraph_index'] ?? null) === $this->imageIndex) {
-                    $updatedImages[] = [
-                        'paragraph_index' => $this->imageIndex,
-                        'url' => $newImage['url'],
-                        'prompt' => $existingImageData['prompt'],
-                        'status' => 'complete',
-                    ];
-                    $replaced = true;
-                } else {
-                    $updatedImages[] = $image;
-                }
-            }
-
-            if (! $replaced) {
-                $updatedImages[] = [
-                    'paragraph_index' => $this->imageIndex,
-                    'url' => $newImage['url'],
-                    'prompt' => $existingImageData['prompt'],
-                    'status' => 'complete',
-                ];
-            }
-
-            $chapterService->updateById($this->chapter->id, [
-                'inline_images' => $updatedImages,
-            ], ['events' => false]);
-
             Log::info('[RegenerateChapterInlineImageJob] Completed successfully', [
                 'chapter_id' => $this->chapter->id,
                 'image_index' => $this->imageIndex,
                 'image_id' => $imageRecord->id,
-                'new_url' => $newImage['url'],
+                'new_url' => $newImage['url'] ?? null,
             ]);
 
             $this->chapter->refresh();
@@ -175,6 +145,39 @@ class RegenerateChapterInlineImageJob implements ShouldQueue
 
             throw $e;
         }
+    }
+
+    /**
+     * Update the inline_images JSON to reference the new Image record.
+     */
+    protected function updateInlineImagesReference(ChapterService $chapterService, string $newImageId): void
+    {
+        $inlineImages = $this->chapter->inline_images ?? [];
+        $updatedImages = [];
+        $replaced = false;
+
+        foreach ($inlineImages as $image) {
+            if (($image['paragraph_index'] ?? null) === $this->imageIndex) {
+                $updatedImages[] = [
+                    'image_id' => $newImageId,
+                    'paragraph_index' => $this->imageIndex,
+                ];
+                $replaced = true;
+            } else {
+                $updatedImages[] = $image;
+            }
+        }
+
+        if (! $replaced) {
+            $updatedImages[] = [
+                'image_id' => $newImageId,
+                'paragraph_index' => $this->imageIndex,
+            ];
+        }
+
+        $chapterService->updateById($this->chapter->id, [
+            'inline_images' => $updatedImages,
+        ], ['events' => false]);
     }
 
     /**

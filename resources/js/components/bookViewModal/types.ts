@@ -54,10 +54,8 @@ export interface Character {
     age: string | null;
     nationality: string | null;
     backstory: string | null;
-    // Note: Laravel serializes 'portraitImage' relationship as 'portrait_image' (snake_case)
-    // So this can be either: a string (legacy field) OR an Image object (eager-loaded relationship)
-    portrait_image: string | Image | null;
     portrait_image_id: string | null;
+    portrait_image_url: string | null;
     portraitImage?: Image | null;
 }
 
@@ -78,9 +76,9 @@ export interface Book {
     type?: BookType;
     age_level: number | null;
     plot: string | null;
-    cover_image: string | null;
-    cover_image_status: string | null;
     cover_image_id: string | null;
+    cover_image_url: string | null;
+    cover_image_status: string | null;
     coverImage?: Image | null;
     status: string;
     created_at: string;
@@ -155,22 +153,25 @@ function escapeHtml(text: string): string {
 }
 
 export interface InlineImage {
+    id: string;
     paragraph_index: number;
     url: string | null;
-    prompt: string;
-    status?: 'pending' | 'complete' | 'error' | 'timeout' | 'cancelled';
-    started_at?: string | null;
+    prompt: string | null;
+    status: 'pending' | 'processing' | 'complete' | 'error' | 'cancelled';
+    error?: string | null;
 }
 
 export interface Chapter {
     id: string;
     title: string | null;
     body: string | null;
-    image: string | null;
-    image_prompt: string | null;
     header_image_id: string | null;
+    header_image_url: string | null;
+    /** Alias for header_image_url for backward compatibility */
+    image?: string | null;
+    image_prompt: string | null;
     headerImage?: Image | null;
-    inline_images: InlineImage[] | null;
+    inline_images_array?: InlineImage[];
     inlineImages?: Image[];
     sort: number;
     summary: string | null;

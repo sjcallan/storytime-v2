@@ -80,23 +80,7 @@ class EditChapterJob implements ShouldQueue
                 'status' => 'complete',
             ];
 
-            // Store pending placeholders for inline images
             $sceneImages = $editedContent['scene_images'] ?? [];
-            if (! empty($sceneImages) && is_array($sceneImages)) {
-                $pendingImages = [];
-                foreach ($sceneImages as $index => $scene) {
-                    $paragraphIndex = is_numeric($scene['paragraph_index'] ?? null)
-                        ? (int) $scene['paragraph_index']
-                        : $index * 2;
-                    $pendingImages[] = [
-                        'paragraph_index' => $paragraphIndex,
-                        'url' => null,
-                        'prompt' => $scene['prompt'] ?? '',
-                        'status' => 'pending',
-                    ];
-                }
-                $updateData['inline_images'] = $pendingImages;
-            }
 
             Log::info('[EditChapterJob] Updating chapter with edited content', [
                 'chapter_id' => $this->chapter->id,

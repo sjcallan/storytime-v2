@@ -209,41 +209,28 @@ const uploadPortrait = async (file: File) => {
     }
 };
 
-// Helper to get portrait data as Image object (handles snake_case from API)
-// Laravel serializes 'portraitImage' relationship as 'portrait_image' (snake_case)
-// So portrait_image can be either an Image object or a string
-interface PortraitImageData {
-    full_url?: string | null;
-    status?: string;
-    error?: string | null;
-}
-
-const getPortraitImageData = (): PortraitImageData | null => {
-    const portraitData = props.character.portrait_image;
-    if (portraitData && typeof portraitData === 'object' && 'full_url' in portraitData) {
-        return portraitData as PortraitImageData;
-    }
-    return null;
-};
-
 // Watch for portrait image changes to clear regenerating state
 watch(
-    () => props.character.portrait_image,
-    (newPortraitData) => {
+    () => props.character.portraitImage,
+    (newPortraitImage) => {
         // Clear regenerating state when image is complete
-        if (isRegeneratingPortrait.value) {
-            if (newPortraitData && typeof newPortraitData === 'object' && 'status' in newPortraitData) {
-                const imageData = newPortraitData as PortraitImageData;
-                if (imageData.status === 'complete' && imageData.full_url) {
-                    isRegeneratingPortrait.value = false;
-                }
-            } else if (typeof newPortraitData === 'string' && newPortraitData) {
-                // Fallback: legacy string field updated
+        if (isRegeneratingPortrait.value && newPortraitImage) {
+            if (newPortraitImage.status === 'complete' && newPortraitImage.full_url) {
                 isRegeneratingPortrait.value = false;
             }
         }
     },
     { deep: true }
+);
+
+// Also watch portrait_image_url for backend accessor changes
+watch(
+    () => props.character.portrait_image_url,
+    (newUrl) => {
+        if (isRegeneratingPortrait.value && newUrl) {
+            isRegeneratingPortrait.value = false;
+        }
+    }
 );
 
 const openChat = () => {
@@ -284,37 +271,34 @@ const formatGender = (gender: string | null): string => {
     return gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase();
 };
 
-// Get the portrait image URL from Image model or legacy field
-// Note: Laravel serializes 'portraitImage' relationship as 'portrait_image' (snake_case)
+// Get the portrait image URL from Image model
 const portraitImageUrl = computed(() => {
-    const imageData = getPortraitImageData();
-    if (imageData?.full_url) {
-        return imageData.full_url;
+    // Use portrait_image_url accessor from backend
+    if (props.character.portrait_image_url) {
+        return props.character.portrait_image_url;
     }
-    // Fallback to legacy string field
-    const portraitData = props.character.portrait_image;
-    if (typeof portraitData === 'string') {
-        return portraitData;
+
+    // Check portraitImage relationship
+    if (props.character.portraitImage?.full_url) {
+        return props.character.portraitImage.full_url;
     }
+
     return null;
 });
 
 // Check if portrait has an error
 const portraitHasError = computed(() => {
-    const imageData = getPortraitImageData();
-    return imageData?.status === 'error';
+    return props.character.portraitImage?.status === 'error';
 });
 
 // Get portrait error message
 const portraitErrorMessage = computed(() => {
-    const imageData = getPortraitImageData();
-    return imageData?.error || 'Failed to generate portrait';
+    return props.character.portraitImage?.error || 'Failed to generate portrait';
 });
 
 // Check if portrait is processing (pending or processing status)
 const isPortraitProcessing = computed(() => {
-    const imageData = getPortraitImageData();
-    const status = imageData?.status;
+    const status = props.character.portraitImage?.status;
     return status === 'pending' || status === 'processing';
 });
 

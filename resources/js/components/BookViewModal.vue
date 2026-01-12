@@ -146,6 +146,7 @@ type BookUpdatedPayload = {
     age_level: number | null;
     status: string;
     cover_image: string | null;
+    cover_image_id: string | null;
     cover_image_status: string | null;
     plot: string | null;
     is_published: boolean;
@@ -178,7 +179,8 @@ type CharacterCreatedPayload = {
     age: string | null;
     nationality: string | null;
     backstory: string | null;
-    portrait_image: string | null;
+    portrait_image_id: string | null;
+    portrait_image_url: string | null;
     created_at: string;
 };
 
@@ -209,25 +211,26 @@ const handleCharacterCreatedEvent = (payload: CharacterCreatedPayload) => {
         age: payload.age,
         nationality: payload.nationality,
         backstory: payload.backstory,
-        portrait_image: payload.portrait_image,
+        portrait_image_id: payload.portrait_image_id,
+        portrait_image_url: payload.portrait_image_url,
     });
 };
 
 // Handle real-time character portrait updated events
 const handleCharacterPortraitEvent = (payload: CharacterPortraitPayload) => {
-    if (!book.value || !payload.id || !payload.portrait_image) {
+    if (!book.value || !payload.id) {
         return;
     }
     
-    // Update the character's portrait image in the book's characters array
+    // Update the character's portrait image URL in the book's characters array
     const character = book.value.characters?.find(c => c.id === payload.id);
     if (character) {
-        character.portrait_image = payload.portrait_image;
+        character.portrait_image_url = payload.portrait_image;
     }
     
     // Also update selected character if it's the same one
     if (selectedCharacter.value?.id === payload.id) {
-        selectedCharacter.value.portrait_image = payload.portrait_image;
+        selectedCharacter.value.portrait_image_url = payload.portrait_image;
     }
 };
 
@@ -251,8 +254,8 @@ const handleImageGeneratedEvent = (payload: ImageGeneratedPayload) => {
     switch (payload.type) {
         case 'book_cover':
             // Update book cover
-            if (payload.book_id === book.value.id && payload.status === 'complete' && payload.full_url) {
-                book.value.cover_image = payload.full_url;
+            if (payload.book_id === book.value.id) {
+                book.value.cover_image_url = payload.full_url;
                 book.value.cover_image_status = payload.status;
                 emit('updated', book.value);
             }
@@ -278,9 +281,9 @@ const handleImageGeneratedEvent = (payload: ImageGeneratedPayload) => {
                         paragraph_index: payload.paragraph_index,
                         aspect_ratio: payload.aspect_ratio,
                     };
-                    // Also update legacy field for backwards compatibility
+                    // Update the URL accessor
                     if (payload.status === 'complete' && payload.full_url) {
-                        character.portrait_image = payload.full_url;
+                        character.portrait_image_url = payload.full_url;
                     }
                 }
                 // Also update selected character if it's the same one
@@ -300,7 +303,7 @@ const handleImageGeneratedEvent = (payload: ImageGeneratedPayload) => {
                         aspect_ratio: payload.aspect_ratio,
                     };
                     if (payload.status === 'complete' && payload.full_url) {
-                        selectedCharacter.value.portrait_image = payload.full_url;
+                        selectedCharacter.value.portrait_image_url = payload.full_url;
                     }
                 }
             }
@@ -389,7 +392,8 @@ const handleBookUpdatedEvent = (payload: BookUpdatedPayload) => {
         author: payload.author,
         age_level: payload.age_level,
         status: payload.status,
-        cover_image: payload.cover_image,
+        cover_image_url: payload.cover_image,
+        cover_image_id: payload.cover_image_id,
         cover_image_status: payload.cover_image_status,
         plot: payload.plot,
     };
@@ -467,7 +471,7 @@ const displayAuthor = computed(() => {
 });
 
 const displayCoverImage = computed(() => {
-    return props.coverImage || book.value?.cover_image || null;
+    return props.coverImage || book.value?.cover_image_url || null;
 });
 
 const displayCreatedAt = computed(() => {
@@ -1089,10 +1093,15 @@ const handleRegenerateHeaderImage = async (chapterId: string) => {
         return;
     }
     
-    // Optimistically clear the image to show pending state
+    // Optimistically update to show pending state
     const chapter = chapters.currentChapter.value;
     if (chapter && chapter.id === chapterId) {
         chapter.image = null;
+        chapter.header_image_url = null;
+        chapter.headerImage = {
+            ...(chapter.headerImage || {}),
+            status: 'pending',
+        } as typeof chapter.headerImage;
     }
     
     const { error } = await requestApiFetch(
@@ -1101,6 +1110,10 @@ const handleRegenerateHeaderImage = async (chapterId: string) => {
     );
     
     if (error) {
+        // Revert to error state if the API call fails
+        if (chapter && chapter.id === chapterId && chapter.headerImage) {
+            chapter.headerImage.status = 'error';
+        }
         actionError.value = 'Failed to start header image generation. Please try again.';
     }
     // On success, the websocket will update the image when complete
@@ -1112,10 +1125,15 @@ const handleRetryHeaderImage = async (chapterId: string) => {
         return;
     }
     
-    // Optimistically clear the image to show pending state
+    // Optimistically update to show pending state
     const chapter = chapters.currentChapter.value;
     if (chapter && chapter.id === chapterId) {
         chapter.image = null;
+        chapter.header_image_url = null;
+        chapter.headerImage = {
+            ...(chapter.headerImage || {}),
+            status: 'pending',
+        } as typeof chapter.headerImage;
     }
     
     const { error } = await requestApiFetch(
@@ -1124,6 +1142,10 @@ const handleRetryHeaderImage = async (chapterId: string) => {
     );
     
     if (error) {
+        // Revert to error state if the API call fails
+        if (chapter && chapter.id === chapterId && chapter.headerImage) {
+            chapter.headerImage.status = 'error';
+        }
         actionError.value = 'Failed to retry header image generation. Please try again.';
     }
     // On success, the websocket will update the image when complete
@@ -1152,11 +1174,16 @@ const handleGenerateHeaderImage = async (chapterId: string) => {
         return;
     }
     
-    // Optimistically set image_prompt to show pending state (image is already null)
+    // Optimistically update to show pending state
     const chapter = chapters.currentChapter.value;
     if (chapter && chapter.id === chapterId) {
         chapter.image_prompt = 'generating...';
         chapter.image = null;
+        chapter.header_image_url = null;
+        chapter.headerImage = {
+            ...(chapter.headerImage || {}),
+            status: 'pending',
+        } as typeof chapter.headerImage;
     }
     
     const { error } = await requestApiFetch(
@@ -1169,6 +1196,9 @@ const handleGenerateHeaderImage = async (chapterId: string) => {
         // Revert the optimistic update on error
         if (chapter && chapter.id === chapterId) {
             chapter.image_prompt = null;
+            if (chapter.headerImage) {
+                chapter.headerImage.status = 'error';
+            }
         }
     }
     // On success, the websocket will update the image when complete
@@ -1579,6 +1609,7 @@ onBeforeUnmount(() => {
                             :next-chapter-first-page="chapters.nextChapterFirstPage.value"
                             :saved-chapter-number="savedChapterNumber"
                             :is-single-page-mode="responsive.isSinglePageMode.value"
+                            :chapter-image-status="chapters.currentChapterImageStatus.value"
                             @continue-to-chapter1="handleContinueToChapter1"
                             @update:edit-form="editForm = $event"
                             @submit-edit="submitEdit"

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ImageType;
+use App\Traits\Service\SavesImagesToS3;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Chapter extends Model
 {
-    use HasFactory, HasUlids, SoftDeletes;
+    use HasFactory, HasUlids, SavesImagesToS3, SoftDeletes;
 
     protected $fillable = [
         'title',
@@ -28,12 +29,16 @@ class Chapter extends Model
         'sort',
         'cta',
         'cta_total_cost',
-        'image_prompt',
-        'image',
         'header_image_id',
         'inline_images',
         'book_summary',
         'status',
+    ];
+
+    protected $appends = [
+        'header_image_url',
+        'image_prompt',
+        'inline_images_array',
     ];
 
     protected function casts(): array
@@ -109,29 +114,50 @@ class Chapter extends Model
     }
 
     /**
-     * Get the header image URL (from new Image model or legacy field).
+     * Get the header image URL from the Image model.
      */
     public function getHeaderImageUrlAttribute(): ?string
     {
-        // First check the new Image relationship
         if ($this->headerImage && $this->headerImage->image_url) {
             return $this->headerImage->full_url;
         }
 
-        // Fall back to legacy image field
-        return $this->image;
+        return null;
     }
 
     /**
-     * Get inline images as array (from new Image model or legacy field).
+     * Get the header image prompt from the Image model.
+     */
+    public function getImagePromptAttribute(): ?string
+    {
+        if ($this->headerImage) {
+            return $this->headerImage->prompt;
+        }
+
+        return null;
+    }
+
+    /**
+     * Get inline images as array from the Image model.
+     * Uses the inline_images JSON to get the correct (most recent) image IDs.
      */
     public function getInlineImagesArrayAttribute(): array
     {
-        // First check the new Image relationship
-        $newImages = $this->inlineImages()->get();
+        $inlineImagesJson = $this->inline_images ?? [];
 
-        if ($newImages->isNotEmpty()) {
-            return $newImages->map(function ($image) {
+        if (empty($inlineImagesJson)) {
+            return [];
+        }
+
+        // Extract image IDs from the JSON references
+        $imageIds = collect($inlineImagesJson)
+            ->filter(fn ($item) => isset($item['image_id']))
+            ->pluck('image_id')
+            ->toArray();
+
+        if (empty($imageIds)) {
+            // Fallback: get all inline images for this chapter (legacy format)
+            return $this->inlineImages()->get()->map(function ($image) {
                 return [
                     'id' => $image->id,
                     'paragraph_index' => $image->paragraph_index,
@@ -143,7 +169,29 @@ class Chapter extends Model
             })->toArray();
         }
 
-        // Fall back to legacy inline_images field
-        return $this->inline_images ?? [];
+        // Fetch the specific images by ID
+        $images = Image::whereIn('id', $imageIds)->get()->keyBy('id');
+
+        // Build the array in the order of the JSON, using paragraph_index from JSON
+        return collect($inlineImagesJson)
+            ->filter(fn ($item) => isset($item['image_id']))
+            ->map(function ($item) use ($images) {
+                $image = $images->get($item['image_id']);
+                if (! $image) {
+                    return null;
+                }
+
+                return [
+                    'id' => $image->id,
+                    'paragraph_index' => $item['paragraph_index'] ?? $image->paragraph_index,
+                    'url' => $image->full_url,
+                    'prompt' => $image->prompt,
+                    'status' => $image->status->value,
+                    'error' => $image->error,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->toArray();
     }
 }

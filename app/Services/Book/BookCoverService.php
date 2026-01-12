@@ -46,14 +46,10 @@ class BookCoverService
         $this->imageService->markProcessing($image);
 
         try {
-            // Set status to pending
-            $this->bookService->updateById($bookId, ['cover_image_status' => 'pending']);
-
             // Generate cover image prompt using AI
             $coverImagePrompt = $this->getCoverImagePrompt($book);
 
             if (! $coverImagePrompt) {
-                $this->bookService->updateById($bookId, ['cover_image_status' => 'error']);
                 $this->imageService->markError($image, 'Failed to generate cover image prompt');
                 event(new ImageGeneratedEvent($image->fresh()));
 
@@ -65,11 +61,6 @@ class BookCoverService
                 'prompt_length' => strlen($coverImagePrompt),
             ]);
 
-            // Update book with cover image prompt
-            $this->bookService->updateById($bookId, [
-                'cover_image_prompt' => $coverImagePrompt,
-            ]);
-
             // Update Image record with prompt
             $this->imageService->updateById($image->id, ['prompt' => $coverImagePrompt]);
 
@@ -77,17 +68,15 @@ class BookCoverService
             $coverImagePath = $this->generateCoverImage($book, $coverImagePrompt);
 
             if ($coverImagePath) {
+                // Update book to point to Image record
                 $this->bookService->updateById($bookId, [
-                    'cover_image' => $coverImagePath,
-                    'cover_image_status' => 'complete',
                     'cover_image_id' => $image->id,
                 ]);
 
-                // Update Image record
+                // Update Image record with the URL
                 $this->imageService->markComplete($image, $coverImagePath);
                 event(new ImageGeneratedEvent($image->fresh()));
             } else {
-                $this->bookService->updateById($bookId, ['cover_image_status' => 'error']);
                 $this->imageService->markError($image, 'Failed to generate cover image');
                 event(new ImageGeneratedEvent($image->fresh()));
 
@@ -104,7 +93,6 @@ class BookCoverService
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            $this->bookService->updateById($bookId, ['cover_image_status' => 'error']);
             $this->imageService->markError($image, $e->getMessage());
             event(new ImageGeneratedEvent($image->fresh()));
 
@@ -270,18 +258,13 @@ class BookCoverService
         $characters = $book->characters ?? $book->characters()->get();
 
         foreach ($characters as $character) {
-            if ($character->portrait_image) {
-                $portraitUrl = $character->portrait_image;
-                if (! str_starts_with($portraitUrl, 'http')) {
-                    $portraitUrl = $this->getCloudFrontImageUrl($portraitUrl);
-                }
-                if ($portraitUrl) {
-                    $characterImages[] = $portraitUrl;
-                    Log::debug('BookCoverService: Added character portrait for cover', [
-                        'character_id' => $character->id,
-                        'character_name' => $character->name,
-                    ]);
-                }
+            $portraitUrl = $character->portrait_image_url;
+            if ($portraitUrl) {
+                $characterImages[] = $portraitUrl;
+                Log::debug('BookCoverService: Added character portrait for cover', [
+                    'character_id' => $character->id,
+                    'character_name' => $character->name,
+                ]);
             }
         }
 

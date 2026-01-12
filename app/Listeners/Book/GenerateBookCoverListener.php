@@ -18,7 +18,8 @@ class GenerateBookCoverListener
         $book = $event->book;
 
         // Don't generate if cover is already being generated or already exists
-        if (in_array($book->cover_image_status, ['pending', 'complete'])) {
+        $coverStatus = $book->cover_image_status;
+        if (in_array($coverStatus, ['pending', 'processing', 'complete'])) {
             return;
         }
 

@@ -37,8 +37,19 @@ const emit = defineEmits<{
 
 // Check header image states
 const isHeaderImagePending = computed(() => {
-    return props.chapterImageStatus === 'pending' || 
-           (props.chapter.image_prompt && !props.chapter.image && props.chapterImageStatus !== 'error' && props.chapterImageStatus !== 'timeout');
+    // Explicitly pending from status prop
+    if (props.chapterImageStatus === 'pending') {
+        return true;
+    }
+    // Has header image ID but no URL yet (and not in error/timeout state)
+    if (props.chapter.header_image_id && !headerImageUrl.value && props.chapterImageStatus !== 'error' && props.chapterImageStatus !== 'timeout') {
+        return true;
+    }
+    // Legacy: has image_prompt but no image (and not in error/timeout state)
+    if (props.chapter.image_prompt && !headerImageUrl.value && props.chapterImageStatus !== 'error' && props.chapterImageStatus !== 'timeout') {
+        return true;
+    }
+    return false;
 });
 
 const isHeaderImageError = computed(() => {
@@ -125,6 +136,11 @@ const isValidImageUrl = (url: string | null | undefined): boolean => {
     const trimmed = url.trim();
     return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/');
 };
+
+// Computed property for header image URL (supports both legacy 'image' and new 'header_image_url')
+const headerImageUrl = computed(() => {
+    return props.chapter.image || props.chapter.header_image_url || null;
+});
 
 // Check if an image is in an error, timeout, or cancelled state
 const isImageError = (item: PageContentItem): boolean => {
@@ -259,7 +275,7 @@ const rightPageNumber = computed(() => {
                     </div>
                     <!-- Loaded header image -->
                     <figure 
-                        v-else-if="chapter.image && isValidImageUrl(chapter.image)"
+                        v-else-if="headerImageUrl && isValidImageUrl(headerImageUrl)"
                         class="group/header-image relative w-full"
                     >
                         <!-- Regenerate Header Image Button -->
@@ -273,7 +289,7 @@ const rightPageNumber = computed(() => {
                         </button>
                         <!-- Open in new window button -->
                         <button
-                            @click.stop="openImageInNewWindow(chapter.image)"
+                            @click.stop="openImageInNewWindow(headerImageUrl)"
                             class="absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/header-image:opacity-100 cursor-pointer"
                             title="Open full image in new window"
                         >
@@ -281,11 +297,11 @@ const rightPageNumber = computed(() => {
                             <span>View full</span>
                         </button>
                         <img
-                            :src="chapter.image"
+                            :src="headerImageUrl"
                             :alt="`${chapterLabel} ${chapter.sort} illustration`"
                             class="w-full h-auto rounded-lg shadow-md object-cover aspect-16/7 cursor-pointer transition-all hover:shadow-lg"
                             loading="lazy"
-                            @click.stop="openImageInNewWindow(chapter.image)"
+                            @click.stop="openImageInNewWindow(headerImageUrl)"
                             title="Click to view full image"
                         />
                     </figure>
@@ -426,7 +442,7 @@ const rightPageNumber = computed(() => {
                                 </div>
                                 <div class="text-center px-4">
                                     <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">
-                                        Creating illustration...
+                                        Creating image...
                                     </p>
                                     <p class="text-xs text-amber-700 dark:text-amber-400 mt-1 max-w-xs">
                                         The magic is happening ✨
@@ -597,7 +613,7 @@ const rightPageNumber = computed(() => {
                                 </div>
                                 <div class="text-center px-4">
                                     <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">
-                                        Creating illustration...
+                                        Creating image...
                                     </p>
                                     <p class="text-xs text-amber-700 dark:text-amber-400 mt-1 max-w-xs">
                                         The magic is happening ✨

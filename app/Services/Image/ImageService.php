@@ -287,7 +287,6 @@ class ImageService
                 if ($image->book_id) {
                     Book::where('id', $image->book_id)->update([
                         'cover_image_id' => $image->id,
-                        'cover_image_status' => 'pending',
                     ]);
                 }
                 break;

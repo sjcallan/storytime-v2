@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\Service\SavesImagesToS3;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Character extends Model
 {
-    use HasFactory, HasUlids, SoftDeletes;
+    use HasFactory, HasUlids, SavesImagesToS3, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -24,9 +25,11 @@ class Character extends Model
         'user_id',
         'nationality',
         'backstory',
-        'portrait_image',
-        'portrait_image_prompt',
         'portrait_image_id',
+    ];
+
+    protected $appends = [
+        'portrait_image_url',
     ];
 
     public function user(): BelongsTo
@@ -78,16 +81,14 @@ class Character extends Model
     }
 
     /**
-     * Get the portrait image URL (from new Image model or legacy field).
+     * Get the portrait image URL from the Image model.
      */
     public function getPortraitImageUrlAttribute(): ?string
     {
-        // First check the new Image relationship
         if ($this->portraitImage && $this->portraitImage->image_url) {
             return $this->portraitImage->full_url;
         }
 
-        // Fall back to legacy portrait_image field
-        return $this->portrait_image;
+        return null;
     }
 }

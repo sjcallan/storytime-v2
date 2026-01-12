@@ -134,7 +134,7 @@ class ImageController extends Controller
         );
 
         // Update the book's cover_image_id to point to new image
-        $book->update(['cover_image_id' => $image->id, 'cover_image_status' => 'pending']);
+        $book->update(['cover_image_id' => $image->id]);
 
         GenerateImageJob::dispatch($image)->onQueue('images');
 

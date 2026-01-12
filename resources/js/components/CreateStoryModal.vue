@@ -109,13 +109,13 @@ interface Character {
     gender: string;
     description: string;
     backstory: string;
-    portrait_image?: string | null;
+    portrait_image_url?: string | null;
 }
 
 interface PortraitCreatedPayload {
     id: string;
     book_id: string;
-    portrait_image: string;
+    portrait_image_url: string;
 }
 
 const currentStep = ref(1);
@@ -183,7 +183,7 @@ const setupBookChannelListener = () => {
             eventName,
             (payload: PortraitCreatedPayload) => {
                 console.log('[Echo] Received portrait-updated event:', payload);
-                // Find and update the character's portrait_image
+                // Find and update the character's portrait_image_url
                 const charIndex = characters.value.findIndex(
                     (c) => c.id === payload.id,
                 );
@@ -192,12 +192,12 @@ const setupBookChannelListener = () => {
                         '[Echo] Updating character portrait at index:',
                         charIndex,
                         'with image:',
-                        payload.portrait_image,
+                        payload.portrait_image_url,
                     );
                     // Force reactivity by replacing the object
                     characters.value[charIndex] = {
                         ...characters.value[charIndex],
-                        portrait_image: payload.portrait_image,
+                        portrait_image_url: payload.portrait_image_url,
                     };
                 } else {
                     console.log(
@@ -676,7 +676,7 @@ const createBook = async (): Promise<boolean> => {
                     gender: string;
                     description: string;
                     backstory: string;
-                    portrait_image?: string | null;
+                    portrait_image_url?: string | null;
                 }>;
             };
 
@@ -699,7 +699,7 @@ const createBook = async (): Promise<boolean> => {
                     gender: char.gender || '',
                     description: char.description || '',
                     backstory: char.backstory || '',
-                    portrait_image: char.portrait_image || null,
+                    portrait_image_url: char.portrait_image_url || null,
                 }));
                 hasAIGeneratedCharacters.value = true;
                 console.log(
@@ -1904,10 +1904,10 @@ watch(
                                                 <!-- Portrait Image -->
                                                 <img
                                                     v-if="
-                                                        character.portrait_image
+                                                        character.portrait_image_url
                                                     "
                                                     :src="
-                                                        character.portrait_image
+                                                        character.portrait_image_url
                                                     "
                                                     :alt="character.name"
                                                     class="h-full w-full object-cover"

@@ -51,7 +51,7 @@ class ChapterInlineImagesCreatedEvent implements ShouldBroadcast
         return [
             'chapter_id' => $this->chapter->id,
             'chapter_sort' => $this->chapter->sort,
-            'inline_images' => $this->chapter->inline_images,
+            'inline_images' => $this->chapter->inline_images_array,
         ];
     }
 }

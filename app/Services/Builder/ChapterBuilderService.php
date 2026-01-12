@@ -104,26 +104,23 @@ class ChapterBuilderService extends BuilderService
             $data['body'] = $chapterContent['body'];
             $data['summary'] = $chapterContent['summary'] ?? '';
             $data['title'] = $chapterContent['title'] ?? null;
-            $data['image_prompt'] = $chapterContent['image_prompt'] ?? null;
             $data['status'] = 'complete';
 
             $sceneImages = $chapterContent['scene_images'] ?? [];
+            $imagePrompt = $chapterContent['image_prompt'] ?? null;
 
-            // Store pending placeholders for inline images so frontend can show loading state
-            if (! empty($sceneImages) && is_array($sceneImages)) {
-                $pendingImages = [];
-                foreach ($sceneImages as $index => $scene) {
-                    $paragraphIndex = is_numeric($scene['paragraph_index'] ?? null)
-                        ? (int) $scene['paragraph_index']
-                        : $index * 2;
-                    $pendingImages[] = [
-                        'paragraph_index' => $paragraphIndex,
-                        'url' => null,
-                        'prompt' => $scene['prompt'] ?? '',
-                        'status' => 'pending',
-                    ];
-                }
-                $data['inline_images'] = $pendingImages;
+            // Create header image record BEFORE updating chapter so the event listener can dispatch the job
+            $headerImage = null;
+            if (! empty($imagePrompt)) {
+                $imageService = app(\App\Services\Image\ImageService::class);
+                $headerImage = $imageService->createChapterHeaderImage($chapter, $imagePrompt);
+                $data['header_image_id'] = $headerImage->id;
+
+                Log::info('[ChapterBuilderService::buildChapter] Created header image record', [
+                    'chapter_id' => $chapter->id,
+                    'image_id' => $headerImage->id,
+                    'prompt_preview' => substr($imagePrompt, 0, 100),
+                ]);
             }
 
             Log::info('[ChapterBuilderService::buildChapter] Updating chapter with final data', [
@@ -132,11 +129,13 @@ class ChapterBuilderService extends BuilderService
                 'summary_length' => strlen($data['summary']),
                 'body_length' => strlen($data['body']),
                 'has_title' => ! empty($data['title']),
-                'has_image_prompt' => ! empty($data['image_prompt']),
+                'has_image_prompt' => ! empty($imagePrompt),
+                'has_header_image_id' => ! empty($data['header_image_id']),
                 'scene_images_count' => count($sceneImages),
-                'pending_inline_images' => count($data['inline_images'] ?? []),
             ]);
 
+            // This update triggers ChapterUpdatedEvent which fires CreateChapterImageListener
+            // The listener will dispatch CreateChapterImageJob since header_image_id is now set
             $chapter = $this->chapterService->updateById($chapter->id, $data);
 
             // Dispatch inline images generation as a background job after chapter is saved
@@ -146,7 +145,7 @@ class ChapterBuilderService extends BuilderService
                     'scene_count' => count($sceneImages),
                 ]);
 
-                CreateChapterInlineImagesJob::dispatch($chapter, $sceneImages)->onQueue('images');
+                CreateChapterInlineImagesJob::dispatch($chapter->fresh(), $sceneImages)->onQueue('images');
             }
 
             $endTime = microtime(true);
@@ -396,65 +395,18 @@ class ChapterBuilderService extends BuilderService
             'is_flux_2' => $isFlux2,
         ]);
 
-        $baseImages = [];
-
-        // Add book cover image first for style consistency
-        if ($book->cover_image) {
-            $coverUrl = $book->cover_image;
-            if (! str_starts_with($coverUrl, 'http')) {
-                $coverUrl = $this->getCloudFrontImageUrl($coverUrl);
-            }
-            if ($coverUrl) {
-                $baseImages[] = $coverUrl;
-                Log::debug('[ChapterBuilderService::generateChapterImages] Added book cover image', [
-                    'cover_url' => $coverUrl,
-                ]);
-            }
-        }
-
-        // Add last inline chapter image for style consistency
-        $lastInlineImage = null;
-        foreach ($book->chapters->sortByDesc('sort') as $chapter) {
-            if ($chapter->inline_images && is_array($chapter->inline_images)) {
-                foreach (array_reverse($chapter->inline_images) as $image) {
-                    if (! empty($image['url']) && isset($image['status']) && $image['status'] !== 'pending') {
-                        $lastInlineImage = $image['url'];
-                        break 2;
-                    }
-                }
-            }
-        }
-
-        if ($lastInlineImage) {
-            if (! str_starts_with($lastInlineImage, 'http')) {
-                $lastInlineImage = $this->getCloudFrontImageUrl($lastInlineImage);
-            }
-            if ($lastInlineImage) {
-                $baseImages[] = $lastInlineImage;
-                Log::debug('[ChapterBuilderService::generateChapterImages] Added last inline chapter image', [
-                    'image_url' => $lastInlineImage,
-                ]);
-            }
-        }
-
         // Build character portrait map (name => portrait URL)
         $characterPortraits = [];
         if ($book->characters) {
             foreach ($book->characters as $character) {
-                if ($character->portrait_image) {
-                    $portraitUrl = $character->portrait_image;
-                    if (! str_starts_with($portraitUrl, 'http')) {
-                        $portraitUrl = $this->getCloudFrontImageUrl($portraitUrl);
-                    }
-                    if ($portraitUrl) {
-                        $characterPortraits[$character->name] = $portraitUrl;
-                    }
+                $portraitUrl = $character->portrait_image_url;
+                if ($portraitUrl) {
+                    $characterPortraits[$character->name] = $portraitUrl;
                 }
             }
         }
 
         Log::info('[ChapterBuilderService::generateChapterImages] Reference images collected', [
-            'base_images_count' => count($baseImages),
             'available_character_portraits' => array_keys($characterPortraits),
         ]);
 
@@ -482,7 +434,7 @@ class ChapterBuilderService extends BuilderService
             }
 
             // Identify which characters are present in this scene and get their portraits
-            $sceneCharacterImages = $this->getCharacterImagesForScene(
+            $inputImages = $this->getCharacterImagesForScene(
                 $scene['prompt'],
                 $book->characters,
                 $characterPortraits,
@@ -494,17 +446,12 @@ class ChapterBuilderService extends BuilderService
                 ]
             );
 
-            // Combine base images with scene-specific character portraits
-            $inputImages = array_merge($baseImages, $sceneCharacterImages);
-
             Log::debug('[ChapterBuilderService::generateChapterImages] Generating image', [
                 'scene_index' => $index,
                 'paragraph_index' => $paragraphIndex,
                 'prompt_preview' => substr($fullPrompt, 0, 200),
                 'is_json_prompt' => $isFlux2,
-                'base_images_count' => count($baseImages),
-                'scene_character_images_count' => count($sceneCharacterImages),
-                'total_input_images' => count($inputImages),
+                'character_images_count' => count($inputImages),
             ]);
 
             try {
@@ -567,6 +514,131 @@ class ChapterBuilderService extends BuilderService
         ]);
 
         return $inlineImages;
+    }
+
+    /**
+     * Generate a chapter header image using the same FLUX 2 schema and character identification
+     * as inline chapter images.
+     *
+     * @param  string  $bookId  The book ID
+     * @param  string  $chapterId  The chapter ID
+     * @param  string  $prompt  The image prompt describing the scene
+     * @return array{image_prompt: string, image: string|null}
+     */
+    public function generateHeaderImage(string $bookId, string $chapterId, string $prompt): array
+    {
+        Log::info('[ChapterBuilderService::generateHeaderImage] Starting header image generation', [
+            'book_id' => $bookId,
+            'chapter_id' => $chapterId,
+            'prompt_preview' => substr($prompt, 0, 200),
+        ]);
+
+        $book = $this->bookService->getById($bookId, null, ['with' => ['characters', 'chapters']]);
+        $isFlux2 = $this->isFlux2Model();
+
+        Log::debug('[ChapterBuilderService::generateHeaderImage] Model check', [
+            'is_flux_2' => $isFlux2,
+        ]);
+
+        // Build character portrait map (name => portrait URL)
+        $characterPortraits = [];
+        if ($book->characters) {
+            foreach ($book->characters as $character) {
+                $portraitUrl = $character->portrait_image_url;
+                if ($portraitUrl) {
+                    $characterPortraits[$character->name] = $portraitUrl;
+                }
+            }
+        }
+
+        Log::info('[ChapterBuilderService::generateHeaderImage] Reference images collected', [
+            'available_character_portraits' => array_keys($characterPortraits),
+        ]);
+
+        // Build prompt based on model type
+        if ($isFlux2) {
+            $fullPrompt = $this->buildFlux2JsonPrompt($book, $prompt);
+        } else {
+            $style = $this->getSceneImageStylePrefix($book);
+            $fullPrompt = trim($style.' '.$this->stripQuotes($prompt));
+        }
+
+        // Identify which characters are present in this scene and get their portraits
+        $inputImages = $this->getCharacterImagesForScene(
+            $prompt,
+            $book->characters,
+            $characterPortraits,
+            [
+                'book_id' => $bookId,
+                'chapter_id' => $chapterId,
+                'user_id' => $book->user_id,
+                'profile_id' => $book->profile_id,
+            ]
+        );
+
+        Log::debug('[ChapterBuilderService::generateHeaderImage] Generating image', [
+            'prompt_preview' => substr($fullPrompt, 0, 200),
+            'is_json_prompt' => $isFlux2,
+            'character_images_count' => count($inputImages),
+        ]);
+
+        try {
+            $trackingContext = [
+                'item_type' => 'chapter_header_image',
+                'user_id' => $book->user_id,
+                'profile_id' => $book->profile_id,
+                'book_id' => $bookId,
+                'chapter_id' => $chapterId,
+            ];
+
+            // Use 16:7 aspect ratio for header images (wider than inline 16:9)
+            $imageResponse = $this->replicateApiService->generateImage(
+                $fullPrompt,
+                $inputImages,
+                '16:9',
+                $trackingContext
+            );
+
+            if (! $imageResponse || ! isset($imageResponse['url']) || ! $imageResponse['url']) {
+                Log::warning('[ChapterBuilderService::generateHeaderImage] No image URL returned', [
+                    'response' => $imageResponse,
+                ]);
+
+                return [
+                    'image_prompt' => $prompt,
+                    'image' => null,
+                ];
+            }
+
+            $s3Url = $this->saveImageToS3(
+                $imageResponse['url'],
+                'chapters/headers',
+                $chapterId.'_header'
+            );
+
+            Log::info('[ChapterBuilderService::generateHeaderImage] Image generated and saved', [
+                'book_id' => $bookId,
+                'chapter_id' => $chapterId,
+                'url' => $s3Url,
+            ]);
+
+            return [
+                'image_prompt' => $prompt,
+                'image' => $s3Url,
+            ];
+        } catch (Throwable $e) {
+            Log::error('[ChapterBuilderService::generateHeaderImage] Image generation failed', [
+                'book_id' => $bookId,
+                'chapter_id' => $chapterId,
+                'exception_class' => get_class($e),
+                'exception_message' => $e->getMessage(),
+            ]);
+
+            return [
+                'image_prompt' => $prompt,
+                'image' => null,
+            ];
+        }
     }
 
     /**
@@ -1672,37 +1744,37 @@ PROMPT;
                 'body' => $chapterContent['body'],
                 'summary' => $chapterContent['summary'] ?? '',
                 'title' => $chapterContent['title'] ?? null,
-                'image_prompt' => $chapterContent['image_prompt'] ?? null,
                 'status' => 'complete',
                 'user_prompt' => $data['user_prompt'] ?? null,
                 'final_chapter' => $data['final_chapter'] ?? false,
             ];
 
             $sceneImages = $chapterContent['scene_images'] ?? [];
+            $imagePrompt = $chapterContent['image_prompt'] ?? null;
 
-            // Store pending placeholders for inline images
-            if (! empty($sceneImages) && is_array($sceneImages)) {
-                $pendingImages = [];
-                foreach ($sceneImages as $index => $scene) {
-                    $paragraphIndex = is_numeric($scene['paragraph_index'] ?? null)
-                        ? (int) $scene['paragraph_index']
-                        : $index * 2;
-                    $pendingImages[] = [
-                        'paragraph_index' => $paragraphIndex,
-                        'url' => null,
-                        'prompt' => $scene['prompt'] ?? '',
-                        'status' => 'pending',
-                    ];
-                }
-                $updateData['inline_images'] = $pendingImages;
+            // Create header image record BEFORE updating chapter so the event listener can dispatch the job
+            $headerImage = null;
+            if (! empty($imagePrompt)) {
+                $imageService = app(\App\Services\Image\ImageService::class);
+                $headerImage = $imageService->createChapterHeaderImage($chapter, $imagePrompt);
+                $updateData['header_image_id'] = $headerImage->id;
+
+                Log::info('[ChapterBuilderService::rebuildChapter] Created header image record', [
+                    'chapter_id' => $chapter->id,
+                    'image_id' => $headerImage->id,
+                    'prompt_preview' => substr($imagePrompt, 0, 100),
+                ]);
             }
 
             Log::info('[ChapterBuilderService::rebuildChapter] Updating chapter with new content', [
                 'chapter_id' => $chapter->id,
                 'body_length' => strlen($updateData['body']),
+                'has_header_image_id' => ! empty($updateData['header_image_id']),
                 'scene_images_count' => count($sceneImages),
             ]);
 
+            // This update triggers ChapterUpdatedEvent which fires CreateChapterImageListener
+            // The listener will dispatch CreateChapterImageJob since header_image_id is now set
             $chapter = $this->chapterService->updateById($chapter->id, $updateData);
 
             // Dispatch inline images generation as a background job
@@ -1712,7 +1784,7 @@ PROMPT;
                     'scene_count' => count($sceneImages),
                 ]);
 
-                CreateChapterInlineImagesJob::dispatch($chapter, $sceneImages)->onQueue('images');
+                CreateChapterInlineImagesJob::dispatch($chapter->fresh(), $sceneImages)->onQueue('images');
             }
 
             $endTime = microtime(true);

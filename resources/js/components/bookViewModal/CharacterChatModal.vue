@@ -272,8 +272,8 @@ onBeforeUnmount(() => {
                             ]"
                         >
                             <img
-                                v-if="character.portrait_image"
-                                :src="character.portrait_image"
+                                v-if="character.portrait_image_url"
+                                :src="character.portrait_image_url"
                                 :alt="character.name"
                                 class="h-full w-full object-cover"
                             />
@@ -334,8 +334,8 @@ onBeforeUnmount(() => {
                                 ]"
                             >
                                 <img
-                                    v-if="character.portrait_image"
-                                    :src="character.portrait_image"
+                                    v-if="character.portrait_image_url"
+                                    :src="character.portrait_image_url"
                                     :alt="character.name"
                                     class="h-full w-full object-cover"
                                 />
@@ -382,8 +382,8 @@ onBeforeUnmount(() => {
                                         ]"
                                     >
                                         <img
-                                            v-if="character.portrait_image"
-                                            :src="character.portrait_image"
+                                            v-if="character.portrait_image_url"
+                                            :src="character.portrait_image_url"
                                             :alt="character.name"
                                             class="h-full w-full object-cover"
                                         />

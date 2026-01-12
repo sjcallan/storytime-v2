@@ -25,7 +25,7 @@ type RecentlyReadBook = {
     author: string | null;
     age_level: number | null;
     status: string;
-    cover_image?: string | null;
+    cover_image_url?: string | null;
     current_chapter_number: number;
     last_read_at: string;
 };
@@ -37,7 +37,7 @@ type FavoriteBook = {
     author: string | null;
     age_level: number | null;
     status: string;
-    cover_image?: string | null;
+    cover_image_url?: string | null;
     current_chapter_number: number;
     last_read_at: string;
 };
@@ -52,7 +52,7 @@ const props = defineProps<{
             author: string | null;
             age_level: number | null;
             status: string;
-            cover_image?: string;
+            cover_image_url?: string;
             created_at?: string;
         }>
     >;
@@ -74,7 +74,7 @@ type BookSummary = {
     author: string | null;
     age_level: number | null;
     status: string;
-    cover_image?: string | null;
+    cover_image_url?: string | null;
     cover_image_status?: string | null;
     created_at?: string;
 };
@@ -92,7 +92,7 @@ type BookUpdatedPayload = {
     author: string | null;
     age_level: number | null;
     status: string;
-    cover_image: string | null;
+    cover_image_url: string | null;
     cover_image_status: string | null;
     plot: string | null;
     is_published: boolean;
@@ -106,7 +106,7 @@ type BookCreatedPayload = {
     author: string | null;
     age_level: number | null;
     status: string;
-    cover_image: string | null;
+    cover_image_url: string | null;
     cover_image_status: string | null;
     plot: string | null;
     user_id: string;
@@ -455,7 +455,7 @@ const handleBookCreatedEvent = (payload: BookCreatedPayload) => {
         author: payload.author,
         age_level: payload.age_level,
         status: payload.status,
-        cover_image: payload.cover_image ?? undefined,
+        cover_image_url: payload.cover_image_url ?? undefined,
         cover_image_status: payload.cover_image_status ?? undefined,
         created_at: payload.created_at,
     });
@@ -493,7 +493,7 @@ const handleBookUpdatedEvent = (payload: BookUpdatedPayload) => {
                 author: payload.author,
                 age_level: payload.age_level,
                 status: payload.status,
-                cover_image: payload.cover_image ?? undefined,
+                cover_image_url: payload.cover_image_url ?? undefined,
                 cover_image_status: payload.cover_image_status ?? undefined,
             });
         } else {
@@ -505,7 +505,7 @@ const handleBookUpdatedEvent = (payload: BookUpdatedPayload) => {
                 author: payload.author,
                 age_level: payload.age_level,
                 status: payload.status,
-                cover_image: payload.cover_image ?? undefined,
+                cover_image_url: payload.cover_image_url ?? undefined,
                 cover_image_status: payload.cover_image_status ?? undefined,
             };
         }
@@ -586,7 +586,7 @@ const subscribeToUserBooksChannel = () => {
                     author: payload.author,
                     age_level: payload.age_level,
                     status: payload.status,
-                    cover_image: payload.cover_image,
+                    cover_image_url: payload.cover_image_url,
                     cover_image_status: payload.cover_image_status,
                     plot: payload.plot,
                     user_id: '', // Not needed for adding
@@ -686,7 +686,7 @@ watch(createdBookId, async (newBookId) => {
 
         // Set up the book view modal state with whatever info we have
         selectedBookId.value = newBookId;
-        selectedCoverImage.value = foundBook?.cover_image ?? null;
+        selectedCoverImage.value = foundBook?.cover_image_url ?? null;
         selectedBookTitle.value = foundBook?.title ?? 'Your New Story';
         selectedBookAuthor.value = foundBook?.author ?? null;
 
@@ -888,7 +888,7 @@ const upsertBookSummary = (updatedBook: BookDetails) => {
         author: updatedBook.author,
         age_level: updatedBook.age_level,
         status: updatedBook.status,
-        cover_image: updatedBook.cover_image ?? null,
+        cover_image_url: updatedBook.cover_image_url ?? null,
         cover_image_status: updatedBook.cover_image_status ?? null,
     };
 
@@ -930,7 +930,7 @@ const handleBookUpdated = (updatedBook: BookDetails) => {
     upsertBookSummary(updatedBook);
     selectedBookTitle.value = updatedBook.title ?? 'Untitled Story';
     selectedBookAuthor.value = updatedBook.author;
-    selectedCoverImage.value = updatedBook.cover_image ?? null;
+    selectedCoverImage.value = updatedBook.cover_image_url ?? null;
 };
 
 const handleBookDeleted = (bookId: string) => {
@@ -973,7 +973,7 @@ type ReadingHistoryPayload = {
         author: string | null;
         age_level: number | null;
         status: string;
-        cover_image: string | null;
+        cover_image_url: string | null;
     } | null;
 };
 
@@ -995,7 +995,7 @@ const handleReadingHistoryUpdated = (history: ReadingHistoryPayload) => {
                 author: existingBook.author,
                 age_level: existingBook.age_level,
                 status: existingBook.status,
-                cover_image: existingBook.cover_image ?? null,
+                cover_image_url: existingBook.cover_image_url ?? null,
             };
         }
     }
@@ -1013,7 +1013,7 @@ const handleReadingHistoryUpdated = (history: ReadingHistoryPayload) => {
         author: bookData.author,
         age_level: bookData.age_level,
         status: bookData.status,
-        cover_image: bookData.cover_image,
+        cover_image_url: bookData.cover_image_url,
         current_chapter_number: history.current_chapter_number,
         last_read_at: history.last_read_at,
     };
@@ -1063,7 +1063,7 @@ const handleFavoriteToggled = (payload: FavoriteToggledPayload) => {
                 author: existingBook.author,
                 age_level: existingBook.age_level,
                 status: existingBook.status,
-                cover_image: existingBook.cover_image ?? null,
+                cover_image_url: existingBook.cover_image_url ?? null,
             };
         }
 
@@ -1078,7 +1078,7 @@ const handleFavoriteToggled = (payload: FavoriteToggledPayload) => {
                     author: recentBook.author,
                     age_level: recentBook.age_level,
                     status: recentBook.status,
-                    cover_image: recentBook.cover_image ?? null,
+                    cover_image_url: recentBook.cover_image_url ?? null,
                 };
             }
         }
@@ -1094,7 +1094,7 @@ const handleFavoriteToggled = (payload: FavoriteToggledPayload) => {
                 author: bookData.author,
                 age_level: bookData.age_level,
                 status: bookData.status,
-                cover_image: bookData.cover_image,
+                cover_image_url: bookData.cover_image_url,
                 current_chapter_number: recentEntry?.current_chapter_number ?? 1,
                 last_read_at: recentEntry?.last_read_at ?? new Date().toISOString(),
             };
@@ -1207,7 +1207,7 @@ const formatGenreName = (genre: string) => {
                             @click="
                                 openBook(
                                     book.id,
-                                    book.cover_image || null,
+                                    book.cover_image_url || null,
                                     book.title,
                                     book.author || null,
                                     $event,
@@ -1217,9 +1217,9 @@ const formatGenreName = (genre: string) => {
                         >
                             <!-- Book Cover Thumbnail -->
                             <div class="relative h-24 w-18 shrink-0 overflow-hidden rounded-lg">
-                                <template v-if="book.cover_image">
+                                <template v-if="book.cover_image_url">
                                     <img
-                                        :src="book.cover_image"
+                                        :src="book.cover_image_url"
                                         :alt="book.title"
                                         class="h-full w-full object-cover transition-all duration-300 group-hover:scale-110"
                                     />
@@ -1332,7 +1332,7 @@ const formatGenreName = (genre: string) => {
                             @click="
                                 openBook(
                                     book.id,
-                                    book.cover_image || null,
+                                    book.cover_image_url || null,
                                     book.title,
                                     book.author || null,
                                     $event,
@@ -1343,12 +1343,12 @@ const formatGenreName = (genre: string) => {
                             <!-- Book Cover -->
                             <div class="relative aspect-3/4 overflow-hidden">
                                 <!-- Cover Image (if exists) -->
-                                <template v-if="book.cover_image">
+                                <template v-if="book.cover_image_url">
                                     <div
                                         class="absolute inset-0 bg-linear-to-br from-primary/10 via-primary/5 to-background"
                                     >
                                         <img
-                                            :src="book.cover_image"
+                                            :src="book.cover_image_url"
                                             :alt="book.title"
                                             class="h-full w-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:rotate-1"
                                         />
@@ -1491,7 +1491,7 @@ const formatGenreName = (genre: string) => {
                             @click="
                                 openBook(
                                     book.id,
-                                    book.cover_image || null,
+                                    book.cover_image_url || null,
                                     book.title,
                                     book.author || null,
                                     $event,
@@ -1502,12 +1502,12 @@ const formatGenreName = (genre: string) => {
                             <!-- Book Cover -->
                             <div class="relative aspect-3/4 overflow-hidden">
                                 <!-- Cover Image (if exists) -->
-                                <template v-if="book.cover_image">
+                                <template v-if="book.cover_image_url">
                                     <div
                                         class="absolute inset-0 bg-linear-to-br from-primary/10 via-primary/5 to-background"
                                     >
                                         <img
-                                            :src="book.cover_image"
+                                            :src="book.cover_image_url"
                                             :alt="book.title"
                                             class="h-full w-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:rotate-1"
                                         />

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\Service\SavesImagesToS3;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,16 +12,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Book extends Model
 {
-    use HasFactory, HasUlids, SoftDeletes;
+    use HasFactory, HasUlids, SavesImagesToS3, SoftDeletes;
 
     protected $fillable = [
         'title',
-        'cover_image',
-        'cover_image_prompt',
         'cover_video_prompt',
         'cover_video',
         'cover_video_status',
-        'cover_image_status',
         'cover_image_id',
         'status',
         'age_level',
@@ -38,6 +36,11 @@ class Book extends Model
         'published_at',
         'additional_instructions',
         'first_chapter_prompt',
+    ];
+
+    protected $appends = [
+        'cover_image_url',
+        'cover_image_status',
     ];
 
     protected function casts(): array
@@ -101,16 +104,26 @@ class Book extends Model
     }
 
     /**
-     * Get the cover image URL (from new Image model or legacy field).
+     * Get the cover image URL from the Image model.
      */
     public function getCoverImageUrlAttribute(): ?string
     {
-        // First check the new Image relationship
         if ($this->coverImage && $this->coverImage->image_url) {
             return $this->coverImage->full_url;
         }
 
-        // Fall back to legacy cover_image field
-        return $this->cover_image;
+        return null;
+    }
+
+    /**
+     * Get the cover image status from the Image model.
+     */
+    public function getCoverImageStatusAttribute(): ?string
+    {
+        if ($this->coverImage) {
+            return $this->coverImage->status->value;
+        }
+
+        return null;
     }
 }

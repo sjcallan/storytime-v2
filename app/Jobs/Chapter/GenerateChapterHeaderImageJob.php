@@ -27,8 +27,9 @@ class GenerateChapterHeaderImageJob implements ShouldQueue
 
     /**
      * The number of seconds the job can run before timing out.
+     * Set to 10 minutes to allow for polling when Replicate's sync wait times out.
      */
-    public int $timeout = 180;
+    public int $timeout = 600;
 
     /**
      * Create a new job instance.
@@ -136,28 +137,31 @@ class GenerateChapterHeaderImageJob implements ShouldQueue
                 'prompt_preview' => substr($strippedPrompt, 0, 200),
             ]);
 
-            // Update chapter with the prompt (legacy)
-            $chapterService->updateById($this->chapter->id, [
-                'image_prompt' => $strippedPrompt,
-            ], ['events' => false]);
-
             // Update Image record with the prompt
             $imageService->updateById($imageRecord->id, ['prompt' => $strippedPrompt]);
 
-            // Refresh chapter to get updated image_prompt
-            $this->chapter->refresh();
+            // Generate the image using FLUX 2 schema with character identification
+            Log::info('[GenerateChapterHeaderImageJob] Starting image generation with FLUX 2 schema', [
+                'chapter_id' => $this->chapter->id,
+                'image_id' => $imageRecord->id,
+            ]);
 
-            // Generate the image
-            $image = $chapterBuilderService->getImage(
+            $image = $chapterBuilderService->generateHeaderImage(
                 $this->chapter->book_id,
                 $this->chapter->id,
-                $this->chapter->image_prompt
+                $strippedPrompt
             );
 
+            Log::info('[GenerateChapterHeaderImageJob] Image generation response received', [
+                'chapter_id' => $this->chapter->id,
+                'image_id' => $imageRecord->id,
+                'has_image' => ! empty($image['image']),
+                'image_url_preview' => isset($image['image']) ? substr((string) $image['image'], 0, 100) : 'null',
+            ]);
+
             if (! empty($image['image'])) {
-                // Update chapter with image (legacy)
+                // Update chapter to point to new image record
                 $chapterService->updateById($this->chapter->id, [
-                    'image' => $image['image'],
                     'header_image_id' => $imageRecord->id,
                 ], ['events' => false]);
 

@@ -63,6 +63,7 @@ class CreateChapterInlineImagesJob implements ShouldQueue
 
         // Create Image records for each scene prompt
         $imageRecords = [];
+        $pendingInlineImages = [];
         foreach ($this->scenePrompts as $scenePrompt) {
             $paragraphIndex = (int) $scenePrompt['paragraph_index'];
             $prompt = $scenePrompt['prompt'];
@@ -80,7 +81,18 @@ class CreateChapterInlineImagesJob implements ShouldQueue
                 $imageService->markProcessing($imageRecord);
                 $imageRecords[$paragraphIndex] = $imageRecord;
             }
+
+            // Build pending inline_images with image_id references
+            $pendingInlineImages[] = [
+                'image_id' => $imageRecords[$paragraphIndex]->id,
+                'paragraph_index' => $paragraphIndex,
+            ];
         }
+
+        // Update chapter with pending inline images using image_id references
+        $chapterService->updateById($this->chapter->id, [
+            'inline_images' => $pendingInlineImages,
+        ], ['events' => false]);
 
         $inlineImages = $chapterBuilderService->generateChapterImages(
             $this->chapter->book_id,
@@ -88,7 +100,8 @@ class CreateChapterInlineImagesJob implements ShouldQueue
             $this->scenePrompts
         );
 
-        // Update Image records with generated URLs
+        // Update Image records with generated URLs and build the inline_images array
+        $inlineImagesJson = [];
         foreach ($inlineImages as $inlineImage) {
             $paragraphIndex = (int) $inlineImage['paragraph_index'];
 
@@ -101,13 +114,19 @@ class CreateChapterInlineImagesJob implements ShouldQueue
                     $imageService->markError($imageRecord, $inlineImage['error'] ?? 'Image generation failed');
                 }
 
+                // Build the inline_images JSON with image_id references
+                $inlineImagesJson[] = [
+                    'image_id' => $imageRecord->id,
+                    'paragraph_index' => $paragraphIndex,
+                ];
+
                 event(new ImageGeneratedEvent($imageRecord->fresh()));
             }
         }
 
-        // Update chapter with inline images (legacy)
+        // Update chapter with inline images using image_id references
         $chapterService->updateById($this->chapter->id, [
-            'inline_images' => ! empty($inlineImages) ? $inlineImages : null,
+            'inline_images' => ! empty($inlineImagesJson) ? $inlineImagesJson : null,
         ], ['events' => false]);
 
         Log::info('[CreateChapterInlineImagesJob] Completed successfully', [
