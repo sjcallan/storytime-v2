@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ArrowLeft, ExternalLink, ImageIcon, Sparkles, BookOpen, User, Loader2, Camera, Palette, Sun, Heart, Mountain, Layout, Trash2 } from 'lucide-vue-next';
+import { ArrowLeft, ExternalLink, ImageIcon, Sparkles, BookOpen, User, Loader2, Camera, Palette, Sun, Heart, Mountain, Layout, Trash2, FileText } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/composables/ApiFetch';
 import type { Image } from './types';
@@ -35,6 +35,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
     (e: 'back'): void;
     (e: 'deleted', imageId: string): void;
+    (e: 'goToChapter', chapterId: string): void;
 }>();
 
 // Delete state
@@ -73,6 +74,19 @@ const executeDelete = async () => {
 const isGenerating = computed(() => {
     return props.image.status === 'pending' || props.image.status === 'processing';
 });
+
+// Check if image is from a chapter (header or inline)
+const isChapterImage = computed(() => {
+    return (props.image.type === 'chapter_header' || props.image.type === 'chapter_inline') && 
+           props.image.chapter_id !== null;
+});
+
+// Navigate to the chapter this image belongs to
+const goToChapter = () => {
+    if (props.image.chapter_id) {
+        emit('goToChapter', props.image.chapter_id);
+    }
+};
 
 // Open image in new window
 const openInNewWindow = () => {
@@ -210,6 +224,17 @@ const formattedDate = computed(() => {
             
             <!-- Action buttons -->
             <div v-if="!isGenerating && !isDeleted" class="absolute bottom-4 right-4 z-20 flex items-center gap-2">
+                <!-- Go to chapter button (for chapter images) -->
+                <button
+                    v-if="isChapterImage"
+                    @click="goToChapter"
+                    class="flex items-center gap-1.5 rounded-full bg-amber-500/90 px-3 py-1.5 text-sm font-medium text-white shadow-lg backdrop-blur-sm transition-all hover:bg-amber-600 hover:scale-105 active:scale-95 cursor-pointer"
+                    title="View this chapter"
+                >
+                    <FileText class="h-4 w-4" />
+                    <span>Go to Chapter</span>
+                </button>
+                
                 <!-- Delete button -->
                 <button
                     @click="confirmDelete"

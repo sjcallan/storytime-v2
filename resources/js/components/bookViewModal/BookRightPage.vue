@@ -67,6 +67,7 @@ const emit = defineEmits<{
     (e: 'clearSelectedCharacter'): void;
     (e: 'clearSelectedImage'): void;
     (e: 'imageDeleted', imageId: string): void;
+    (e: 'goToChapter', chapterId: string): void;
     (e: 'regenerateCover'): void;
     (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
     (e: 'regenerateHeaderImage', chapterId: string): void;
@@ -197,6 +198,7 @@ const showHeader = computed(() => {
             :is-single-page-mode="isSinglePageMode"
             @back="emit('clearSelectedImage')"
             @deleted="emit('imageDeleted', $event)"
+            @go-to-chapter="emit('goToChapter', $event)"
         />
 
         <!-- Character Detail View (when character is selected from grid) -->

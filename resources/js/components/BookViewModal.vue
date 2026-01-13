@@ -1363,6 +1363,24 @@ const handleImageDeleted = (imageId: string) => {
     }
 };
 
+const handleGoToChapterFromImage = (chapterId: string) => {
+    // Find the chapter number from the book's chapters array
+    const chapter = book.value?.chapters?.find(ch => ch.id === chapterId);
+    if (!chapter) {
+        return;
+    }
+    
+    // Clear gallery state
+    responsive.resetSinglePageSide();
+    isViewingGallery.value = false;
+    selectedImage.value = null;
+    isViewingCharacters.value = false;
+    selectedCharacter.value = null;
+    
+    // Navigate to the chapter
+    chapters.jumpToChapter(props.bookId, chapter.sort);
+};
+
 // Create image handlers
 const handleOpenCreateImageModal = () => {
     showCreateImageModal.value = true;
@@ -1793,6 +1811,7 @@ onBeforeUnmount(() => {
                             @clear-selected-character="handleClearSelectedCharacter"
                             @clear-selected-image="handleClearSelectedImage"
                             @image-deleted="handleImageDeleted"
+                            @go-to-chapter="handleGoToChapterFromImage"
                             @textarea-focused="isTextareaFocused = $event"
                             @regenerate-cover="handleRegenerateCover"
                             @regenerate-image="(item, chapterId) => handleRegenerateImage(item, chapterId)"
