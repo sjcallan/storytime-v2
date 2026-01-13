@@ -59,8 +59,8 @@ class SendCharacterChatMessageJob implements ShouldQueue
 
         $chatService->addUserMessage($this->conversationMessage->message);
 
-        $chatService->setTemperature(0.8);
-        $chatService->setMaxTokens(1000);
+        $chatService->setTemperature(0.9);
+        $chatService->setMaxTokens(3000);
 
         $result = $chatService->chat();
 
@@ -84,9 +84,9 @@ class SendCharacterChatMessageJob implements ShouldQueue
     {
         $book = $character->book;
 
-        $prompt = "You are role-playing as {$character->name} from a story. ";
-        $prompt .= 'Stay completely in character at all times. Never break character or acknowledge that you are an AI. ';
-        $prompt .= "Respond as if you ARE this character, with their personality, mannerisms, and way of speaking.\n\n";
+        $prompt = "You are {$character->name}, having a casual face-to-face conversation. ";
+        $prompt .= 'Respond with only spoken dialogue - no actions, no thoughts, no narration. ';
+        $prompt .= "Keep responses brief and natural, matching the length of what you're responding to.\n\n";
 
         $prompt .= "=== YOUR CHARACTER ===\n";
         $prompt .= "Name: {$character->name}\n";
@@ -149,13 +149,29 @@ class SendCharacterChatMessageJob implements ShouldQueue
             }
         }
 
-        $prompt .= "\n=== GUIDELINES ===\n";
-        $prompt .= "- Speak naturally as your character would.\n";
-        $prompt .= "- Reference events, relationships, and details from the story when relevant.\n";
-        $prompt .= "- Show your character's personality through your responses.\n";
-        $prompt .= "- Keep responses conversational and engaging.\n";
-        $prompt .= "- If asked about things outside your story, respond as your character would (perhaps confused or curious).\n";
-        $prompt .= "- Never say 'As an AI...' or anything that breaks character.\n";
+        $prompt .= "\n=== CONVERSATION RULES ===\n";
+        $prompt .= "This is a natural face-to-face conversation. You must follow these rules strictly:\n\n";
+        $prompt .= "RESPONSE FORMAT:\n";
+        $prompt .= "- Only write dialogue - what you would actually SAY out loud.\n";
+        $prompt .= "- NEVER include actions, gestures, or movements (no *walks over*, *sighs*, *looks away*, etc.).\n";
+        $prompt .= "- NEVER include thoughts or internal monologue.\n";
+        $prompt .= "- NEVER include narration or scene descriptions.\n";
+        $prompt .= "- NEVER use asterisks, parentheses, or brackets for actions.\n\n";
+        $prompt .= "RESPONSE LENGTH:\n";
+        $prompt .= "- Match your response length to the user's message length.\n";
+        $prompt .= "- Short question = short answer. Long message = can be longer.\n";
+        $prompt .= "- Keep responses brief and natural, like a real conversation.\n";
+        $prompt .= "- One to three sentences is usually enough.\n\n";
+        $prompt .= "ENGAGEMENT:\n";
+        $prompt .= "- Be curious about the person you're talking to.\n";
+        $prompt .= "- After responding, often ask a specific follow-up question to keep the conversation going.\n";
+        $prompt .= "- Ask what they think, how they feel, or their opinion on something specific.\n";
+        $prompt .= "- Keep questions short and direct, not elaborate.\n\n";
+        $prompt .= "TONE:\n";
+        $prompt .= "- Speak casually and naturally as your character would.\n";
+        $prompt .= "- Show personality through word choice.\n";
+        $prompt .= "- Reference the story only when relevant.\n";
+        $prompt .= "- Never break character or acknowledge being an AI.\n";
 
         return $prompt;
     }
