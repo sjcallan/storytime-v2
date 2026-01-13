@@ -370,6 +370,11 @@ const handleImageGeneratedEvent = (payload: ImageGeneratedPayload) => {
             // Add new image to the array
             book.value.images.push(imageData);
         }
+
+        // Also update selectedImage if it's the same image being generated
+        if (selectedImage.value?.id === payload.id) {
+            selectedImage.value = imageData;
+        }
     }
 };
 
@@ -800,8 +805,8 @@ const handleKeydown = (event: KeyboardEvent) => {
         return;
     }
     
-    // Don't handle left/right navigation if textarea is focused
-    if (isTextareaFocused.value && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+    // Don't handle left/right navigation if textarea is focused or create image modal is open
+    if ((isTextareaFocused.value || showCreateImageModal.value) && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
         return;
     }
     
@@ -1343,6 +1348,21 @@ const handleClearSelectedImage = () => {
     }
 };
 
+const handleImageDeleted = (imageId: string) => {
+    // Remove the image from the book's images array
+    if (book.value?.images) {
+        book.value.images = book.value.images.filter(img => img.id !== imageId);
+    }
+    
+    // Clear the selected image
+    selectedImage.value = null;
+    
+    // In single-page mode, switch back to left page to show gallery grid
+    if (responsive.isSinglePageMode.value) {
+        responsive.setSinglePageToLeft();
+    }
+};
+
 // Create image handlers
 const handleOpenCreateImageModal = () => {
     showCreateImageModal.value = true;
@@ -1353,10 +1373,18 @@ const handleImageCreated = (image: Image) => {
     if (book.value && !book.value.images) {
         book.value.images = [];
     }
-    
+
     // Add the new image to the beginning of the array
     if (book.value?.images) {
         book.value.images.unshift(image);
+    }
+
+    // Auto-select the new image to show it in the details panel
+    selectedImage.value = image;
+
+    // In single-page mode, switch to right page to show image details
+    if (responsive.isSinglePageMode.value) {
+        responsive.setSinglePageToRight();
     }
 };
 
@@ -1764,6 +1792,7 @@ onBeforeUnmount(() => {
                             @go-back="handleGoToPreviousChapter"
                             @clear-selected-character="handleClearSelectedCharacter"
                             @clear-selected-image="handleClearSelectedImage"
+                            @image-deleted="handleImageDeleted"
                             @textarea-focused="isTextareaFocused = $event"
                             @regenerate-cover="handleRegenerateCover"
                             @regenerate-image="(item, chapterId) => handleRegenerateImage(item, chapterId)"

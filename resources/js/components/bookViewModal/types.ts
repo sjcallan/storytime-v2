@@ -11,7 +11,7 @@ export interface Image {
     book_id: string | null;
     chapter_id: string | null;
     character_id: string | null;
-    type: 'book_cover' | 'character_portrait' | 'chapter_header' | 'chapter_inline';
+    type: 'book_cover' | 'character_portrait' | 'chapter_header' | 'chapter_inline' | 'manual';
     image_url: string | null;
     full_url: string | null;
     prompt: string | null;
@@ -34,7 +34,7 @@ export interface ImageGeneratedPayload {
     book_id: string | null;
     chapter_id: string | null;
     character_id: string | null;
-    type: 'book_cover' | 'character_portrait' | 'chapter_header' | 'chapter_inline';
+    type: 'book_cover' | 'character_portrait' | 'chapter_header' | 'chapter_inline' | 'manual';
     image_url: string | null;
     full_url: string | null;
     prompt: string | null;

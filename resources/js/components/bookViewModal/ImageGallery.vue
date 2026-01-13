@@ -43,6 +43,8 @@ const getImageTypeLabel = (type: Image['type']): string => {
             return 'Header';
         case 'chapter_inline':
             return 'Illustration';
+        case 'manual':
+            return 'Custom';
         default:
             return 'Image';
     }
@@ -95,12 +97,17 @@ const getPlaceholderGradient = (imageId: string): string => {
         >
             <div class="grid grid-cols-2 gap-3 pb-4">
                 <!-- Generating Images (show first as they're in progress) -->
-                <div
+                <button
                     v-for="image in generatingImages"
                     :key="'generating-' + image.id"
+                    @click="emit('selectImage', image)"
                     :class="[
-                        'group relative aspect-square overflow-hidden rounded-xl',
-                        'ring-1 ring-purple-300 dark:ring-purple-500',
+                        'group relative aspect-square overflow-hidden rounded-xl cursor-pointer transition-all duration-200',
+                        'hover:ring-2 hover:ring-purple-400',
+                        'focus:outline-none focus:ring-2 focus:ring-purple-400',
+                        selectedImageId === image.id 
+                            ? 'ring-2 ring-purple-500 shadow-lg' 
+                            : 'ring-1 ring-purple-300 dark:ring-purple-500',
                         'bg-linear-to-br',
                         getPlaceholderGradient(image.id)
                     ]"
@@ -117,7 +124,13 @@ const getPlaceholderGradient = (imageId: string): string => {
                         <Sparkles class="inline h-3 w-3 mr-1" />
                         Creating
                     </div>
-                </div>
+                    
+                    <!-- Selected indicator -->
+                    <div 
+                        v-if="selectedImageId === image.id"
+                        class="absolute inset-0 border-4 border-purple-500 rounded-xl pointer-events-none"
+                    />
+                </button>
 
                 <!-- Completed Images -->
                 <button

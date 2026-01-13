@@ -105,10 +105,22 @@ const errors = ref<Record<string, string>>({});
 // Echo channel for real-time updates
 const echoChannel = ref<any>(null);
 
+// Scrollable content ref
+const formContentRef = ref<HTMLElement | null>(null);
+
+// Scroll to top of form content
+const scrollToTop = () => {
+    if (formContentRef.value) {
+        formContentRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+};
+
 // Preset options
 const stylePresets = [
     { value: 'Photorealistic, cinematic lighting, highly detailed', label: 'Cinematic' },
     { value: 'Whimsical cartoon illustration, hand-drawn aesthetic, vibrant colors', label: 'Cartoon' },
+    { value: 'Graphic novel illustration, bold ink outlines, dramatic shading, high contrast', label: 'Graphic Novel' },
+    { value: 'Comic book style, dynamic lines, vibrant pop colors, halftone dots, action-packed composition', label: 'Comic Book' },
     { value: 'Oil painting style, rich textures, classical composition', label: 'Painterly' },
     { value: 'Anime style, expressive characters, vivid colors', label: 'Anime' },
     { value: 'Watercolor illustration, soft edges, dreamy atmosphere', label: 'Watercolor' },
@@ -120,6 +132,7 @@ const lightingPresets = [
     { value: 'Ethereal magical glow with shimmering highlights', label: 'Magical' },
     { value: 'Moody film noir lighting with deep shadows', label: 'Noir' },
     { value: 'Bright, cheerful daylight', label: 'Daylight' },
+    { value: 'Nighttime moonlit scene, cool blue tones, stars visible, ambient night glow', label: 'Nighttime' },
 ];
 
 const moodPresets = [
@@ -139,11 +152,11 @@ const cameraAnglePresets = [
 ];
 
 const aspectRatioPresets = [
-    { value: '16:9', label: 'Landscape (16:9)', icon: '🖼️', description: 'Wide cinematic format' },
-    { value: '4:3', label: 'Standard (4:3)', icon: '📺', description: 'Classic photo format' },
-    { value: '1:1', label: 'Square (1:1)', icon: '⬜', description: 'Instagram-style' },
-    { value: '3:4', label: 'Portrait (3:4)', icon: '📱', description: 'Vertical format' },
-    { value: '9:16', label: 'Tall (9:16)', icon: '📲', description: 'Story/Reel format' },
+    { value: '16:9', label: 'Landscape', ratio: '16:9', width: 32, height: 18, description: 'Wide cinematic' },
+    { value: '4:3', label: 'Standard', ratio: '4:3', width: 28, height: 21, description: 'Classic photo' },
+    { value: '1:1', label: 'Square', ratio: '1:1', width: 24, height: 24, description: 'Instagram-style' },
+    { value: '3:4', label: 'Portrait', ratio: '3:4', width: 21, height: 28, description: 'Vertical' },
+    { value: '9:16', label: 'Tall', ratio: '9:16', width: 18, height: 32, description: 'Story/Reel' },
 ];
 
 const positionPresets = [
@@ -265,18 +278,21 @@ const canGoNext = computed(() => {
 const nextStep = () => {
     if (currentStep.value < totalSteps && canGoNext.value) {
         currentStep.value++;
+        scrollToTop();
     }
 };
 
 const prevStep = () => {
     if (currentStep.value > 1) {
         currentStep.value--;
+        scrollToTop();
     }
 };
 
 const goToStep = (step: number) => {
     if (step <= currentStep.value) {
         currentStep.value = step;
+        scrollToTop();
     }
 };
 
@@ -537,7 +553,7 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Form Content -->
-                <div class="max-h-[60vh] overflow-y-auto bg-white px-6 py-6 text-gray-900 dark:bg-gray-900 dark:text-white">
+                <div ref="formContentRef" class="max-h-[60vh] overflow-y-auto bg-white px-6 py-6 text-gray-900 dark:bg-gray-900 dark:text-white">
                     <form @submit.prevent="currentStep === totalSteps ? handleSubmit() : nextStep()">
                         <!-- Step 1: Scene & Characters -->
                         <div v-show="currentStep === 1" class="space-y-6">
@@ -849,9 +865,21 @@ onUnmounted(() => {
                                             ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-500/20 dark:bg-emerald-950/30'
                                             : 'border-gray-200 hover:border-emerald-400/50 hover:bg-emerald-50 dark:border-gray-700 dark:hover:bg-emerald-950/20'"
                                     >
-                                        <span class="text-2xl">{{ preset.icon }}</span>
-                                        <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ preset.label }}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ preset.description }}</p>
+                                        <!-- Visual aspect ratio rectangle -->
+                                        <div class="flex h-10 items-center justify-center">
+                                            <div
+                                                class="rounded-sm border-2 transition-colors"
+                                                :class="formData.aspect_ratio === preset.value
+                                                    ? 'border-emerald-500'
+                                                    : 'border-gray-400 dark:border-gray-500 group-hover:border-emerald-400'"
+                                                :style="{
+                                                    width: `${preset.width}px`,
+                                                    height: `${preset.height}px`
+                                                }"
+                                            />
+                                        </div>
+                                        <p class="mt-1.5 text-sm font-medium text-gray-900 dark:text-white">{{ preset.label }}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ preset.ratio }}</p>
                                         <div
                                             v-if="formData.aspect_ratio === preset.value"
                                             class="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white"
