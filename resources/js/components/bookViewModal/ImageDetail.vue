@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ArrowLeft, ExternalLink, ImageIcon, Sparkles, BookOpen, User, Loader2, Camera, Palette, Sun, Heart, Mountain, Layout, Trash2, FileText } from 'lucide-vue-next';
+import { ArrowLeft, ExternalLink, ImageIcon, Sparkles, BookOpen, User, Loader2, Camera, Palette, Sun, Heart, Mountain, Layout, Trash2, FileText, Pencil } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/composables/ApiFetch';
-import type { Image } from './types';
+import EditImageModal from './EditImageModal.vue';
+import type { Image, Character } from './types';
 
 interface Props {
     image: Image;
+    bookId: string;
+    characters: Character[];
     isSinglePageMode?: boolean;
 }
 
@@ -35,6 +38,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
     (e: 'back'): void;
     (e: 'deleted', imageId: string): void;
+    (e: 'imageUpdated', image: Image): void;
     (e: 'goToChapter', chapterId: string): void;
 }>();
 
@@ -43,6 +47,21 @@ const showDeleteConfirm = ref(false);
 const isDeleting = ref(false);
 const isDeleted = ref(false);
 const deleteError = ref<string | null>(null);
+
+// Edit modal state
+const showEditModal = ref(false);
+
+// Handle image updated from edit modal
+const handleImageUpdated = (newImage: Image) => {
+    showEditModal.value = false;
+    emit('imageUpdated', newImage);
+};
+
+// Check if the image can be edited (any image with a prompt or completed status)
+const canEditImage = computed(() => {
+    // Allow editing if there's a prompt or if the image is complete
+    return !!props.image.prompt || props.image.status === 'complete';
+});
 
 // Delete image
 const confirmDelete = () => {
@@ -233,6 +252,17 @@ const formattedDate = computed(() => {
                 >
                     <FileText class="h-4 w-4" />
                     <span>Go to Chapter</span>
+                </button>
+                
+                <!-- Edit button -->
+                <button
+                    v-if="canEditImage"
+                    @click="showEditModal = true"
+                    class="flex items-center gap-1.5 rounded-full bg-purple-500/90 px-3 py-1.5 text-sm font-medium text-white shadow-lg backdrop-blur-sm transition-all hover:bg-purple-600 hover:scale-105 active:scale-95 cursor-pointer"
+                    title="Edit and regenerate image"
+                >
+                    <Pencil class="h-4 w-4" />
+                    <span>Edit</span>
                 </button>
                 
                 <!-- Delete button -->
@@ -518,6 +548,15 @@ const formattedDate = computed(() => {
                 </p>
             </div>
         </div>
+
+        <!-- Edit Image Modal -->
+        <EditImageModal
+            v-model:is-open="showEditModal"
+            :book-id="bookId"
+            :image="image"
+            :characters="characters"
+            @image-updated="handleImageUpdated"
+        />
     </div>
 </template>
 

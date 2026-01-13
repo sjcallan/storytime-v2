@@ -67,6 +67,7 @@ const emit = defineEmits<{
     (e: 'clearSelectedCharacter'): void;
     (e: 'clearSelectedImage'): void;
     (e: 'imageDeleted', imageId: string): void;
+    (e: 'imageUpdated', image: Image): void;
     (e: 'goToChapter', chapterId: string): void;
     (e: 'regenerateCover'): void;
     (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
@@ -195,9 +196,12 @@ const showHeader = computed(() => {
         <ImageDetail
             v-else-if="readingView === 'title' && selectedImage"
             :image="selectedImage"
+            :book-id="book?.id ?? ''"
+            :characters="book?.characters ?? []"
             :is-single-page-mode="isSinglePageMode"
             @back="emit('clearSelectedImage')"
             @deleted="emit('imageDeleted', $event)"
+            @image-updated="emit('imageUpdated', $event)"
             @go-to-chapter="emit('goToChapter', $event)"
         />
 

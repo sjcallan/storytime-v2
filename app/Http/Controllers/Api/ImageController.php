@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\ImageStatus;
 use App\Enums\ImageType;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\EditImageRequest;
 use App\Http\Requests\StoreCustomImageRequest;
 use App\Jobs\Image\GenerateImageJob;
 use App\Models\Book;
@@ -344,5 +345,101 @@ class ImageController extends Controller
                 'created_at' => $image->created_at?->toISOString(),
             ],
         ], 201);
+    }
+
+    /**
+     * Edit an existing image by creating a new one with modified prompt.
+     * Transfers all associations from the original image to the new one and deletes the original.
+     */
+    public function edit(EditImageRequest $request, Image $image): JsonResponse
+    {
+        if ($image->book_id) {
+            $this->authorize('update', $image->book);
+        }
+
+        $prompt = $request->input('prompt');
+        $characterImageUrls = $request->input('character_image_urls', []);
+        $referenceImageUrls = $request->input('reference_image_urls', []);
+        $aspectRatio = $request->input('aspect_ratio');
+        $useOriginalAsReference = $request->boolean('use_original_as_reference', false);
+
+        // If using original as reference and it has a URL, add it to reference images
+        if ($useOriginalAsReference && $image->full_url) {
+            $referenceImageUrls[] = $image->full_url;
+        }
+
+        // Combine character and reference images for the generation job
+        $inputImageUrls = array_merge($characterImageUrls, $referenceImageUrls);
+
+        // Create a new image record with the updated prompt
+        $newImage = $this->imageService->store([
+            'book_id' => $image->book_id,
+            'chapter_id' => $image->chapter_id,
+            'character_id' => $image->character_id,
+            'user_id' => $image->user_id,
+            'profile_id' => $image->profile_id,
+            'type' => $image->type,
+            'prompt' => $prompt,
+            'status' => ImageStatus::Pending,
+            'paragraph_index' => $image->paragraph_index,
+            'aspect_ratio' => $aspectRatio ?? $image->aspect_ratio,
+        ]);
+
+        // Transfer associations from the old image to the new one
+        $this->transferImageAssociations($image, $newImage);
+
+        // Delete the original image
+        $image->delete();
+
+        // Dispatch the generation job
+        GenerateImageJob::dispatch($newImage, $inputImageUrls)->onQueue('images');
+
+        return response()->json([
+            'message' => 'Image edit started',
+            'image' => [
+                'id' => $newImage->id,
+                'book_id' => $newImage->book_id,
+                'chapter_id' => $newImage->chapter_id,
+                'character_id' => $newImage->character_id,
+                'type' => $newImage->type->value,
+                'status' => $newImage->status->value,
+                'prompt' => $newImage->prompt,
+                'full_url' => $newImage->full_url,
+                'aspect_ratio' => $newImage->aspect_ratio,
+                'paragraph_index' => $newImage->paragraph_index,
+                'created_at' => $newImage->created_at?->toISOString(),
+            ],
+        ], 201);
+    }
+
+    /**
+     * Transfer all associations from the original image to the new image.
+     * This updates foreign keys on books, chapters, and characters.
+     */
+    protected function transferImageAssociations(Image $oldImage, Image $newImage): void
+    {
+        // Transfer book cover association
+        if ($oldImage->type === ImageType::BookCover && $oldImage->book_id) {
+            Book::where('cover_image_id', $oldImage->id)->update([
+                'cover_image_id' => $newImage->id,
+            ]);
+        }
+
+        // Transfer chapter header association
+        if ($oldImage->type === ImageType::ChapterHeader && $oldImage->chapter_id) {
+            Chapter::where('header_image_id', $oldImage->id)->update([
+                'header_image_id' => $newImage->id,
+            ]);
+        }
+
+        // Transfer character portrait association
+        if ($oldImage->type === ImageType::CharacterPortrait && $oldImage->character_id) {
+            Character::where('portrait_image_id', $oldImage->id)->update([
+                'portrait_image_id' => $newImage->id,
+            ]);
+        }
+
+        // For chapter inline images, the association is via chapter_id and paragraph_index
+        // which are already copied to the new image, so no additional transfer needed
     }
 }

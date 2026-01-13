@@ -1363,6 +1363,16 @@ const handleImageDeleted = (imageId: string) => {
     }
 };
 
+const handleImageUpdated = (newImage: ImageType) => {
+    // Add the new image to the book's images array
+    if (book.value?.images) {
+        book.value.images.unshift(newImage);
+    }
+    
+    // Update the selected image to show the new one
+    selectedImage.value = newImage;
+};
+
 const handleGoToChapterFromImage = (chapterId: string) => {
     // Find the chapter number from the book's chapters array
     const chapter = book.value?.chapters?.find(ch => ch.id === chapterId);
@@ -1811,6 +1821,7 @@ onBeforeUnmount(() => {
                             @clear-selected-character="handleClearSelectedCharacter"
                             @clear-selected-image="handleClearSelectedImage"
                             @image-deleted="handleImageDeleted"
+                            @image-updated="handleImageUpdated"
                             @go-to-chapter="handleGoToChapterFromImage"
                             @textarea-focused="isTextareaFocused = $event"
                             @regenerate-cover="handleRegenerateCover"

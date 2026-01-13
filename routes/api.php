@@ -36,6 +36,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Image resource and custom endpoints
     Route::apiResource('images', ImageController::class)->only(['index', 'show', 'destroy']);
     Route::post('images/{image}/regenerate', [ImageController::class, 'regenerate'])->name('api.images.regenerate');
+    Route::post('images/{image}/edit', [ImageController::class, 'edit'])->name('api.images.edit');
     Route::post('images/{image}/cancel', [ImageController::class, 'cancel'])->name('api.images.cancel');
     Route::patch('images/{image}/prompt', [ImageController::class, 'updatePrompt'])->name('api.images.update-prompt');
 
