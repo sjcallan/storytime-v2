@@ -40,6 +40,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
     (e: 'selectCharacter', character: Character): void;
     (e: 'selectImage', image: Image): void;
+    (e: 'createImage'): void;
     (e: 'update:nextChapterPrompt', value: string): void;
     (e: 'update:isFinalChapter', value: boolean): void;
     (e: 'generateChapter'): void;
@@ -180,6 +181,7 @@ const openImageInNewWindow = (url: string | null | undefined) => {
                 :images="images"
                 :selected-image-id="selectedImageId ?? null"
                 @select-image="emit('selectImage', $event)"
+                @create-image="emit('createImage')"
             />
             <!-- Character Grid View -->
             <CharacterGrid

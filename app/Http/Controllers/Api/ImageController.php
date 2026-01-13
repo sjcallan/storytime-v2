@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ImageStatus;
+use App\Enums\ImageType;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreCustomImageRequest;
 use App\Jobs\Image\GenerateImageJob;
 use App\Models\Book;
 use App\Models\Chapter;
@@ -299,5 +302,47 @@ class ImageController extends Controller
                 'prompt' => $image->prompt,
             ],
         ]);
+    }
+
+    /**
+     * Create a custom image for a book using the Flux 2 JSON schema.
+     * The prompt should be a JSON string containing the full scene description.
+     */
+    public function createCustomImage(StoreCustomImageRequest $request, Book $book): JsonResponse
+    {
+        $this->authorize('update', $book);
+
+        $prompt = $request->input('prompt');
+        $characterImageUrls = $request->input('character_image_urls', []);
+        $aspectRatio = $request->input('aspect_ratio');
+
+        // Manual images always use the Manual type
+        $imageType = ImageType::Manual;
+
+        $image = $this->imageService->store([
+            'book_id' => $book->id,
+            'user_id' => $book->user_id,
+            'profile_id' => $book->profile_id,
+            'type' => $imageType,
+            'prompt' => $prompt,
+            'status' => ImageStatus::Pending,
+            'aspect_ratio' => $aspectRatio ?? $imageType->aspectRatio(),
+        ]);
+
+        GenerateImageJob::dispatch($image, $characterImageUrls)->onQueue('images');
+
+        return response()->json([
+            'message' => 'Custom image generation started',
+            'image' => [
+                'id' => $image->id,
+                'book_id' => $image->book_id,
+                'type' => $image->type->value,
+                'status' => $image->status->value,
+                'prompt' => $image->prompt,
+                'full_url' => $image->full_url,
+                'aspect_ratio' => $image->aspect_ratio,
+                'created_at' => $image->created_at?->toISOString(),
+            ],
+        ], 201);
     }
 }

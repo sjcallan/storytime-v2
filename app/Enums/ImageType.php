@@ -8,6 +8,7 @@ enum ImageType: string
     case CharacterPortrait = 'character_portrait';
     case ChapterHeader = 'chapter_header';
     case ChapterInline = 'chapter_inline';
+    case Manual = 'manual';
 
     /**
      * Get the aspect ratio for this image type.
@@ -19,6 +20,7 @@ enum ImageType: string
             self::CharacterPortrait => '1:1',
             self::ChapterHeader => '16:9',
             self::ChapterInline => '16:9',
+            self::Manual => '16:9',
         };
     }
 
@@ -32,6 +34,7 @@ enum ImageType: string
             self::CharacterPortrait => 'Character Portrait',
             self::ChapterHeader => 'Chapter Header',
             self::ChapterInline => 'Chapter Inline',
+            self::Manual => 'Manual',
         };
     }
 }

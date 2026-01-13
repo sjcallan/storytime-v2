@@ -41,6 +41,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Create images for entities
     Route::post('books/{book}/images/cover', [ImageController::class, 'createBookCover'])->name('api.books.images.cover');
+    Route::post('books/{book}/images/custom', [ImageController::class, 'createCustomImage'])->name('api.books.images.custom');
     Route::post('chapters/{chapter}/images/header', [ImageController::class, 'createChapterHeader'])->name('api.chapters.images.header');
     Route::post('chapters/{chapter}/images/inline', [ImageController::class, 'createChapterInline'])->name('api.chapters.images.inline');
     Route::post('characters/{character}/images/portrait', [ImageController::class, 'createCharacterPortrait'])->name('api.characters.images.portrait');

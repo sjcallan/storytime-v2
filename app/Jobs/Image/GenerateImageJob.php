@@ -26,9 +26,21 @@ class GenerateImageJob implements ShouldQueue
     public int $timeout = 360;
 
     /**
-     * Create a new job instance.
+     * Optional input image URLs for style consistency (e.g., character portraits).
+     *
+     * @var array<string>
      */
-    public function __construct(public Image $image) {}
+    public array $inputImageUrls;
+
+    /**
+     * Create a new job instance.
+     *
+     * @param  array<string>  $inputImageUrls
+     */
+    public function __construct(public Image $image, array $inputImageUrls = [])
+    {
+        $this->inputImageUrls = $inputImageUrls;
+    }
 
     /**
      * Execute the job.
@@ -41,9 +53,10 @@ class GenerateImageJob implements ShouldQueue
             'book_id' => $this->image->book_id,
             'chapter_id' => $this->image->chapter_id,
             'character_id' => $this->image->character_id,
+            'input_image_count' => count($this->inputImageUrls),
         ]);
 
-        $generationService->generate($this->image);
+        $generationService->generate($this->image, $this->inputImageUrls);
 
         Log::info('[GenerateImageJob] Completed', [
             'image_id' => $this->image->id,

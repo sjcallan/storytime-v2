@@ -32,12 +32,15 @@ class ImageGenerationService
 
     /**
      * Generate an image based on its type.
+     *
+     * @param  array<string>  $inputImageUrls  Optional input images for style consistency
      */
-    public function generate(Image $image): Image
+    public function generate(Image $image, array $inputImageUrls = []): Image
     {
         Log::info('[ImageGenerationService::generate] Starting generation', [
             'image_id' => $image->id,
             'type' => $image->type->value,
+            'input_image_count' => count($inputImageUrls),
         ]);
 
         $this->imageService->markProcessing($image);
@@ -47,7 +50,8 @@ class ImageGenerationService
                 ImageType::BookCover => $this->generateBookCover($image),
                 ImageType::CharacterPortrait => $this->generateCharacterPortrait($image),
                 ImageType::ChapterHeader => $this->generateChapterHeader($image),
-                ImageType::ChapterInline => $this->generateChapterInline($image),
+                ImageType::ChapterInline => $this->generateChapterInline($image, $inputImageUrls),
+                ImageType::Manual => $this->generateManualImage($image, $inputImageUrls),
             };
 
             if ($result) {
@@ -253,17 +257,16 @@ class ImageGenerationService
 
     /**
      * Generate a chapter inline image.
+     *
+     * @param  array<string>  $providedInputImages  Optional explicitly provided input images
      */
-    protected function generateChapterInline(Image $image): ?string
+    protected function generateChapterInline(Image $image, array $providedInputImages = []): ?string
     {
-        $chapter = $image->chapter;
+        $book = $image->book;
 
-        if (! $chapter) {
+        if (! $book) {
             return null;
         }
-
-        $chapter->load(['book.characters.portraitImage', 'book.coverImage']);
-        $book = $chapter->book;
 
         $prompt = $image->prompt;
 
@@ -271,48 +274,75 @@ class ImageGenerationService
             return null;
         }
 
-        // Build style and full prompt
-        $isFlux2 = $this->isFlux2Model();
+        // Check if the prompt is already JSON (custom image with Flux 2 schema)
+        $isJsonPrompt = $this->isJsonString($prompt);
 
-        if ($isFlux2) {
+        // Build the full prompt
+        if ($isJsonPrompt) {
+            // Already in Flux 2 JSON format, use as-is
+            $fullPrompt = $prompt;
+        } elseif ($this->isFlux2Model()) {
+            // Convert regular prompt to Flux 2 JSON format
+            $book->load(['characters.portraitImage', 'coverImage']);
             $fullPrompt = $this->buildFlux2JsonPrompt($book, $prompt);
         } else {
             $style = $this->getSceneImageStylePrefix($book);
             $fullPrompt = trim($style.' '.$this->stripQuotes($prompt));
         }
 
-        // Collect base images for style consistency
-        $baseImages = [];
+        // Determine input images - use provided ones if available, otherwise collect from book
+        if (! empty($providedInputImages)) {
+            // Use explicitly provided input images (for custom images)
+            $inputImages = $providedInputImages;
 
-        // Use the cover_image_url accessor which prioritizes Image model over legacy field
-        $coverUrl = $book->cover_image_url;
-        if ($coverUrl) {
-            $baseImages[] = $coverUrl;
-        }
-
-        // Build character portrait map using portrait_image_url accessor
-        $characterPortraits = [];
-        foreach ($book->characters ?? [] as $character) {
-            $portraitUrl = $character->portrait_image_url;
-            if ($portraitUrl) {
-                $characterPortraits[$character->name] = $portraitUrl;
+            // Also add the cover image for style consistency
+            $coverUrl = $book->cover_image_url;
+            if ($coverUrl && ! in_array($coverUrl, $inputImages)) {
+                array_unshift($inputImages, $coverUrl);
             }
+        } else {
+            // Load chapter if this is a chapter-associated image
+            $chapter = $image->chapter;
+            if ($chapter) {
+                $chapter->load(['book.characters.portraitImage', 'book.coverImage']);
+                $book = $chapter->book;
+            } else {
+                $book->load(['characters.portraitImage', 'coverImage']);
+            }
+
+            // Collect base images for style consistency
+            $baseImages = [];
+
+            // Use the cover_image_url accessor which prioritizes Image model over legacy field
+            $coverUrl = $book->cover_image_url;
+            if ($coverUrl) {
+                $baseImages[] = $coverUrl;
+            }
+
+            // Build character portrait map using portrait_image_url accessor
+            $characterPortraits = [];
+            foreach ($book->characters ?? [] as $character) {
+                $portraitUrl = $character->portrait_image_url;
+                if ($portraitUrl) {
+                    $characterPortraits[$character->name] = $portraitUrl;
+                }
+            }
+
+            // Get character images for this specific scene
+            $sceneCharacterImages = $this->getCharacterImagesForScene(
+                $prompt,
+                $book->characters,
+                $characterPortraits,
+                [
+                    'book_id' => $book->id,
+                    'chapter_id' => $chapter?->id,
+                    'user_id' => $book->user_id,
+                    'profile_id' => $book->profile_id,
+                ]
+            );
+
+            $inputImages = array_merge($baseImages, $sceneCharacterImages);
         }
-
-        // Get character images for this specific scene
-        $sceneCharacterImages = $this->getCharacterImagesForScene(
-            $prompt,
-            $book->characters,
-            $characterPortraits,
-            [
-                'book_id' => $book->id,
-                'chapter_id' => $chapter->id,
-                'user_id' => $book->user_id,
-                'profile_id' => $book->profile_id,
-            ]
-        );
-
-        $inputImages = array_merge($baseImages, $sceneCharacterImages);
 
         $trackingContext = [
             'item_type' => 'chapter_inline_image',
@@ -337,10 +367,75 @@ class ImageGenerationService
             return null;
         }
 
+        $chapter = $image->chapter;
+        $filename = $chapter
+            ? $chapter->id.'_scene_'.$image->paragraph_index
+            : 'book_'.$image->book_id.'_'.$image->id;
+
         return $this->saveImageToS3(
             $result['url'],
             'chapters/inline',
-            $chapter->id.'_scene_'.$image->paragraph_index
+            $filename
+        );
+    }
+
+    /**
+     * Generate a manual/custom image created by the user.
+     *
+     * @param  array<string>  $providedInputImages  Optional explicitly provided input images
+     */
+    protected function generateManualImage(Image $image, array $providedInputImages = []): ?string
+    {
+        $book = $image->book;
+
+        if (! $book) {
+            return null;
+        }
+
+        $prompt = $image->prompt;
+
+        if (! $prompt) {
+            return null;
+        }
+
+        // For manual images, the prompt is already in Flux 2 JSON format
+        $fullPrompt = $prompt;
+
+        // Determine input images - use provided ones if available
+        $inputImages = $providedInputImages;
+
+        // Also add the cover image for style consistency
+        $coverUrl = $book->cover_image_url;
+        if ($coverUrl && ! in_array($coverUrl, $inputImages)) {
+            array_unshift($inputImages, $coverUrl);
+        }
+
+        $trackingContext = [
+            'item_type' => 'manual_image',
+            'user_id' => $image->user_id,
+            'profile_id' => $image->profile_id,
+            'book_id' => $image->book_id,
+        ];
+
+        $result = $this->replicateService->generateImage(
+            $fullPrompt,
+            $inputImages,
+            $image->aspect_ratio,
+            $trackingContext
+        );
+
+        if ($result['error'] || empty($result['url'])) {
+            Log::error('[ImageGenerationService::generateManualImage] API error', [
+                'error' => $result['error'],
+            ]);
+
+            return null;
+        }
+
+        return $this->saveImageToS3(
+            $result['url'],
+            'manual',
+            'book_'.$image->book_id.'_'.$image->id
         );
     }
 
@@ -992,5 +1087,25 @@ Be specific and descriptive. Write only the description itself, no explanations 
         $message = rtrim($message, '"');
 
         return $message;
+    }
+
+    /**
+     * Check if a string is valid JSON.
+     */
+    protected function isJsonString(string $string): bool
+    {
+        if (empty($string)) {
+            return false;
+        }
+
+        // Quick check: must start with { or [
+        $trimmed = trim($string);
+        if (! str_starts_with($trimmed, '{') && ! str_starts_with($trimmed, '[')) {
+            return false;
+        }
+
+        json_decode($string);
+
+        return json_last_error() === JSON_ERROR_NONE;
     }
 }

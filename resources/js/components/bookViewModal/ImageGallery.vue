@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ImageIcon } from 'lucide-vue-next';
+import { ImageIcon, Plus, Sparkles } from 'lucide-vue-next';
 import { Spinner } from '@/components/ui/spinner';
 import type { Image } from './types';
 
@@ -13,6 +13,7 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'selectImage', image: Image): void;
+    (e: 'createImage'): void;
 }>();
 
 // Filter to only show complete images with valid URLs
@@ -21,6 +22,13 @@ const galleryImages = computed(() => {
         img.status === 'complete' && 
         img.full_url && 
         img.full_url.trim() !== ''
+    );
+});
+
+// Pending/processing images to show as generating
+const generatingImages = computed(() => {
+    return props.images.filter(img => 
+        img.status === 'pending' || img.status === 'processing'
     );
 });
 
@@ -61,7 +69,7 @@ const getPlaceholderGradient = (imageId: string): string => {
 <template>
     <div class="relative z-10 flex h-full flex-col p-6 pt-16">
         <!-- Header -->
-        <div class="mb-6 text-center">
+        <div class="mb-4 text-center">
             <h2 class="font-serif text-xl md:text-2xl font-bold text-amber-950 dark:text-amber-900 tracking-tight">
                 Image Gallery
             </h2>
@@ -70,12 +78,48 @@ const getPlaceholderGradient = (imageId: string): string => {
             </p>
         </div>
 
+        <!-- Create New Image Button -->
+        <button
+            @click="emit('createImage')"
+            class="mb-4 flex items-center justify-center gap-2 rounded-xl bg-linear-to-r from-purple-500 to-indigo-600 px-4 py-3 text-sm font-medium text-white shadow-md transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] cursor-pointer"
+        >
+            <Plus class="h-4 w-4" />
+            <span>Create New Image</span>
+            <Sparkles class="h-4 w-4" />
+        </button>
+
         <!-- Image Grid -->
         <div 
-            v-if="galleryImages.length > 0"
+            v-if="galleryImages.length > 0 || generatingImages.length > 0"
             class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-amber-300 scrollbar-track-transparent p-2"
         >
             <div class="grid grid-cols-2 gap-3 pb-4">
+                <!-- Generating Images (show first as they're in progress) -->
+                <div
+                    v-for="image in generatingImages"
+                    :key="'generating-' + image.id"
+                    :class="[
+                        'group relative aspect-square overflow-hidden rounded-xl',
+                        'ring-1 ring-purple-300 dark:ring-purple-500',
+                        'bg-linear-to-br',
+                        getPlaceholderGradient(image.id)
+                    ]"
+                >
+                    <div class="h-full w-full flex flex-col items-center justify-center gap-2">
+                        <Spinner class="h-8 w-8 text-white/80" />
+                        <span class="text-xs font-medium text-white/80 px-2 text-center">
+                            Generating...
+                        </span>
+                    </div>
+                    
+                    <!-- Image type badge -->
+                    <div class="absolute bottom-1.5 left-1.5 rounded-full bg-purple-500/80 px-2 py-0.5 text-xs font-medium text-white/90 backdrop-blur-sm">
+                        <Sparkles class="inline h-3 w-3 mr-1" />
+                        Creating
+                    </div>
+                </div>
+
+                <!-- Completed Images -->
                 <button
                     v-for="image in galleryImages"
                     :key="image.id"
@@ -135,7 +179,7 @@ const getPlaceholderGradient = (imageId: string): string => {
                 No images in this story yet
             </p>
             <p class="text-amber-600 dark:text-amber-600 text-xs mt-1">
-                Images will appear here as you read
+                Click "Create New Image" to generate one!
             </p>
         </div>
     </div>

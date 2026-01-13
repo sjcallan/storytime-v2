@@ -17,6 +17,7 @@ import {
     BookLoadingOverlay,
     DeleteConfirmDialog,
     ChapterEditModal,
+    CreateImageModal,
 } from '@/components/bookViewModal';
 import type { 
     Book, 
@@ -95,6 +96,7 @@ const isViewingCharacters = ref(false);
 // Gallery state
 const selectedImage = ref<Image | null>(null);
 const isViewingGallery = ref(false);
+const showCreateImageModal = ref(false);
 
 // Textarea focus state (for disabling keyboard navigation)
 const isTextareaFocused = ref(false);
@@ -333,6 +335,41 @@ const handleImageGeneratedEvent = (payload: ImageGeneratedPayload) => {
                 );
             }
             break;
+    }
+    
+    // Also update the book's images array for gallery display
+    if (payload.book_id === book.value.id) {
+        // Initialize images array if it doesn't exist
+        if (!book.value.images) {
+            book.value.images = [];
+        }
+        
+        // Find existing image in the array
+        const existingImageIndex = book.value.images.findIndex(img => img.id === payload.id);
+        
+        const imageData: Image = {
+            id: payload.id,
+            book_id: payload.book_id,
+            chapter_id: payload.chapter_id,
+            character_id: payload.character_id,
+            type: payload.type,
+            image_url: payload.image_url,
+            full_url: payload.full_url,
+            prompt: payload.prompt,
+            error: payload.error,
+            status: payload.status,
+            paragraph_index: payload.paragraph_index,
+            aspect_ratio: payload.aspect_ratio,
+            updated_at: payload.updated_at ?? undefined,
+        };
+        
+        if (existingImageIndex !== -1) {
+            // Update existing image
+            book.value.images[existingImageIndex] = imageData;
+        } else {
+            // Add new image to the array
+            book.value.images.push(imageData);
+        }
     }
 };
 
@@ -1306,6 +1343,23 @@ const handleClearSelectedImage = () => {
     }
 };
 
+// Create image handlers
+const handleOpenCreateImageModal = () => {
+    showCreateImageModal.value = true;
+};
+
+const handleImageCreated = (image: Image) => {
+    // Initialize images array if it doesn't exist
+    if (book.value && !book.value.images) {
+        book.value.images = [];
+    }
+    
+    // Add the new image to the beginning of the array
+    if (book.value?.images) {
+        book.value.images.unshift(image);
+    }
+};
+
 // Computed for whether book has characters
 const hasCharacters = computed(() => {
     return book.value?.characters && book.value.characters.length > 0;
@@ -1323,16 +1377,17 @@ const hasImages = computed(() => {
     );
 });
 
-// Get all completed images for the gallery
+// Get all images for the gallery (includes generating images)
 const galleryImages = computed(() => {
     if (!book.value?.images) {
         return [];
     }
-    return book.value.images.filter(img => 
-        img.status === 'complete' && 
-        img.full_url && 
-        img.full_url.trim() !== ''
-    );
+    // Return all images, sorted by created_at descending (newest first)
+    return [...book.value.images].sort((a, b) => {
+        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return dateB - dateA;
+    });
 });
 
 // Reset all state
@@ -1355,6 +1410,7 @@ const resetAllState = () => {
     isFavorite.value = false;
     isTogglingFavorite.value = false;
     showChapterEditModal.value = false;
+    showCreateImageModal.value = false;
     isChapterEditing.value = false;
     chapterEditError.value = null;
     pendingEditChapterId.value = null;
@@ -1499,6 +1555,15 @@ onBeforeUnmount(() => {
                         @textarea-focused="isTextareaFocused = $event"
                     />
 
+                    <!-- Create Image Modal -->
+                    <CreateImageModal
+                        v-if="book"
+                        v-model:is-open="showCreateImageModal"
+                        :book-id="book.id"
+                        :characters="book.characters ?? []"
+                        @image-created="handleImageCreated"
+                    />
+
                     <!-- Loading/Saving Overlay -->
                     <BookLoadingOverlay 
                         v-if="loading || isSaving || isDeleting"
@@ -1631,6 +1696,7 @@ onBeforeUnmount(() => {
                             :selected-image-id="selectedImage?.id ?? null"
                             @select-character="handleSelectCharacter"
                             @select-image="handleSelectImage"
+                            @create-image="handleOpenCreateImageModal"
                             @update:next-chapter-prompt="chapters.nextChapterPrompt.value = $event"
                             @update:is-final-chapter="chapters.isFinalChapter.value = $event"
                             @generate-chapter="handleGenerateChapter"
