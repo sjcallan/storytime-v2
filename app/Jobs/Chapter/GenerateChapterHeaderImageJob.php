@@ -89,7 +89,11 @@ class GenerateChapterHeaderImageJob implements ShouldQueue
         }
 
         // Generate image prompt using AI
-        $systemPrompt = 'You are an expert at creating detailed image generation prompts for story illustrations. Your prompts should be vivid, specific, and capture the essence of a scene.';
+        $systemPrompt = 'You are an expert at creating detailed image generation prompts for story illustrations. ';
+        $systemPrompt .= 'Your prompts should be vivid, specific, and capture the essence of a scene. ';
+        $systemPrompt .= 'CRITICAL: ONLY include characters who are PHYSICALLY PRESENT in the scene. ';
+        $systemPrompt .= 'Do NOT include characters who are merely mentioned, remembered, thought about, or talked about but not bodily present. ';
+        $systemPrompt .= 'A character must be at the physical location of the scene to appear in the image.';
 
         $userPrompt = "Based on this {$chapterLabel} content, create a single detailed image prompt for an illustration:\n\n";
         $userPrompt .= "Title: {$this->chapter->title}\n\n";
@@ -108,7 +112,10 @@ class GenerateChapterHeaderImageJob implements ShouldQueue
             $userPrompt .= "{$characterInstructions}\n\n";
         }
 
-        $userPrompt .= "Create a detailed one-sentence prompt for an image generation service describing a key scene from this {$chapterLabel}. Include visual details about setting, lighting, mood, and any characters present. The image should be in 16:7 landscape format.";
+        $userPrompt .= "Create a detailed one-sentence prompt for an image generation service describing a key scene from this {$chapterLabel}. ";
+        $userPrompt .= 'Include visual details about setting, lighting, mood. ';
+        $userPrompt .= 'CRITICAL: ONLY include characters who are PHYSICALLY PRESENT at the scene location - NOT characters who are mentioned, remembered, or talked about. ';
+        $userPrompt .= 'The image should be in 16:7 landscape format.';
 
         $chatService->resetMessages();
         $chatService->addSystemMessage($systemPrompt);

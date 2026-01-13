@@ -284,19 +284,21 @@ class ChapterBuilderService extends BuilderService
 
             $characterInstructions = $this->getCharacterIdentificationInstructions($characters);
 
+            $physicalPresenceRule = 'CRITICAL: ONLY include characters who are PHYSICALLY PRESENT at the scene location - do NOT include characters who are merely mentioned, remembered, or talked about but not bodily there. ';
+
             $outputFormat = [
                 'body' => 'The full '.$chapterLabel.' text, but no more than ',
                 'title' => 'A compelling '.$chapterLabel.' title (plain text, no '.$chapterLabel.' number)',
                 'summary' => 'A detailed summary with key events, character names, descriptions, ages, genders, experiences, thoughts, goals, and nationalities. No commentary.',
-                'image_prompt' => 'A detailed one-sentence prompt for an image generation service describing a key scene from this '.$chapterLabel.'. '.$characterInstructions.' Describe the visual scene, setting, mood, and action.',
+                'image_prompt' => 'A detailed one-sentence prompt for an image generation service describing a key scene from this '.$chapterLabel.'. '.$physicalPresenceRule.$characterInstructions.' Describe the visual scene, setting, mood, and action.',
                 'scene_images' => [
                     [
                         'paragraph_index' => 'The 0-based paragraph index where this scene occurs (early in the '.$chapterLabel.', around 20-30% through)',
-                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$physicalPresenceRule.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
                     ],
                     [
                         'paragraph_index' => 'The 0-based paragraph index where this scene occurs (later in the '.$chapterLabel.', around 60-80% through)',
-                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$physicalPresenceRule.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
                     ],
                 ],
             ];
@@ -977,10 +979,12 @@ class ChapterBuilderService extends BuilderService
             $this->chatService->setTemperature(0);
             $this->chatService->setResponseFormat('json_object');
 
-            $systemPrompt = 'You identify which characters from a story are present in a scene description. ';
-            $systemPrompt .= 'Analyze the scene prompt and determine which of the provided characters appear or are mentioned. ';
+            $systemPrompt = 'You identify which characters from a story are PHYSICALLY PRESENT in a scene description. ';
+            $systemPrompt .= 'CRITICAL: A character is ONLY present if they are bodily in the scene location and can be seen/photographed. ';
+            $systemPrompt .= 'Do NOT include characters who are: mentioned in conversation, remembered, thought about, referenced in the past, or talked about but not physically there. ';
+            $systemPrompt .= 'Only include characters who would actually appear in a photograph taken at that exact moment and location. ';
             $systemPrompt .= 'Consider gender identifiers like "Male 1", "Female 1" etc. and match them to the characters based on their order. ';
-            $systemPrompt .= 'Return a JSON object with a single key "characters" containing an array of character names that are present.';
+            $systemPrompt .= 'Return a JSON object with a single key "characters" containing an array of character names that are PHYSICALLY present.';
 
             $userPrompt = "Characters in this story (in order):\n";
             $maleCount = 0;
@@ -999,7 +1003,9 @@ class ChapterBuilderService extends BuilderService
                 $userPrompt .= "- {$character->name} ({$identifier})\n";
             }
             $userPrompt .= "\nScene prompt:\n\"{$scenePrompt}\"\n\n";
-            $userPrompt .= 'Which characters from the list above are present in this scene? Return JSON: {"characters": ["name1", "name2"]}';
+            $userPrompt .= 'Which characters from the list above are PHYSICALLY PRESENT in this scene (bodily there, visible, can be photographed)? ';
+            $userPrompt .= 'Do NOT include characters who are only mentioned, remembered, or talked about. ';
+            $userPrompt .= 'Return JSON: {"characters": ["name1", "name2"]}';
 
             $this->chatService->addSystemMessage($systemPrompt);
             $this->chatService->addUserMessage($userPrompt);
@@ -1101,8 +1107,11 @@ class ChapterBuilderService extends BuilderService
      */
     protected function getCharacterIdentificationInstructions($characters): string
     {
-        $instructions = 'NO character names in the prompt. ';
-        $instructions .= 'Identify each character as "[Gender] [Number]" (e.g., "Male 1", "Female 2"). ';
+        $instructions = 'CRITICAL: ONLY include characters who are PHYSICALLY PRESENT in the scene. ';
+        $instructions .= 'Do NOT include characters who are merely mentioned, remembered, thought about, or talked about. ';
+        $instructions .= 'A character must be bodily present at the physical location shown in the image. ';
+        $instructions .= 'NO character names in the prompt. ';
+        $instructions .= 'Identify each PHYSICALLY PRESENT character as "[Gender] [Number]" (e.g., "Male 1", "Female 2"). ';
         $instructions .= 'Number characters of the same gender sequentially (Male 1, Male 2, Female 1, etc.). ';
         $instructions .= 'Describe characters sequentially from LEFT to RIGHT across the image composition. ';
         $instructions .= 'Include each character\'s physical description immediately after their identifier. ';
@@ -1881,6 +1890,7 @@ PROMPT;
             }
 
             $characterInstructions = $this->getCharacterIdentificationInstructions($characters);
+            $physicalPresenceRule = 'CRITICAL: ONLY include characters who are PHYSICALLY PRESENT at the scene location - do NOT include characters who are merely mentioned, remembered, or talked about but not bodily there. ';
 
             $this->chatService->resetMessages();
             $this->chatService->setResponseFormat('json_object');
@@ -1893,11 +1903,11 @@ PROMPT;
                 'scene_images' => [
                     [
                         'paragraph_index' => 'The 0-based paragraph index where this scene occurs (early in the '.$chapterLabel.', around 20-30% through)',
-                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$physicalPresenceRule.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
                     ],
                     [
                         'paragraph_index' => 'The 0-based paragraph index where this scene occurs (later in the '.$chapterLabel.', around 60-80% through)',
-                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$physicalPresenceRule.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
                     ],
                 ],
             ];

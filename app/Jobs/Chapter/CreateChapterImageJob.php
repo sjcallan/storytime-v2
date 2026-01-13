@@ -98,6 +98,9 @@ class CreateChapterImageJob implements ShouldQueue
         $systemPrompt = 'You are an expert at creating detailed image generation prompts for story illustrations. ';
         $systemPrompt .= 'Your prompts should be vivid, specific, and capture the essence of a scene. ';
         $systemPrompt .= 'CRITICAL: You MUST include at least one character in every image prompt. ';
+        $systemPrompt .= 'CRITICAL: ONLY include characters who are PHYSICALLY PRESENT in the scene. ';
+        $systemPrompt .= 'Do NOT include characters who are merely mentioned, remembered, thought about, or talked about but not bodily present. ';
+        $systemPrompt .= 'A character must be at the physical location of the scene to appear in the image. ';
         $systemPrompt .= 'Never create a prompt without characters - the image must show the story\'s characters in the scene.';
 
         $userPrompt = "Based on this {$chapterLabel} content, create a single detailed image prompt for an illustration:\n\n";
@@ -120,7 +123,8 @@ class CreateChapterImageJob implements ShouldQueue
         $userPrompt .= "Create a detailed one-sentence prompt for an image generation service describing a key scene from this {$chapterLabel}. ";
         $userPrompt .= 'Include visual details about setting, lighting, mood. ';
         $userPrompt .= 'CRITICAL: You MUST specify which character(s) should appear in the image - identify them by their physical appearance and position in the scene. ';
-        $userPrompt .= 'The image must show at least one character. The image should be in 16:7 landscape format.';
+        $userPrompt .= 'CRITICAL: ONLY include characters who are PHYSICALLY PRESENT at the scene location - NOT characters who are mentioned, remembered, or talked about. ';
+        $userPrompt .= 'The image must show at least one character who is bodily present in the scene. The image should be in 16:7 landscape format.';
 
         $chatService->resetMessages();
         $chatService->addSystemMessage($systemPrompt);

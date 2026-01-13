@@ -297,32 +297,18 @@ class ImageGenerationService
         }
 
         // Determine input images - use provided ones if available, otherwise collect from book
+        // Note: Cover image is intentionally NOT included - only character portraits should be used
         if (! empty($providedInputImages)) {
             // Use explicitly provided input images (for custom images)
             $inputImages = $providedInputImages;
-
-            // Also add the cover image for style consistency
-            $coverUrl = $book->cover_image_url;
-            if ($coverUrl && ! in_array($coverUrl, $inputImages)) {
-                array_unshift($inputImages, $coverUrl);
-            }
         } else {
             // Load chapter if this is a chapter-associated image
             $chapter = $image->chapter;
             if ($chapter) {
-                $chapter->load(['book.characters.portraitImage', 'book.coverImage']);
+                $chapter->load(['book.characters.portraitImage']);
                 $book = $chapter->book;
             } else {
-                $book->load(['characters.portraitImage', 'coverImage']);
-            }
-
-            // Collect base images for style consistency
-            $baseImages = [];
-
-            // Use the cover_image_url accessor which prioritizes Image model over legacy field
-            $coverUrl = $book->cover_image_url;
-            if ($coverUrl) {
-                $baseImages[] = $coverUrl;
+                $book->load(['characters.portraitImage']);
             }
 
             // Build character portrait map using portrait_image_url accessor
@@ -335,7 +321,7 @@ class ImageGenerationService
             }
 
             // Get character images for this specific scene
-            $sceneCharacterImages = $this->getCharacterImagesForScene(
+            $inputImages = $this->getCharacterImagesForScene(
                 $prompt,
                 $book->characters,
                 $characterPortraits,
@@ -346,8 +332,6 @@ class ImageGenerationService
                     'profile_id' => $book->profile_id,
                 ]
             );
-
-            $inputImages = array_merge($baseImages, $sceneCharacterImages);
         }
 
         // Save the full prompt that will be sent to Replicate (only if it was transformed)
