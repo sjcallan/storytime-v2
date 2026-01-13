@@ -66,6 +66,7 @@ class RegenerateChapterInlineImageJob implements ShouldQueue
             return;
         }
 
+        $existingImageId = $existingImage->id;
         $prompt = $existingImage->prompt;
 
         // Always create a NEW Image record for regeneration to preserve history
@@ -132,6 +133,16 @@ class RegenerateChapterInlineImageJob implements ShouldQueue
                 'book_id' => $this->chapter->book_id,
                 'image_id' => $imageRecord->id,
             ]);
+
+            // Soft delete the original image after successful regeneration
+            if ($existingImageId) {
+                $imageService->deleteById($existingImageId);
+                Log::info('[RegenerateChapterInlineImageJob] Soft deleted original image', [
+                    'chapter_id' => $this->chapter->id,
+                    'image_index' => $this->imageIndex,
+                    'deleted_image_id' => $existingImageId,
+                ]);
+            }
         } catch (\Exception $e) {
             Log::error('[RegenerateChapterInlineImageJob] Failed', [
                 'chapter_id' => $this->chapter->id,

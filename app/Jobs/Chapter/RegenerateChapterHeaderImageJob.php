@@ -50,6 +50,7 @@ class RegenerateChapterHeaderImageJob implements ShouldQueue
 
         // Get the prompt from the existing header image
         $existingImage = $imageService->getChapterHeader($this->chapter->id);
+        $existingImageId = $existingImage?->id;
         $prompt = $existingImage?->prompt;
 
         if (empty($prompt)) {
@@ -106,6 +107,15 @@ class RegenerateChapterHeaderImageJob implements ShouldQueue
                     'book_id' => $this->chapter->book_id,
                     'image_id' => $imageRecord->id,
                 ]);
+
+                // Soft delete the original image after successful regeneration
+                if ($existingImageId) {
+                    $imageService->deleteById($existingImageId);
+                    Log::info('[RegenerateChapterHeaderImageJob] Soft deleted original image', [
+                        'chapter_id' => $this->chapter->id,
+                        'deleted_image_id' => $existingImageId,
+                    ]);
+                }
             } else {
                 $imageService->markError($imageRecord, 'Image generation returned empty result');
                 event(new ImageGeneratedEvent($imageRecord->fresh()));
