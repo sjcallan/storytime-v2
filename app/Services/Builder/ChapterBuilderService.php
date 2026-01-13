@@ -489,7 +489,7 @@ class ChapterBuilderService extends BuilderService
                     $inlineImages[] = [
                         'paragraph_index' => $paragraphIndex,
                         'url' => $s3Url,
-                        'prompt' => $scene['prompt'],
+                        'prompt' => $fullPrompt,
                     ];
 
                     Log::info('[ChapterBuilderService::generateChapterImages] Image generated and saved', [
@@ -605,7 +605,7 @@ class ChapterBuilderService extends BuilderService
                 ]);
 
                 return [
-                    'image_prompt' => $prompt,
+                    'image_prompt' => $fullPrompt,
                     'image' => null,
                 ];
             }
@@ -623,7 +623,7 @@ class ChapterBuilderService extends BuilderService
             ]);
 
             return [
-                'image_prompt' => $prompt,
+                'image_prompt' => $fullPrompt,
                 'image' => $s3Url,
             ];
         } catch (Throwable $e) {
@@ -635,7 +635,7 @@ class ChapterBuilderService extends BuilderService
             ]);
 
             return [
-                'image_prompt' => $prompt,
+                'image_prompt' => $fullPrompt,
                 'image' => null,
             ];
         }

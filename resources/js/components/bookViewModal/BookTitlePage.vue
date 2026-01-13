@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Sparkles, ChevronRight, Loader2, RefreshCw, Image } from 'lucide-vue-next';
+import { Sparkles, ChevronRight, Loader2, RefreshCw, Image, Pencil } from 'lucide-vue-next';
 
 interface Props {
     coverImage: string | null;
@@ -16,6 +16,7 @@ defineProps<Props>();
 const emit = defineEmits<{
     (e: 'continue'): void;
     (e: 'regenerateCover'): void;
+    (e: 'editCoverImage'): void;
 }>();
 </script>
 
@@ -72,20 +73,14 @@ const emit = defineEmits<{
                 :alt="title"
                 class="h-full w-full object-cover object-center"
             />
-            <!-- Regenerate Cover Button -->
+            <!-- Edit Cover Button -->
             <button
-                @click.stop="emit('regenerateCover')"
+                @click.stop="emit('editCoverImage')"
                 :disabled="coverImageStatus === 'pending'"
-                class="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/cover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-                title="Generate new cover"
+                class="absolute bottom-3 left-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/90 backdrop-blur-sm transition-all duration-200 hover:bg-black/70 hover:scale-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                title="Edit cover image"
             >
-                <RefreshCw 
-                    :class="[
-                        'h-3.5 w-3.5',
-                        coverImageStatus === 'pending' ? 'animate-spin' : ''
-                    ]" 
-                />
-                <span>New cover</span>
+                <Pencil class="h-4 w-4" />
             </button>
         </div>
 

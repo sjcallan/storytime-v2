@@ -28,7 +28,6 @@ class EditImageRequest extends FormRequest
             'reference_image_urls' => ['nullable', 'array'],
             'reference_image_urls.*' => ['string', 'url'],
             'aspect_ratio' => ['nullable', 'string', 'in:16:9,4:3,1:1,3:4,9:16'],
-            'use_original_as_reference' => ['nullable', 'boolean'],
         ];
     }
 

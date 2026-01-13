@@ -432,18 +432,28 @@ const handleSubmit = async () => {
         const prompt = buildFlux2Prompt();
         const characterImageUrls = getSelectedCharacterImageUrls();
         
-        // Build reference image URLs
+        // Get the current switch state - must read .value from the ref
+        const shouldUseOriginalAsReference = useOriginalAsReference.value === true;
+        
+        // Build reference image URLs - only include original if switch is on
         const referenceImageUrls: string[] = [];
-        if (useOriginalAsReference.value && props.image.full_url) {
+        if (shouldUseOriginalAsReference && props.image.full_url) {
             referenceImageUrls.push(props.image.full_url);
         }
+        
+        // Log for debugging
+        console.log('[EditImageModal] Submitting with:', {
+            useOriginalAsReference: shouldUseOriginalAsReference,
+            originalImageUrl: props.image.full_url,
+            referenceImageUrls,
+            characterImageUrls,
+        });
         
         const payload = {
             prompt,
             character_image_urls: characterImageUrls,
             reference_image_urls: referenceImageUrls,
             aspect_ratio: formData.value.aspect_ratio,
-            use_original_as_reference: useOriginalAsReference.value,
         };
 
         const { data, error } = await requestApiFetch(
@@ -502,6 +512,12 @@ const handleOpenChange = (open: boolean) => {
     if (open) {
         resetForm();
         initializeFormFromImage();
+        console.log('[EditImageModal] Opened with image:', {
+            imageId: props.image.id,
+            imageUrl: props.image.full_url,
+            useOriginalAsReference: useOriginalAsReference.value,
+            subjectsCount: formData.value.subjects.length,
+        });
     }
     isOpen.value = open;
 };
@@ -511,8 +527,21 @@ watch(() => isOpen.value, (newValue) => {
     if (newValue) {
         resetForm();
         initializeFormFromImage();
+        console.log('[EditImageModal] Opened via watch with image:', {
+            imageId: props.image.id,
+            imageUrl: props.image.full_url,
+            useOriginalAsReference: useOriginalAsReference.value,
+            subjectsCount: formData.value.subjects.length,
+        });
     }
 });
+
+// Toggle reference image handler - explicit function to avoid reactivity issues
+const toggleUseOriginalAsReference = () => {
+    const newValue = !useOriginalAsReference.value;
+    useOriginalAsReference.value = newValue;
+    console.log('[EditImageModal] Toggle reference:', newValue);
+};
 
 // Close confirmation
 const showCloseConfirm = ref(false);
@@ -671,7 +700,7 @@ const cancelClose = () => {
                                                 type="button"
                                                 role="switch"
                                                 :aria-checked="useOriginalAsReference"
-                                                @click="useOriginalAsReference = !useOriginalAsReference"
+                                                @click="toggleUseOriginalAsReference"
                                                 :disabled="processing || !image.full_url"
                                                 class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                                 :class="useOriginalAsReference ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-600'"

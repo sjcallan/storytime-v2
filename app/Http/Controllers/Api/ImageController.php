@@ -361,15 +361,11 @@ class ImageController extends Controller
         $characterImageUrls = $request->input('character_image_urls', []);
         $referenceImageUrls = $request->input('reference_image_urls', []);
         $aspectRatio = $request->input('aspect_ratio');
-        $useOriginalAsReference = $request->boolean('use_original_as_reference', false);
 
-        // If using original as reference and it has a URL, add it to reference images
-        if ($useOriginalAsReference && $image->full_url) {
-            $referenceImageUrls[] = $image->full_url;
-        }
-
-        // Combine character and reference images for the generation job
-        $inputImageUrls = array_merge($characterImageUrls, $referenceImageUrls);
+        // Reference image URLs are sent directly from the frontend
+        // (already includes the original image URL if the user enabled it)
+        // Combine character portraits and reference images for the generation job
+        $inputImageUrls = array_merge($referenceImageUrls, $characterImageUrls);
 
         // Create a new image record with the updated prompt
         $newImage = $this->imageService->store([

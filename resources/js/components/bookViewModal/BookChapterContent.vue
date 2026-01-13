@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
-import { Sparkles, ImageIcon, RefreshCw, ExternalLink, PenLine, AlertTriangle, XCircle, Clock } from 'lucide-vue-next';
+import { Sparkles, ImageIcon, RefreshCw, ExternalLink, PenLine, AlertTriangle, XCircle, Clock, Pencil } from 'lucide-vue-next';
 import type { Chapter, PageSpread, PageContentItem, BookType } from './types';
 import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
 
@@ -33,6 +33,8 @@ const emit = defineEmits<{
     (e: 'cancelInlineImage', item: PageContentItem, chapterId: string): void;
     (e: 'editChapter'): void;
     (e: 'scrolledToBottom'): void;
+    (e: 'editHeaderImage', chapterId: string): void;
+    (e: 'editInlineImage', item: PageContentItem, chapterId: string): void;
 }>();
 
 // Check header image states
@@ -278,14 +280,13 @@ const rightPageNumber = computed(() => {
                         v-else-if="headerImageUrl && isValidImageUrl(headerImageUrl)"
                         class="group/header-image relative w-full"
                     >
-                        <!-- Regenerate Header Image Button -->
+                        <!-- Edit Header Image Button -->
                         <button
-                            @click.stop="emit('regenerateHeaderImage', chapter.id)"
-                            class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/header-image:opacity-100 cursor-pointer"
-                            title="Generate new chapter illustration"
+                            @click.stop="emit('editHeaderImage', chapter.id)"
+                            class="absolute bottom-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/90 backdrop-blur-sm transition-all duration-200 hover:bg-black/70 hover:scale-110 active:scale-95 cursor-pointer"
+                            title="Edit chapter illustration"
                         >
-                            <RefreshCw class="h-3.5 w-3.5" />
-                            <span>New image</span>
+                            <Pencil class="h-4 w-4" />
                         </button>
                         <!-- Open in new window button -->
                         <button
@@ -463,14 +464,13 @@ const rightPageNumber = computed(() => {
                             </div>
                             <!-- Loaded image (only when we have a valid URL) -->
                             <template v-else>
-                                <!-- Regenerate Image Button -->
+                                <!-- Edit Image Button -->
                                 <button
-                                    @click.stop="emit('regenerateImage', item, chapter.id)"
-                                    class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/image:opacity-100 cursor-pointer"
-                                    title="Generate new illustration"
+                                    @click.stop="emit('editInlineImage', item, chapter.id)"
+                                    class="absolute bottom-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/90 backdrop-blur-sm transition-all duration-200 hover:bg-black/70 hover:scale-110 active:scale-95 cursor-pointer"
+                                    title="Edit illustration"
                                 >
-                                    <RefreshCw class="h-3.5 w-3.5" />
-                                    <span>New image</span>
+                                    <Pencil class="h-4 w-4" />
                                 </button>
                                 <!-- Open in new window button -->
                                 <button
@@ -634,14 +634,13 @@ const rightPageNumber = computed(() => {
                             </div>
                             <!-- Loaded image (only when we have a valid URL) -->
                             <template v-else>
-                                <!-- Regenerate Image Button -->
+                                <!-- Edit Image Button -->
                                 <button
-                                    @click.stop="emit('regenerateImage', item, chapter.id)"
-                                    class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/image:opacity-100 cursor-pointer"
-                                    title="Generate new illustration"
+                                    @click.stop="emit('editInlineImage', item, chapter.id)"
+                                    class="absolute bottom-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/90 backdrop-blur-sm transition-all duration-200 hover:bg-black/70 hover:scale-110 active:scale-95 cursor-pointer"
+                                    title="Edit illustration"
                                 >
-                                    <RefreshCw class="h-3.5 w-3.5" />
-                                    <span>New image</span>
+                                    <Pencil class="h-4 w-4" />
                                 </button>
                                 <!-- Open in new window button -->
                                 <button

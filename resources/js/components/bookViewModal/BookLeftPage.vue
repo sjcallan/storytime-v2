@@ -5,7 +5,7 @@ import BookPageDecorative from './BookPageDecorative.vue';
 import CharacterGrid from './CharacterGrid.vue';
 import ImageGallery from './ImageGallery.vue';
 import CreateChapterForm from './CreateChapterForm.vue';
-import { BookOpen, ImageIcon, Sparkles, RefreshCw, PenLine, ExternalLink, AlertTriangle, XCircle, Clock } from 'lucide-vue-next';
+import { BookOpen, ImageIcon, Sparkles, RefreshCw, PenLine, ExternalLink, AlertTriangle, XCircle, Clock, Pencil } from 'lucide-vue-next';
 import type { Chapter, PageSpread, ReadingView, Character, BookType, PageContentItem, Image } from './types';
 import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
 import { useSwipeGesture } from './composables/useSwipeGesture';
@@ -52,6 +52,7 @@ const emit = defineEmits<{
     (e: 'editChapter'): void;
     (e: 'swipeForward'): void;
     (e: 'swipeBack'): void;
+    (e: 'editInlineImage', item: PageContentItem, chapterId: string): void;
 }>();
 
 // Swipe gesture support for touch devices
@@ -328,14 +329,13 @@ const openImageInNewWindow = (url: string | null | undefined) => {
                                     </div>
                                     <!-- Loaded image (only when we have a valid URL) -->
                                     <template v-else>
-                                        <!-- Regenerate Image Button -->
+                                        <!-- Edit Image Button -->
                                         <button
-                                            @click.stop="emit('regenerateImage', item, chapter!.id)"
-                                            class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white/90 opacity-0 backdrop-blur-sm transition-all duration-300 hover:bg-black/75 group-hover/image:opacity-100 cursor-pointer"
-                                            title="Generate new illustration"
+                                            @click.stop="emit('editInlineImage', item, chapter!.id)"
+                                            class="absolute bottom-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/90 backdrop-blur-sm transition-all duration-200 hover:bg-black/70 hover:scale-110 active:scale-95 cursor-pointer"
+                                            title="Edit illustration"
                                         >
-                                            <RefreshCw class="h-3.5 w-3.5" />
-                                            <span>New image</span>
+                                            <Pencil class="h-4 w-4" />
                                         </button>
                                         <!-- Open in new window button -->
                                         <button

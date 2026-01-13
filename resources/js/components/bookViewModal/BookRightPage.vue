@@ -84,6 +84,9 @@ const emit = defineEmits<{
     (e: 'scrolledToBottom'): void;
     (e: 'swipeForward'): void;
     (e: 'swipeBack'): void;
+    (e: 'editCoverImage'): void;
+    (e: 'editHeaderImage', chapterId: string): void;
+    (e: 'editInlineImage', item: PageContentItem, chapterId: string): void;
 }>();
 
 // Swipe gesture support for touch devices
@@ -227,6 +230,7 @@ const showHeader = computed(() => {
             :is-loading="isLoadingChapter"
             @continue="emit('continueToChapter1')"
             @regenerate-cover="emit('regenerateCover')"
+            @edit-cover-image="emit('editCoverImage')"
         />
 
         <!-- Chapter Content View -->
@@ -273,6 +277,8 @@ const showHeader = computed(() => {
                 @cancel-inline-image="(item, chapterId) => emit('cancelInlineImage', item, chapterId)"
                 @edit-chapter="emit('editChapter')"
                 @scrolled-to-bottom="emit('scrolledToBottom')"
+                @edit-header-image="(chapterId) => emit('editHeaderImage', chapterId)"
+                @edit-inline-image="(item, chapterId) => emit('editInlineImage', item, chapterId)"
             />
         </template>
 

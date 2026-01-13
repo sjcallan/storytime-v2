@@ -177,8 +177,11 @@ class CreateChapterImageJob implements ShouldQueue
                     'header_image_id' => $imageRecord->id,
                 ], ['events' => false]);
 
-                // Update Image record with the URL
+                // Update Image record with the URL and full prompt (JSON schema)
                 $imageService->markComplete($imageRecord, $image['image']);
+                if (! empty($image['image_prompt'])) {
+                    $imageService->updateById($imageRecord->id, ['prompt' => $image['image_prompt']]);
+                }
 
                 Log::info('[CreateChapterImageJob] Completed successfully', [
                     'chapter_id' => $this->chapter->id,

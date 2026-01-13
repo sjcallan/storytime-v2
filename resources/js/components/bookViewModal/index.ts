@@ -31,3 +31,4 @@ export { default as ChapterEditModal } from './ChapterEditModal.vue';
 export { default as ImageGallery } from './ImageGallery.vue';
 export { default as ImageDetail } from './ImageDetail.vue';
 export { default as CreateImageModal } from './CreateImageModal.vue';
+export { default as EditImageModal } from './EditImageModal.vue';

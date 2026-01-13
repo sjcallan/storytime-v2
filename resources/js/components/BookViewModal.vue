@@ -18,6 +18,7 @@ import {
     DeleteConfirmDialog,
     ChapterEditModal,
     CreateImageModal,
+    EditImageModal,
 } from '@/components/bookViewModal';
 import type { 
     Book, 
@@ -97,6 +98,10 @@ const isViewingCharacters = ref(false);
 const selectedImage = ref<Image | null>(null);
 const isViewingGallery = ref(false);
 const showCreateImageModal = ref(false);
+
+// Edit image modal state
+const showEditImageModal = ref(false);
+const editImageForModal = ref<Image | null>(null);
 
 // Textarea focus state (for disabling keyboard navigation)
 const isTextareaFocused = ref(false);
@@ -1253,6 +1258,152 @@ const handleGenerateHeaderImage = async (chapterId: string) => {
     // On success, the websocket will update the image when complete
 };
 
+// Edit cover image handler - opens the edit modal for the book cover
+const handleEditCoverImage = () => {
+    console.log('[EditImage] handleEditCoverImage called', {
+        hasCoverImageId: !!book.value?.cover_image_id,
+        coverImageId: book.value?.cover_image_id,
+        hasImages: !!book.value?.images,
+        imagesCount: book.value?.images?.length,
+        imageIds: book.value?.images?.map(img => img.id),
+    });
+    
+    if (!book.value?.cover_image_id || !book.value.images) {
+        console.log('[EditImage] Early return - missing cover_image_id or images');
+        return;
+    }
+    
+    // Find the cover image in the book's images array
+    const coverImage = book.value.images.find(img => img.id === book.value!.cover_image_id);
+    console.log('[EditImage] Found cover image:', coverImage);
+    
+    if (!coverImage) {
+        console.log('[EditImage] Early return - cover image not found in images array');
+        return;
+    }
+    
+    editImageForModal.value = coverImage;
+    showEditImageModal.value = true;
+    console.log('[EditImage] Modal should open now');
+};
+
+// Edit header image handler - opens the edit modal for a chapter's header image
+const handleEditHeaderImage = (chapterId: string) => {
+    const chapter = chapters.currentChapter.value;
+    console.log('[EditImage] handleEditHeaderImage called', {
+        chapterId,
+        hasChapter: !!chapter,
+        chapterIdMatch: chapter?.id === chapterId,
+        headerImageId: chapter?.header_image_id,
+        hasImages: !!book.value?.images,
+        imagesCount: book.value?.images?.length,
+    });
+    
+    if (!chapter || chapter.id !== chapterId || !chapter.header_image_id || !book.value?.images) {
+        console.log('[EditImage] Early return - missing chapter, header_image_id, or images');
+        return;
+    }
+    
+    // Find the header image in the book's images array
+    const headerImage = book.value.images.find(img => img.id === chapter.header_image_id);
+    console.log('[EditImage] Found header image:', headerImage);
+    
+    if (!headerImage) {
+        console.log('[EditImage] Early return - header image not found in images array');
+        return;
+    }
+    
+    editImageForModal.value = headerImage;
+    showEditImageModal.value = true;
+    console.log('[EditImage] Modal should open now');
+};
+
+// Edit inline image handler - opens the edit modal for an inline image
+const handleEditInlineImage = (item: { imageIndex?: number }, chapterId: string) => {
+    const chapter = chapters.currentChapter.value;
+    console.log('[EditImage] handleEditInlineImage called', {
+        item,
+        chapterId,
+        hasChapter: !!chapter,
+        chapterIdMatch: chapter?.id === chapterId,
+        hasImages: !!book.value?.images,
+        imagesCount: book.value?.images?.length,
+        chapterInlineImages: book.value?.images?.filter(img => img.chapter_id === chapterId && img.type === 'chapter_inline'),
+    });
+    
+    if (!chapter || chapter.id !== chapterId || item.imageIndex === undefined || !book.value?.images) {
+        console.log('[EditImage] Early return - missing chapter, imageIndex, or images');
+        return;
+    }
+
+    // Find the inline image by chapter_id and paragraph_index
+    const inlineImage = book.value.images.find(
+        img => img.chapter_id === chapterId && 
+               img.paragraph_index === item.imageIndex &&
+               img.type === 'chapter_inline'
+    );
+    console.log('[EditImage] Found inline image:', inlineImage);
+    
+    if (!inlineImage) {
+        console.log('[EditImage] Early return - inline image not found in images array');
+        return;
+    }
+
+    editImageForModal.value = inlineImage;
+    showEditImageModal.value = true;
+    console.log('[EditImage] Modal should open now');
+};
+
+// Handle image updated from edit modal
+const handleEditImageModalUpdated = (updatedImage: Image) => {
+    if (!book.value) {
+        return;
+    }
+    
+    // Update the image in the book's images array
+    if (book.value.images) {
+        const imageIndex = book.value.images.findIndex(img => img.id === updatedImage.id);
+        if (imageIndex >= 0) {
+            book.value.images[imageIndex] = updatedImage;
+        }
+    }
+    
+    // Update cover image if this is the book cover
+    if (updatedImage.type === 'book_cover' && book.value.cover_image_id === updatedImage.id) {
+        book.value.coverImage = updatedImage;
+        book.value.cover_image_url = updatedImage.full_url;
+        book.value.cover_image_status = updatedImage.status;
+    }
+    
+    // Update header image if this is a chapter header
+    if (updatedImage.type === 'chapter_header' && chapters.currentChapter.value) {
+        const chapter = chapters.currentChapter.value;
+        if (chapter.header_image_id === updatedImage.id) {
+            chapter.headerImage = updatedImage;
+            chapter.header_image_url = updatedImage.full_url;
+            chapter.image = updatedImage.full_url;
+        }
+    }
+    
+    // Update inline image if this is a chapter inline
+    if (updatedImage.type === 'chapter_inline' && chapters.currentChapter.value) {
+        const chapter = chapters.currentChapter.value;
+        if (chapter.inlineImages) {
+            const inlineIndex = chapter.inlineImages.findIndex(img => img.id === updatedImage.id);
+            if (inlineIndex >= 0) {
+                chapter.inlineImages[inlineIndex] = updatedImage;
+            }
+        }
+    }
+    
+    // Close the modal
+    showEditImageModal.value = false;
+    editImageForModal.value = null;
+    
+    // Emit the update to parent
+    emit('updated', book.value);
+};
+
 // Character update handler
 const handleCharacterUpdated = (updatedCharacter: Character) => {
     if (!book.value) {
@@ -1467,6 +1618,8 @@ const resetAllState = () => {
     isTogglingFavorite.value = false;
     showChapterEditModal.value = false;
     showCreateImageModal.value = false;
+    showEditImageModal.value = false;
+    editImageForModal.value = null;
     isChapterEditing.value = false;
     chapterEditError.value = null;
     pendingEditChapterId.value = null;
@@ -1620,6 +1773,16 @@ onBeforeUnmount(() => {
                         @image-created="handleImageCreated"
                     />
 
+                    <!-- Edit Image Modal -->
+                    <EditImageModal
+                        v-if="book && editImageForModal"
+                        v-model:is-open="showEditImageModal"
+                        :book-id="book.id"
+                        :image="editImageForModal"
+                        :characters="book.characters ?? []"
+                        @image-updated="handleEditImageModalUpdated"
+                    />
+
                     <!-- Loading/Saving Overlay -->
                     <BookLoadingOverlay 
                         v-if="loading || isSaving || isDeleting"
@@ -1764,6 +1927,7 @@ onBeforeUnmount(() => {
                             @edit-chapter="handleOpenChapterEditModal"
                             @swipe-forward="handleSwipeForward"
                             @swipe-back="handleSwipeBack"
+                            @edit-inline-image="(item, chapterId) => handleEditInlineImage(item, chapterId)"
                         />
 
                         <!-- Book Spine (hidden in single-page mode) -->
@@ -1838,6 +2002,9 @@ onBeforeUnmount(() => {
                             @scrolled-to-bottom="handleScrolledToBottom"
                             @swipe-forward="handleSwipeForward"
                             @swipe-back="handleSwipeBack"
+                            @edit-cover-image="handleEditCoverImage"
+                            @edit-header-image="(chapterId) => handleEditHeaderImage(chapterId)"
+                            @edit-inline-image="(item, chapterId) => handleEditInlineImage(item, chapterId)"
                         />
 
                         <!-- Right Edge Click Zone (Go Forward / Start Reading) -->

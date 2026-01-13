@@ -112,6 +112,10 @@ class RegenerateChapterInlineImageJob implements ShouldQueue
             // Update Image record
             if (! empty($newImage['url'])) {
                 $imageService->markComplete($imageRecord, $newImage['url']);
+                // Save the full prompt (JSON schema) that was actually sent to Replicate
+                if (! empty($newImage['prompt'])) {
+                    $imageService->updateById($imageRecord->id, ['prompt' => $newImage['prompt']]);
+                }
             } else {
                 $imageService->markError($imageRecord, 'Image generation returned empty URL');
             }

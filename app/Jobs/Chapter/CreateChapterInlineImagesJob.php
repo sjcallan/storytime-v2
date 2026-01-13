@@ -100,7 +100,7 @@ class CreateChapterInlineImagesJob implements ShouldQueue
             $this->scenePrompts
         );
 
-        // Update Image records with generated URLs and build the inline_images array
+        // Update Image records with generated URLs, full prompts, and build the inline_images array
         $inlineImagesJson = [];
         foreach ($inlineImages as $inlineImage) {
             $paragraphIndex = (int) $inlineImage['paragraph_index'];
@@ -110,6 +110,10 @@ class CreateChapterInlineImagesJob implements ShouldQueue
 
                 if (! empty($inlineImage['url']) && ($inlineImage['status'] ?? 'complete') === 'complete') {
                     $imageService->markComplete($imageRecord, $inlineImage['url']);
+                    // Save the full prompt (JSON schema) that was actually sent to Replicate
+                    if (! empty($inlineImage['prompt'])) {
+                        $imageService->updateById($imageRecord->id, ['prompt' => $inlineImage['prompt']]);
+                    }
                 } else {
                     $imageService->markError($imageRecord, $inlineImage['error'] ?? 'Image generation failed');
                 }

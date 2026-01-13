@@ -106,6 +106,9 @@ class ImageGenerationService
         $stylePrefix = $this->getBookCoverStylePrefix($book);
         $fullPrompt = $stylePrefix.$prompt.' shot on Sony A7IV, clean sharp, high dynamic range';
 
+        // Save the full prompt that will be sent to Replicate
+        $this->imageService->updateById($image->id, ['prompt' => $fullPrompt]);
+
         // Get character portrait URLs for input images
         $characterImages = $this->getCharacterPortraitUrls($book);
 
@@ -211,6 +214,9 @@ class ImageGenerationService
 
         $style = $this->getSceneImageStylePrefix($book);
         $fullPrompt = trim($style.' '.$this->stripQuotes($prompt));
+
+        // Save the full prompt that will be sent to Replicate
+        $this->imageService->updateById($image->id, ['prompt' => $fullPrompt]);
 
         // Get reference images
         $inputImages = [];
@@ -342,6 +348,11 @@ class ImageGenerationService
             );
 
             $inputImages = array_merge($baseImages, $sceneCharacterImages);
+        }
+
+        // Save the full prompt that will be sent to Replicate (only if it was transformed)
+        if ($fullPrompt !== $prompt) {
+            $this->imageService->updateById($image->id, ['prompt' => $fullPrompt]);
         }
 
         $trackingContext = [
