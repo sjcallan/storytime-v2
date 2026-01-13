@@ -21,6 +21,31 @@ export interface NavItem {
     isActive?: boolean;
 }
 
+export interface AiDebugConfig {
+    environment: string;
+    default_provider: string;
+    active_provider: {
+        driver: string;
+        model: string;
+        max_tokens: number;
+        temperature: number;
+        base_url?: string;
+    };
+    moderation: {
+        enabled: boolean;
+        model: string;
+        min_threshold: number;
+    };
+    image_generation: {
+        provider: string;
+        models: string[];
+        use_custom_model: boolean;
+        custom_model_version: string | null;
+        custom_model_lora: string | null;
+        custom_model_lora_scale: number | null;
+    };
+}
+
 export type AppPageProps<
     T extends Record<string, unknown> = Record<string, unknown>,
 > = T & {
@@ -28,6 +53,7 @@ export type AppPageProps<
     quote: { message: string; author: string };
     auth: Auth;
     sidebarOpen: boolean;
+    aiDebug?: AiDebugConfig;
 };
 
 export interface User {

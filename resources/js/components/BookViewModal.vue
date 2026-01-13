@@ -29,6 +29,7 @@ import type {
     ChapterUpdatedPayload,
     ReadingHistory,
     ImageGeneratedPayload,
+    Image,
 } from '@/components/bookViewModal';
 
 interface Props {
@@ -90,6 +91,10 @@ const editForm = ref<BookEditFormData>({
 // Character selection state
 const selectedCharacter = ref<Character | null>(null);
 const isViewingCharacters = ref(false);
+
+// Gallery state
+const selectedImage = ref<Image | null>(null);
+const isViewingGallery = ref(false);
 
 // Textarea focus state (for disabling keyboard navigation)
 const isTextareaFocused = ref(false);
@@ -795,6 +800,8 @@ const handleContinueToChapter1 = () => {
         responsive.resetSinglePageSide();
         isViewingCharacters.value = false;
         selectedCharacter.value = null;
+        isViewingGallery.value = false;
+        selectedImage.value = null;
         chapters.goToChapter1(props.bookId, animation.scheduleTimeout);
     }
 };
@@ -1241,6 +1248,8 @@ const handleTocSelectChapter = (chapterNumber: number) => {
         responsive.resetSinglePageSide();
         isViewingCharacters.value = false;
         selectedCharacter.value = null;
+        isViewingGallery.value = false;
+        selectedImage.value = null;
         chapters.jumpToChapter(props.bookId, chapterNumber);
     }
 };
@@ -1249,6 +1258,8 @@ const handleTocGoToTitle = () => {
     responsive.resetSinglePageSide();
     isViewingCharacters.value = false;
     selectedCharacter.value = null;
+    isViewingGallery.value = false;
+    selectedImage.value = null;
     chapters.goBackToTitlePage();
 };
 
@@ -1256,8 +1267,40 @@ const handleTocGoToCharacters = () => {
     // Go to characters view (which is on the left side of title page)
     chapters.goBackToTitlePage();
     isViewingCharacters.value = true;
+    isViewingGallery.value = false;
     selectedCharacter.value = null;
+    selectedImage.value = null;
     // In single-page mode, show the left page (characters)
+    if (responsive.isSinglePageMode.value) {
+        responsive.setSinglePageToLeft();
+    }
+};
+
+const handleTocGoToGallery = () => {
+    // Go to gallery view (which is on the left side of title page)
+    chapters.goBackToTitlePage();
+    isViewingGallery.value = true;
+    isViewingCharacters.value = false;
+    selectedImage.value = null;
+    selectedCharacter.value = null;
+    // In single-page mode, show the left page (gallery)
+    if (responsive.isSinglePageMode.value) {
+        responsive.setSinglePageToLeft();
+    }
+};
+
+// Image selection handlers
+const handleSelectImage = (image: Image) => {
+    selectedImage.value = image;
+    // In single-page mode, switch to right page to show image details
+    if (responsive.isSinglePageMode.value) {
+        responsive.setSinglePageToRight();
+    }
+};
+
+const handleClearSelectedImage = () => {
+    selectedImage.value = null;
+    // In single-page mode, switch back to left page to show gallery grid
     if (responsive.isSinglePageMode.value) {
         responsive.setSinglePageToLeft();
     }
@@ -1266,6 +1309,30 @@ const handleTocGoToCharacters = () => {
 // Computed for whether book has characters
 const hasCharacters = computed(() => {
     return book.value?.characters && book.value.characters.length > 0;
+});
+
+// Computed for whether book has completed images
+const hasImages = computed(() => {
+    if (!book.value?.images) {
+        return false;
+    }
+    return book.value.images.some(img => 
+        img.status === 'complete' && 
+        img.full_url && 
+        img.full_url.trim() !== ''
+    );
+});
+
+// Get all completed images for the gallery
+const galleryImages = computed(() => {
+    if (!book.value?.images) {
+        return [];
+    }
+    return book.value.images.filter(img => 
+        img.status === 'complete' && 
+        img.full_url && 
+        img.full_url.trim() !== ''
+    );
 });
 
 // Reset all state
@@ -1282,6 +1349,8 @@ const resetAllState = () => {
     showDeleteConfirm.value = false;
     selectedCharacter.value = null;
     isViewingCharacters.value = false;
+    selectedImage.value = null;
+    isViewingGallery.value = false;
     savedChapterNumber.value = null;
     isFavorite.value = false;
     isTogglingFavorite.value = false;
@@ -1305,6 +1374,7 @@ watch(isOpen, async (open) => {
         // Reset responsive state to start on the right side (title page) in single-page mode
         responsive.resetSinglePageSide();
         isViewingCharacters.value = false;
+        isViewingGallery.value = false;
         
         animation.isRendered.value = true;
         await nextTick();
@@ -1464,12 +1534,15 @@ onBeforeUnmount(() => {
                         :is-toggling-favorite="isTogglingFavorite"
                         :has-characters="hasCharacters"
                         :is-viewing-characters="isViewingCharacters"
+                        :has-images="hasImages"
+                        :is-viewing-gallery="isViewingGallery"
                         @edit="startEditing"
                         @delete="requestDelete"
                         @close="closeModal"
                         @toc-select-chapter="handleTocSelectChapter"
                         @toc-go-to-title="handleTocGoToTitle"
                         @toc-go-to-characters="handleTocGoToCharacters"
+                        @toc-go-to-gallery="handleTocGoToGallery"
                         @toggle-favorite="handleToggleFavorite"
                     />
 
@@ -1553,7 +1626,11 @@ onBeforeUnmount(() => {
                             :book-type="book?.type"
                             :is-single-page-mode="responsive.isSinglePageMode.value"
                             :book-title="displayTitle"
+                            :is-viewing-gallery="isViewingGallery"
+                            :images="galleryImages"
+                            :selected-image-id="selectedImage?.id ?? null"
                             @select-character="handleSelectCharacter"
+                            @select-image="handleSelectImage"
                             @update:next-chapter-prompt="chapters.nextChapterPrompt.value = $event"
                             @update:is-final-chapter="chapters.isFinalChapter.value = $event"
                             @generate-chapter="handleGenerateChapter"
@@ -1601,6 +1678,7 @@ onBeforeUnmount(() => {
                             :is-final-chapter="chapters.isFinalChapter.value"
                             :is-generating-chapter="chapters.isGeneratingChapter.value || chapters.isAwaitingChapterGeneration.value"
                             :selected-character="selectedCharacter"
+                            :selected-image="selectedImage"
                             :has-next-chapter="chapters.hasNextChapter.value"
                             :chapter-ends-on-left="chapters.chapterEndsOnLeft.value"
                             :is-on-last-spread="chapters.isOnLastSpread.value"
@@ -1619,6 +1697,7 @@ onBeforeUnmount(() => {
                             @generate-chapter="handleGenerateChapter"
                             @go-back="handleGoToPreviousChapter"
                             @clear-selected-character="handleClearSelectedCharacter"
+                            @clear-selected-image="handleClearSelectedImage"
                             @textarea-focused="isTextareaFocused = $event"
                             @regenerate-cover="handleRegenerateCover"
                             @regenerate-image="(item, chapterId) => handleRegenerateImage(item, chapterId)"
@@ -1637,9 +1716,9 @@ onBeforeUnmount(() => {
                         />
 
                         <!-- Right Edge Click Zone (Go Forward / Start Reading) -->
-                        <!-- Hidden when viewing character details to prevent accidental navigation -->
+                        <!-- Hidden when viewing character/image details to prevent accidental navigation -->
                         <button
-                            v-if="canNavigateForward && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value && !selectedCharacter"
+                            v-if="canNavigateForward && !chapters.isLoadingChapter.value && !chapters.isGeneratingChapter.value && !selectedCharacter && !selectedImage"
                             :class="[
                                 'edge-nav-zone edge-nav-right group absolute right-0 inset-y-0 w-14 z-30 cursor-pointer bg-transparent transition-all duration-200 hover:bg-amber-900/5 dark:hover:bg-amber-100/5 focus:outline-none',
                                 { 'nav-arrow-flash': isFlashingNextArrow }

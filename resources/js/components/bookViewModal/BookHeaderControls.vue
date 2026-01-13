@@ -27,6 +27,8 @@ interface Props {
     isTogglingFavorite?: boolean;
     hasCharacters?: boolean;
     isViewingCharacters?: boolean;
+    hasImages?: boolean;
+    isViewingGallery?: boolean;
 }
 
 defineProps<Props>();
@@ -38,6 +40,7 @@ const emit = defineEmits<{
     (e: 'tocSelectChapter', chapterNumber: number): void;
     (e: 'tocGoToTitle'): void;
     (e: 'tocGoToCharacters'): void;
+    (e: 'tocGoToGallery'): void;
     (e: 'toggleFavorite'): void;
 }>();
 </script>
@@ -47,15 +50,18 @@ const emit = defineEmits<{
         <!-- Left side: Table of Contents and Actions (only when book is opened) -->
         <div class="pointer-events-auto flex items-center gap-2">
             <TableOfContents
-                v-if="isBookOpened && hasBook && (hasChapters || hasCharacters)"
+                v-if="isBookOpened && hasBook && (hasChapters || hasCharacters || hasImages)"
                 :chapters="chapters || []"
                 :current-chapter-number="currentChapterNumber || 0"
                 :book-type="bookType"
                 :has-characters="hasCharacters"
                 :is-viewing-characters="isViewingCharacters"
+                :has-images="hasImages"
+                :is-viewing-gallery="isViewingGallery"
                 @select-chapter="emit('tocSelectChapter', $event)"
                 @go-to-title="emit('tocGoToTitle')"
                 @go-to-characters="emit('tocGoToCharacters')"
+                @go-to-gallery="emit('tocGoToGallery')"
             >
                 <template #trigger>
                     <DropdownMenuTrigger :as-child="true">

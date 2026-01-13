@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Sparkles, Crown, Users } from 'lucide-vue-next';
+import { Sparkles, Crown, Users, ImageIcon } from 'lucide-vue-next';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -17,6 +17,8 @@ interface Props {
     bookType?: BookType;
     hasCharacters?: boolean;
     isViewingCharacters?: boolean;
+    hasImages?: boolean;
+    isViewingGallery?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -25,6 +27,7 @@ const emit = defineEmits<{
     (e: 'selectChapter', chapterNumber: number): void;
     (e: 'goToTitle'): void;
     (e: 'goToCharacters'): void;
+    (e: 'goToGallery'): void;
 }>();
 
 const chapterLabel = computed(() => getChapterLabel(props.bookType));
@@ -71,6 +74,19 @@ const getChapterDisplayTitle = (chapter: ChapterSummary): string => {
                 <div class="flex items-center gap-3 w-full">
                     <Users class="h-4 w-4 shrink-0" />
                     <span class="flex-1">Characters</span>
+                </div>
+            </DropdownMenuItem>
+            
+            <!-- Gallery Entry -->
+            <DropdownMenuItem
+                v-if="hasImages"
+                @select="emit('goToGallery')"
+                class="cursor-pointer font-serif"
+                :class="isViewingGallery ? 'bg-accent' : ''"
+            >
+                <div class="flex items-center gap-3 w-full">
+                    <ImageIcon class="h-4 w-4 shrink-0" />
+                    <span class="flex-1">Gallery</span>
                 </div>
             </DropdownMenuItem>
             

@@ -7,8 +7,9 @@ import BookChapterContent from './BookChapterContent.vue';
 import BookEditForm from './BookEditForm.vue';
 import CreateChapterForm from './CreateChapterForm.vue';
 import CharacterDetail from './CharacterDetail.vue';
+import ImageDetail from './ImageDetail.vue';
 import NextChapterPreview from './NextChapterPreview.vue';
-import type { Book, Chapter, PageSpread, ReadingView, BookEditFormData, Character, PageContentItem } from './types';
+import type { Book, Chapter, PageSpread, ReadingView, BookEditFormData, Character, PageContentItem, Image } from './types';
 import { useSwipeGesture } from './composables/useSwipeGesture';
 
 interface Props {
@@ -38,6 +39,7 @@ interface Props {
     isFinalChapter: boolean;
     isGeneratingChapter: boolean;
     selectedCharacter?: Character | null;
+    selectedImage?: Image | null;
     hasNextChapter?: boolean;
     chapterEndsOnLeft?: boolean;
     isOnLastSpread?: boolean;
@@ -63,6 +65,7 @@ const emit = defineEmits<{
     (e: 'generateChapter'): void;
     (e: 'goBack'): void;
     (e: 'clearSelectedCharacter'): void;
+    (e: 'clearSelectedImage'): void;
     (e: 'regenerateCover'): void;
     (e: 'regenerateImage', item: PageContentItem, chapterId: string): void;
     (e: 'regenerateHeaderImage', chapterId: string): void;
@@ -184,6 +187,14 @@ const showHeader = computed(() => {
             @update:form="emit('update:editForm', $event)"
             @submit="emit('submitEdit')"
             @cancel="emit('cancelEdit')"
+        />
+
+        <!-- Image Detail View (when image is selected from gallery) -->
+        <ImageDetail
+            v-else-if="readingView === 'title' && selectedImage"
+            :image="selectedImage"
+            :is-single-page-mode="isSinglePageMode"
+            @back="emit('clearSelectedImage')"
         />
 
         <!-- Character Detail View (when character is selected from grid) -->

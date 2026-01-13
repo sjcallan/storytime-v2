@@ -28,3 +28,5 @@ export { default as CharacterGrid } from './CharacterGrid.vue';
 export { default as CharacterDetail } from './CharacterDetail.vue';
 export { default as CharacterChatModal } from './CharacterChatModal.vue';
 export { default as ChapterEditModal } from './ChapterEditModal.vue';
+export { default as ImageGallery } from './ImageGallery.vue';
+export { default as ImageDetail } from './ImageDetail.vue';

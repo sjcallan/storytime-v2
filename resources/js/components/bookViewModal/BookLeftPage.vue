@@ -3,9 +3,10 @@ import { computed } from 'vue';
 import BookPageTexture from './BookPageTexture.vue';
 import BookPageDecorative from './BookPageDecorative.vue';
 import CharacterGrid from './CharacterGrid.vue';
+import ImageGallery from './ImageGallery.vue';
 import CreateChapterForm from './CreateChapterForm.vue';
 import { BookOpen, ImageIcon, Sparkles, RefreshCw, PenLine, ExternalLink, AlertTriangle, XCircle, Clock } from 'lucide-vue-next';
-import type { Chapter, PageSpread, ReadingView, Character, BookType, PageContentItem } from './types';
+import type { Chapter, PageSpread, ReadingView, Character, BookType, PageContentItem, Image } from './types';
 import { getChapterLabel, isSceneBasedBook, formatScriptDialogue } from './types';
 import { useSwipeGesture } from './composables/useSwipeGesture';
 
@@ -29,12 +30,16 @@ interface Props {
     bookType?: BookType;
     isSinglePageMode?: boolean;
     bookTitle?: string;
+    isViewingGallery?: boolean;
+    images?: Image[];
+    selectedImageId?: string | null;
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'selectCharacter', character: Character): void;
+    (e: 'selectImage', image: Image): void;
     (e: 'update:nextChapterPrompt', value: string): void;
     (e: 'update:isFinalChapter', value: boolean): void;
     (e: 'generateChapter'): void;
@@ -169,8 +174,16 @@ const openImageInNewWindow = (url: string | null | undefined) => {
         
         <!-- Left Page Content Based on View -->
         <template v-if="readingView === 'title'">
+            <!-- Image Gallery View -->
+            <ImageGallery
+                v-if="isViewingGallery && images"
+                :images="images"
+                :selected-image-id="selectedImageId ?? null"
+                @select-image="emit('selectImage', $event)"
+            />
+            <!-- Character Grid View -->
             <CharacterGrid
-                v-if="characters && characters.length > 0"
+                v-else-if="characters && characters.length > 0"
                 :characters="characters"
                 :selected-character-id="selectedCharacterId ?? null"
                 @select-character="emit('selectCharacter', $event)"

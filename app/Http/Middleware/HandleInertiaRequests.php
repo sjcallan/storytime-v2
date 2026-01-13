@@ -63,7 +63,7 @@ class HandleInertiaRequests extends Middleware
             }
         }
 
-        return [
+        $shared = [
             ...parent::share($request),
             'name' => config('app.name'),
             'quote' => ['message' => trim($message), 'author' => trim($author)],
@@ -81,5 +81,37 @@ class HandleInertiaRequests extends Middleware
                 ],
             ],
         ];
+
+        if (app()->environment('local')) {
+            $defaultProvider = config('ai.default');
+            $providerConfig = config("ai.providers.{$defaultProvider}", []);
+
+            $shared['aiDebug'] = [
+                'environment' => app()->environment(),
+                'default_provider' => $defaultProvider,
+                'active_provider' => [
+                    'driver' => $providerConfig['driver'] ?? 'unknown',
+                    'model' => $providerConfig['model'] ?? 'unknown',
+                    'max_tokens' => $providerConfig['max_tokens'] ?? 0,
+                    'temperature' => $providerConfig['temperature'] ?? 0,
+                    'base_url' => $providerConfig['base_url'] ?? null,
+                ],
+                'moderation' => [
+                    'enabled' => config('ai.moderation.enabled', false),
+                    'model' => config('ai.moderation.model', 'unknown'),
+                    'min_threshold' => config('ai.moderation.min_threshold', 0.5),
+                ],
+                'image_generation' => [
+                    'provider' => 'replicate',
+                    'models' => array_keys(config('ai.image_generation.replicate', [])),
+                    'use_custom_model' => config('services.replicate.use_custom_model', false),
+                    'custom_model_version' => config('services.replicate.custom_model_version'),
+                    'custom_model_lora' => config('services.replicate.custom_model_lora'),
+                    'custom_model_lora_scale' => config('services.replicate.custom_model_lora_scale'),
+                ],
+            ];
+        }
+
+        return $shared;
     }
 }

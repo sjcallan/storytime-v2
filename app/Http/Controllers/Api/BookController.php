@@ -63,7 +63,7 @@ class BookController extends Controller
     {
         $this->authorize('view', $book);
 
-        $book->load(['user', 'chapters', 'characters.portraitImage', 'profile']);
+        $book->load(['user', 'chapters', 'characters.portraitImage', 'profile', 'images']);
 
         return response()->json($book);
     }

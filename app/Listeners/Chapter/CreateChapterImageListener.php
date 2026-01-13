@@ -35,13 +35,15 @@ class CreateChapterImageListener
         }
 
         // Dispatch main chapter header image job if we have a header image that needs generation
+        // The job will generate the prompt using AI if needed, so we don't require a prompt to exist
         if ($chapter->header_image_id) {
             $headerImage = $chapter->headerImage;
-            if ($headerImage && $headerImage->status->value === 'pending' && $headerImage->prompt) {
+            if ($headerImage && $headerImage->status->value === 'pending') {
                 Log::info('[CreateChapterImageListener] Dispatching chapter header image job', [
                     'chapter_id' => $chapter->id,
                     'book_id' => $chapter->book_id,
                     'image_id' => $headerImage->id,
+                    'has_prompt' => ! empty($headerImage->prompt),
                 ]);
 
                 CreateChapterImageJob::dispatch($chapter)->onQueue('images');

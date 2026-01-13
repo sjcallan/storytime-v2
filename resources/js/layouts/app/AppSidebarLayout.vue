@@ -2,6 +2,7 @@
 import { provide, computed, ref } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import CreateStoryModal from '@/components/CreateStoryModal.vue';
+import DevFooter from '@/components/DevFooter.vue';
 import ProfileSwitcher from '@/components/ProfileSwitcher.vue';
 import ThemeCustomizer from '@/components/ThemeCustomizer.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -314,6 +315,9 @@ const handleLogout = () => {
             v-model:is-open="isCreateModalOpen"
             :default-genre="null"
         />
+
+        <!-- Dev Footer (local environment only) -->
+        <DevFooter />
     </div>
 </template>
 
