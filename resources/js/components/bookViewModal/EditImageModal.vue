@@ -150,6 +150,14 @@ const parseImagePrompt = (): ParsedPrompt | null => {
 const initializeFormFromImage = () => {
     const parsed = parseImagePrompt();
     
+    console.log('[EditImageModal] initializeFormFromImage:', {
+        hasPrompt: !!props.image.prompt,
+        promptValue: props.image.prompt,
+        promptLength: props.image.prompt?.length ?? 0,
+        parsedPrompt: parsed,
+        parsedScene: parsed?.scene,
+    });
+    
     if (parsed) {
         formData.value.scene = parsed.scene || '';
         formData.value.style = parsed.style || 'Photorealistic, cinematic lighting, highly detailed';
@@ -514,7 +522,12 @@ const handleOpenChange = (open: boolean) => {
         initializeFormFromImage();
         console.log('[EditImageModal] Opened with image:', {
             imageId: props.image.id,
+            imageType: props.image.type,
             imageUrl: props.image.full_url,
+            prompt: props.image.prompt,
+            promptLength: props.image.prompt?.length ?? 0,
+            parsedPrompt: parseImagePrompt(),
+            formScene: formData.value.scene,
             useOriginalAsReference: useOriginalAsReference.value,
             subjectsCount: formData.value.subjects.length,
         });
@@ -529,7 +542,12 @@ watch(() => isOpen.value, (newValue) => {
         initializeFormFromImage();
         console.log('[EditImageModal] Opened via watch with image:', {
             imageId: props.image.id,
+            imageType: props.image.type,
             imageUrl: props.image.full_url,
+            prompt: props.image.prompt,
+            promptLength: props.image.prompt?.length ?? 0,
+            parsedPrompt: parseImagePrompt(),
+            formScene: formData.value.scene,
             useOriginalAsReference: useOriginalAsReference.value,
             subjectsCount: formData.value.subjects.length,
         });

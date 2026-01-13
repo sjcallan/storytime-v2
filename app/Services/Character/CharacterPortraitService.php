@@ -40,8 +40,11 @@ class CharacterPortraitService
             return false;
         }
 
-        // Get or create Image record
-        $image = $this->imageService->getOrCreateCharacterPortrait($character);
+        // Capture old image ID for cleanup after successful regeneration
+        $oldImageId = $character->portrait_image_id;
+
+        // Always create a new Image record for regeneration
+        $image = $this->imageService->createCharacterPortraitImage($character);
         $this->imageService->markProcessing($image);
 
         $prompt = $this->buildPortraitPrompt($character);
@@ -106,6 +109,16 @@ class CharacterPortraitService
                 // Update Image record
                 $this->imageService->markComplete($image, $s3Path);
                 event(new ImageGeneratedEvent($image->fresh()));
+
+                // Delete old portrait image record after successful regeneration
+                if ($oldImageId && $oldImageId !== $image->id) {
+                    $this->imageService->deleteById($oldImageId);
+                    Log::info('Deleted old portrait image record after regeneration', [
+                        'character_id' => $character->id,
+                        'old_image_id' => $oldImageId,
+                        'new_image_id' => $image->id,
+                    ]);
+                }
 
                 event(new CharacterPortraitCreatedEvent($character));
 

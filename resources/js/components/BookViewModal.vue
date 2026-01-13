@@ -196,6 +196,24 @@ type CharacterCreatedPayload = {
     created_at: string;
 };
 
+type ImageDeletedPayload = {
+    id: string;
+    book_id: string | null;
+    character_id: string | null;
+};
+
+// Handle real-time image deleted events
+const handleImageDeletedEvent = (payload: ImageDeletedPayload) => {
+    if (!book.value || !payload.id) {
+        return;
+    }
+
+    // Remove the image from the book's images array
+    if (book.value.images) {
+        book.value.images = book.value.images.filter(img => img.id !== payload.id);
+    }
+};
+
 // Handle real-time character created events
 const handleCharacterCreatedEvent = (payload: CharacterCreatedPayload) => {
     if (!book.value || payload.book_id !== book.value.id) {
@@ -324,7 +342,7 @@ const handleImageGeneratedEvent = (payload: ImageGeneratedPayload) => {
         case 'chapter_header':
             // Update chapter header image
             if (payload.chapter_id) {
-                chapters.updateChapterHeaderImage(payload.chapter_id, payload.full_url, payload.status);
+                chapters.updateChapterHeaderImage(payload.chapter_id, payload.id, payload.full_url, payload.status);
             }
             break;
             
@@ -469,6 +487,7 @@ const subscribeToBookChannel = (bookId: string) => {
         channel.listen('.character.created', handleCharacterCreatedEvent);
         channel.listen('.character.portrait.updated', handleCharacterPortraitEvent);
         channel.listen('.image.generated', handleImageGeneratedEvent);
+        channel.listen('.image.deleted', handleImageDeletedEvent);
         bookChannel.value = channel;
     } catch (err) {
         console.error(`[Echo] Failed to subscribe to book.${bookId}:`, err);
@@ -489,6 +508,7 @@ const unsubscribeFromBookChannel = () => {
         bookChannel.value.stopListening('.character.created');
         bookChannel.value.stopListening('.character.portrait.updated');
         bookChannel.value.stopListening('.image.generated');
+        bookChannel.value.stopListening('.image.deleted');
         echo().leave(`book.${props.bookId}`);
     } catch {
         // Ignore cleanup errors
@@ -1290,6 +1310,9 @@ const handleEditCoverImage = () => {
 // Edit header image handler - opens the edit modal for a chapter's header image
 const handleEditHeaderImage = (chapterId: string) => {
     const chapter = chapters.currentChapter.value;
+    
+    // Debug: Log all chapter_header images in the book
+    const allHeaderImages = book.value?.images?.filter(img => img.type === 'chapter_header');
     console.log('[EditImage] handleEditHeaderImage called', {
         chapterId,
         hasChapter: !!chapter,
@@ -1297,6 +1320,7 @@ const handleEditHeaderImage = (chapterId: string) => {
         headerImageId: chapter?.header_image_id,
         hasImages: !!book.value?.images,
         imagesCount: book.value?.images?.length,
+        allHeaderImages: allHeaderImages?.map(img => ({ id: img.id, chapter_id: img.chapter_id, prompt: img.prompt?.substring(0, 50) })),
     });
     
     if (!chapter || chapter.id !== chapterId || !chapter.header_image_id || !book.value?.images) {
@@ -1305,17 +1329,26 @@ const handleEditHeaderImage = (chapterId: string) => {
     }
     
     // Find the header image in the book's images array
-    const headerImage = book.value.images.find(img => img.id === chapter.header_image_id);
-    console.log('[EditImage] Found header image:', headerImage);
+    let headerImage = book.value.images.find(img => img.id === chapter.header_image_id);
     
+    // If not found by ID, try to find by chapter_id and type
+    if (!headerImage) {
+        console.log('[EditImage] Image not found by header_image_id, trying by chapter_id and type');
+        headerImage = book.value.images.find(
+            img => img.chapter_id === chapterId && img.type === 'chapter_header'
+        );
+    }
+    
+    console.log('[EditImage] Found header image:', headerImage, 'prompt:', headerImage?.prompt);
+
     if (!headerImage) {
         console.log('[EditImage] Early return - header image not found in images array');
         return;
     }
-    
+
     editImageForModal.value = headerImage;
     showEditImageModal.value = true;
-    console.log('[EditImage] Modal should open now');
+    console.log('[EditImage] Modal should open now with prompt:', headerImage.prompt?.substring(0, 100));
 };
 
 // Edit inline image handler - opens the edit modal for an inline image
@@ -1342,8 +1375,8 @@ const handleEditInlineImage = (item: { imageIndex?: number }, chapterId: string)
                img.paragraph_index === item.imageIndex &&
                img.type === 'chapter_inline'
     );
-    console.log('[EditImage] Found inline image:', inlineImage);
-    
+    console.log('[EditImage] Found inline image:', inlineImage, 'prompt:', inlineImage?.prompt);
+
     if (!inlineImage) {
         console.log('[EditImage] Early return - inline image not found in images array');
         return;
@@ -1351,7 +1384,7 @@ const handleEditInlineImage = (item: { imageIndex?: number }, chapterId: string)
 
     editImageForModal.value = inlineImage;
     showEditImageModal.value = true;
-    console.log('[EditImage] Modal should open now');
+    console.log('[EditImage] Modal should open now with prompt:', inlineImage.prompt?.substring(0, 100));
 };
 
 // Handle image updated from edit modal

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\ImageStatus;
 use App\Enums\ImageType;
+use App\Events\Image\ImageDeletedEvent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCharacterRequest;
 use App\Http\Requests\UpdateCharacterRequest;
@@ -89,7 +90,7 @@ class CharacterController extends Controller
 
     /**
      * Regenerate the character's portrait image.
-     * Always creates a new Image record to preserve history.
+     * Creates a new Image record and deletes the old one.
      */
     public function regeneratePortrait(Character $character): JsonResponse
     {
@@ -97,6 +98,7 @@ class CharacterController extends Controller
 
         // Check for existing portrait image to copy prompt from
         $existingImage = $this->imageService->getCharacterPortrait($character->id);
+        $oldImageId = $existingImage?->id;
 
         // Always create a new image record
         $image = $this->imageService->createCharacterPortraitImage(
@@ -106,6 +108,12 @@ class CharacterController extends Controller
 
         // Update character's portrait_image_id to point to new image
         $character->update(['portrait_image_id' => $image->id]);
+
+        // Delete the old image record now that it's orphaned
+        if ($oldImageId) {
+            $this->imageService->deleteById($oldImageId);
+            event(new ImageDeletedEvent($oldImageId, $character->book_id, $character->id));
+        }
 
         // Dispatch the generation job
         GenerateImageJob::dispatch($image)->onQueue('images');

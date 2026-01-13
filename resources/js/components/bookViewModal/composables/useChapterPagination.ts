@@ -628,6 +628,7 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
      */
     const updateChapterHeaderImage = (
         chapterId: string,
+        imageId: string,
         imageUrl: string | null,
         status: string
     ): void => {
@@ -648,10 +649,11 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         const updateChapter = (chapter: Chapter): Chapter => {
             return {
                 ...chapter,
+                header_image_id: imageId || chapter.header_image_id,
                 header_image_url: status === 'complete' ? imageUrl : chapter.header_image_url,
                 headerImage: {
                     ...(chapter.headerImage || {}),
-                    id: chapter.headerImage?.id || chapter.header_image_id || '',
+                    id: imageId || chapter.headerImage?.id || chapter.header_image_id || '',
                     status: mappedStatus,
                     image_url: status === 'complete' ? imageUrl : chapter.headerImage?.image_url,
                     full_url: status === 'complete' ? imageUrl : chapter.headerImage?.full_url,
