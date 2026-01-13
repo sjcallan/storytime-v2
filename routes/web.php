@@ -22,6 +22,7 @@ Route::get('dashboard', function () {
 
     // Get all books for the user's current profile grouped by genre, sorted by created_at desc
     $books = \App\Models\Book::query()
+        ->with('coverImage')
         ->where('user_id', $user->id)
         ->when($currentProfileId, function ($query, $profileId) {
             return $query->where('profile_id', $profileId);
@@ -33,7 +34,7 @@ Route::get('dashboard', function () {
 
     // Get recently read books from reading history
     $recentlyRead = ReadingHistory::query()
-        ->with('book')
+        ->with('book.coverImage')
         ->where('user_id', $user->id)
         ->when($currentProfileId, function ($query, $profileId) {
             return $query->where('profile_id', $profileId);
@@ -49,14 +50,14 @@ Route::get('dashboard', function () {
             'author' => $history->book->author,
             'age_level' => $history->book->age_level,
             'status' => $history->book->status,
-            'cover_image' => $history->book->cover_image,
+            'cover_image_url' => $history->book->cover_image_url,
             'current_chapter_number' => $history->current_chapter_number,
             'last_read_at' => $history->last_read_at->toISOString(),
         ]);
 
     // Get favorite books sorted by reading history last_read_at desc
     $favorites = Favorite::query()
-        ->with(['book'])
+        ->with(['book.coverImage'])
         ->where('user_id', $user->id)
         ->when($currentProfileId, function ($query, $profileId) {
             return $query->where('profile_id', $profileId);
@@ -80,7 +81,7 @@ Route::get('dashboard', function () {
                 'author' => $favorite->book->author,
                 'age_level' => $favorite->book->age_level,
                 'status' => $favorite->book->status,
-                'cover_image' => $favorite->book->cover_image,
+                'cover_image_url' => $favorite->book->cover_image_url,
                 'current_chapter_number' => $readingHistory?->current_chapter_number ?? 1,
                 'last_read_at' => $readingHistory?->last_read_at?->toISOString() ?? $favorite->created_at->toISOString(),
             ];

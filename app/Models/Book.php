@@ -43,6 +43,10 @@ class Book extends Model
         'cover_image_status',
     ];
 
+    protected $with = [
+        'coverImage',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -87,7 +91,7 @@ class Book extends Model
         return $this->hasMany(ReadingHistory::class);
     }
 
-    /**
+    /**full_url
      * Get the cover image for the book.
      */
     public function coverImage(): BelongsTo

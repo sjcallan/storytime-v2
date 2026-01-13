@@ -72,7 +72,7 @@ class ReadingHistoryController extends Controller
             $readingHistory->update(['current_chapter_number' => 1]);
         }
 
-        $readingHistory->load(['book', 'chapter']);
+        $readingHistory->load(['book.coverImage', 'chapter']);
 
         return response()->json($readingHistory);
     }
@@ -106,7 +106,7 @@ class ReadingHistoryController extends Controller
             ]
         );
 
-        $readingHistory->load(['book', 'chapter']);
+        $readingHistory->load(['book.coverImage', 'chapter']);
 
         return response()->json($readingHistory);
     }
