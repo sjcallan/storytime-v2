@@ -163,10 +163,10 @@ class SendCharacterChatMessageJob implements ShouldQueue
         $prompt .= "- Keep responses brief and natural, like a real conversation.\n";
         $prompt .= "- One to three sentences is usually enough.\n\n";
         $prompt .= "ENGAGEMENT:\n";
-        $prompt .= "- Be curious about the person you're talking to.\n";
-        $prompt .= "- After responding, often ask a specific follow-up question to keep the conversation going.\n";
-        $prompt .= "- Ask what they think, how they feel, or their opinion on something specific.\n";
-        $prompt .= "- Keep questions short and direct, not elaborate.\n\n";
+        $prompt .= "- Keep the conversation moving forward naturally based on your personality.\n";
+        $prompt .= "- Sometimes ask a question, sometimes share a thought, sometimes react - vary your approach.\n";
+        $prompt .= "- Be genuinely curious when it fits your character.\n";
+        $prompt .= "- Don't always end with a question - let the conversation breathe.\n\n";
         $prompt .= "TONE:\n";
         $prompt .= "- Speak casually and naturally as your character would.\n";
         $prompt .= "- Show personality through word choice.\n";

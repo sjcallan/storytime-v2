@@ -50,9 +50,12 @@ class ApiService implements AiApiServiceInterface
     {
         $this->setStartTime();
 
+        // Sanitize prompt to remove malformed UTF-8 characters
+        $sanitizedPrompt = $this->sanitizeUtf8($prompt);
+
         $settings = [
             'model' => $this->model,
-            'prompt' => $prompt,
+            'prompt' => $sanitizedPrompt,
             'temperature' => $this->temperature,
             'max_tokens' => $this->maxTokens,
         ];
@@ -206,9 +209,18 @@ class ApiService implements AiApiServiceInterface
     {
         $this->setStartTime();
 
+        // Sanitize messages to remove malformed UTF-8 characters
+        $sanitizedMessages = array_map(function ($message) {
+            if (isset($message['content'])) {
+                $message['content'] = $this->sanitizeUtf8($message['content']);
+            }
+
+            return $message;
+        }, $messages);
+
         $settings = [
             'model' => $this->model,
-            'messages' => $messages,
+            'messages' => $sanitizedMessages,
             'temperature' => $this->temperature,
             'max_tokens' => $this->maxTokens,
         ];
@@ -363,5 +375,25 @@ class ApiService implements AiApiServiceInterface
     public function getProviderName(): string
     {
         return 'openai';
+    }
+
+    /**
+     * Sanitize a string to ensure valid UTF-8 encoding.
+     * Removes or replaces invalid UTF-8 sequences that would cause json_encode to fail.
+     */
+    protected function sanitizeUtf8(string $string): string
+    {
+        // Convert to UTF-8, replacing invalid sequences with empty string
+        $cleaned = mb_convert_encoding($string, 'UTF-8', 'UTF-8');
+
+        // Remove any remaining invalid UTF-8 characters
+        $cleaned = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $cleaned);
+
+        // If preg_replace fails (returns null), fall back to iconv
+        if ($cleaned === null) {
+            $cleaned = iconv('UTF-8', 'UTF-8//IGNORE', $string);
+        }
+
+        return $cleaned ?: '';
     }
 }

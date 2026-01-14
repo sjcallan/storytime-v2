@@ -102,7 +102,6 @@ class CharacterPortraitService
 
             if ($s3Path) {
                 $character->update([
-                    'portrait_image' => $s3Path,
                     'portrait_image_id' => $image->id,
                 ]);
 
@@ -131,7 +130,7 @@ class CharacterPortraitService
                 // Check if all characters have a portrait
                 $totalCharacters = Character::where('book_id', $character->book_id)->count();
                 $charactersWithPortrait = Character::where('book_id', $character->book_id)
-                    ->whereNotNull('portrait_image')
+                    ->whereNotNull('portrait_image_id')
                     ->count();
 
                 $allCharactersHavePortrait = ($charactersWithPortrait === $totalCharacters);
