@@ -255,7 +255,7 @@ const closeMobileMenu = () => {
                         <h1
                             class="mb-6 text-5xl font-bold leading-tight text-white lg:text-7xl drop-shadow-lg"
                         >
-                            Watch their world
+                            Watch their imagination
                             <span
                                 class="bg-gradient-to-r from-[#f53003] via-[#F8B803] to-[#F0ACB8] bg-clip-text text-transparent drop-shadow-none block"
                             >
