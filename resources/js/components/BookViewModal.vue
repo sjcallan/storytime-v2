@@ -9,6 +9,7 @@ import {
     useBookAnimation,
     useChapterPagination,
     useResponsiveBook,
+    usePageMeasurement,
     BookCover,
     BookSpine,
     BookLeftPage,
@@ -60,13 +61,16 @@ const animation = useBookAnimation();
 // Responsive book composable (single-page mode for smaller screens)
 const responsive = useResponsiveBook();
 
+// Page measurement composable (DOM-based measurement for accurate pagination)
+const pageMeasurement = usePageMeasurement();
+
 // Handle reading history updates by emitting to parent
 const handleReadingHistoryUpdate = (history: ReadingHistory) => {
     emit('readingHistoryUpdated', history);
 };
 
-// Chapter pagination composable with reading history callback
-const chapters = useChapterPagination(handleReadingHistoryUpdate);
+// Chapter pagination composable with reading history callback and measurement
+const chapters = useChapterPagination(handleReadingHistoryUpdate, pageMeasurement);
 
 // Book data state
 const book = ref<Book | null>(null);
@@ -586,6 +590,17 @@ const canNavigateForward = computed(() => {
     // Can always navigate forward from title page (either from characters to title, or title to chapter 1)
     if (chapters.readingView.value === 'title') {
         return true;
+    }
+    
+    // Cannot navigate forward when on the last spread with no right content and no next chapter
+    // (the "Continue the Story..." form is shown inline on the right page)
+    const isChapterView = chapters.readingView.value === 'chapter-image' || chapters.readingView.value === 'chapter-content';
+    if (isChapterView && chapters.isOnLastSpread.value && !chapters.hasNextChapter.value) {
+        const currentSpread = chapters.currentSpread.value;
+        const hasNoRightContent = currentSpread && (currentSpread.rightContent === null || currentSpread.rightContent === undefined);
+        if (hasNoRightContent && !chapters.shouldShowNextChapterOnRight.value) {
+            return false;
+        }
     }
     
     // In single-page mode, check if we can navigate within spread
@@ -1776,6 +1791,11 @@ watch(book, newBook => {
     }
 });
 
+// Sync single-page mode with page measurement
+watch(() => responsive.isSinglePageMode.value, (isSingle) => {
+    pageMeasurement.setSinglePageMode(isSingle);
+});
+
 // Watch for modal open/close
 watch(isOpen, async (open) => {
     if (open) {
@@ -1792,8 +1812,13 @@ watch(isOpen, async (open) => {
         }
         await animation.startAnimation(props.cardPosition, loadBook);
         window.addEventListener('keydown', handleKeydown);
+
+        // Wire up page measurement after the modal is fully rendered
+        await nextTick();
+        pageMeasurement.setContainerRef(modalElement.value, responsive.isSinglePageMode.value);
     } else if (animation.isRendered.value) {
         window.removeEventListener('keydown', handleKeydown);
+        pageMeasurement.setContainerRef(null);
         await animation.reverseAnimation(props.cardPosition, resetAllState);
     }
 });
@@ -1802,6 +1827,7 @@ onBeforeUnmount(() => {
     animation.clearScheduledTimeouts();
     window.removeEventListener('keydown', handleKeydown);
     unsubscribeFromBookChannel();
+    pageMeasurement.destroy();
     if (flashTimeout) {
         clearTimeout(flashTimeout);
     }

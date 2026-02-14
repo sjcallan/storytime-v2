@@ -531,7 +531,7 @@ const rightPageNumber = computed(() => {
         
         <!-- Subsequent spreads: Content continuation on right page (full height) -->
         <template v-else>
-            <div ref="contentScrollArea" class="h-full px-16 pt-24 pb-12 overflow-y-auto">
+            <div ref="contentScrollArea" class="h-full px-16 pt-24 pb-12 overflow-hidden">
                 <div v-if="spread.rightContent" class="prose prose-amber prose-lg max-w-none text-amber-950 dark:text-amber-900">
                     <template v-for="(item, idx) in spread.rightContent" :key="idx">
                         <p 

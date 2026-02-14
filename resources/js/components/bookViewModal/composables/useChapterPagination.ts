@@ -1,13 +1,7 @@
 import { ref, computed } from 'vue';
 import type { Chapter, ChapterResponse, PageSpread, PageContentItem, ReadingView, ApiFetchFn, InlineImage, ReadingHistory } from '../types';
 import { apiFetch } from '@/composables/ApiFetch';
-
-const CHARS_PER_LINE = 55;
-const LINES_PER_FULL_PAGE = 28;
-const FIRST_PAGE_LINES = 14;
-const CHARS_PER_FULL_PAGE = CHARS_PER_LINE * LINES_PER_FULL_PAGE;
-const CHARS_FIRST_PAGE = CHARS_PER_LINE * FIRST_PAGE_LINES;
-const IMAGE_CHAR_EQUIVALENT = 400;
+import type { usePageMeasurement } from './usePageMeasurement';
 
 // Types for chapter broadcast events
 export type ChapterCreatedPayload = {
@@ -38,7 +32,10 @@ export type ChapterUpdatedPayload = {
 
 export type ReadingHistoryCallback = (history: ReadingHistory) => void;
 
-export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCallback) {
+export function useChapterPagination(
+    onReadingHistoryUpdate?: ReadingHistoryCallback,
+    measurement?: ReturnType<typeof usePageMeasurement>,
+) {
     const requestApiFetch = apiFetch as ApiFetchFn;
 
     const currentChapterNumber = ref(0);
@@ -74,14 +71,16 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         return null;
     };
 
-    const calculateChapterPages = (chapter: Chapter | null): PageContentItem[][] => {
-        if (!chapter?.body) {
+    /**
+     * Build the ordered list of content items (paragraphs and inline images) from a chapter.
+     */
+    const buildContentItems = (chapter: Chapter): PageContentItem[] => {
+        const body = chapter.body;
+        if (!body) {
             return [];
         }
 
-        const body = chapter.body;
         const paragraphs = body.split('\n\n').filter(p => p.trim());
-
         if (paragraphs.length === 0) {
             return [];
         }
@@ -98,10 +97,9 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
                 type: 'paragraph',
                 content: paragraphs[i],
             });
-            
+
             const imageForParagraph = imagesByParagraph.get(i);
             if (imageForParagraph) {
-                // Determine status: error, timeout, pending, or complete
                 let imageStatus: 'pending' | 'complete' | 'error' | 'timeout' = 'complete';
                 if (imageForParagraph.status === 'error') {
                     imageStatus = 'error';
@@ -110,7 +108,7 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
                 } else if (imageForParagraph.status === 'pending' || !imageForParagraph.url) {
                     imageStatus = 'pending';
                 }
-                
+
                 contentItems.push({
                     type: 'image',
                     content: imageForParagraph.prompt,
@@ -122,36 +120,35 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
             }
         }
 
-        const pages: PageContentItem[][] = [];
-        let currentPage: PageContentItem[] = [];
-        let currentPageChars = 0;
-        let pageIndex = 0;
+        return contentItems;
+    };
 
-        for (const item of contentItems) {
-            const maxChars = pageIndex === 0 ? CHARS_FIRST_PAGE : CHARS_PER_FULL_PAGE;
-            const itemChars = item.type === 'image' 
-                ? IMAGE_CHAR_EQUIVALENT 
-                : item.content.length + 20;
-
-            if (currentPageChars + itemChars > maxChars && currentPage.length > 0) {
-                pages.push(currentPage);
-                currentPage = [item];
-                currentPageChars = itemChars;
-                pageIndex++;
-            } else {
-                currentPage.push(item);
-                currentPageChars += itemChars;
-            }
+    /**
+     * Paginate a chapter's content into pages using DOM-based measurement
+     * when available, falling back to the measurement composable's internal
+     * character-count estimation otherwise.
+     */
+    const calculateChapterPages = (chapter: Chapter | null): PageContentItem[][] => {
+        if (!chapter?.body) {
+            return [];
         }
 
-        if (currentPage.length > 0) {
-            pages.push(currentPage);
+        const contentItems = buildContentItems(chapter);
+        if (contentItems.length === 0) {
+            return [];
         }
 
-        return pages;
+        if (measurement) {
+            return measurement.measureAndPaginate(contentItems);
+        }
+
+        // No measurement composable — should not happen in normal usage
+        return [contentItems];
     };
 
     const chapterPages = computed((): PageContentItem[][] => {
+        // Access dimensions to establish a reactive dependency — recalculates on resize
+        void measurement?.dimensions.value;
         return calculateChapterPages(currentChapter.value);
     });
 
@@ -457,8 +454,18 @@ export function useChapterPagination(onReadingHistoryUpdate?: ReadingHistoryCall
         }
 
         if (hasPrevSpread.value) {
-            currentSpreadIndex.value--;
-        } else if (currentChapterNumber.value > 1) {
+            // If we'd land on spread 0 (the chapter title card with empty left page)
+            // and there's a previous chapter, skip it and load the previous chapter's
+            // last spread instead — the user already saw this chapter's header going forward.
+            if (currentSpreadIndex.value === 1 && currentChapterNumber.value > 1) {
+                // Fall through to the "load previous chapter" branch below
+            } else {
+                currentSpreadIndex.value--;
+                return;
+            }
+        }
+        
+        if (currentChapterNumber.value > 1) {
             // Load the previous chapter and go to its last spread
             const prevChapterNumber = currentChapterNumber.value - 1;
             isLoadingChapter.value = true;
