@@ -53,6 +53,8 @@ const emit = defineEmits<{
     (e: 'swipeForward'): void;
     (e: 'swipeBack'): void;
     (e: 'editInlineImage', item: PageContentItem, chapterId: string): void;
+    (e: 'refreshInlineImage', item: PageContentItem, chapterId: string): void;
+    (e: 'refreshImage', image: Image): void;
 }>();
 
 // Swipe gesture support for touch devices
@@ -183,6 +185,7 @@ const openImageInNewWindow = (url: string | null | undefined) => {
                 :selected-image-id="selectedImageId ?? null"
                 @select-image="emit('selectImage', $event)"
                 @create-image="emit('createImage')"
+                @refresh-image="emit('refreshImage', $event)"
             />
             <!-- Character Grid View -->
             <CharacterGrid
@@ -336,6 +339,14 @@ const openImageInNewWindow = (url: string | null | undefined) => {
                                             title="Edit illustration"
                                         >
                                             <Pencil class="h-4 w-4" />
+                                        </button>
+                                        <!-- Refresh Image Button -->
+                                        <button
+                                            @click.stop="emit('refreshInlineImage', item, chapter!.id)"
+                                            class="absolute bottom-3 right-14 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/90 backdrop-blur-sm transition-all duration-200 hover:bg-black/70 hover:scale-110 active:scale-95 cursor-pointer"
+                                            title="Regenerate illustration"
+                                        >
+                                            <RefreshCw class="h-4 w-4" />
                                         </button>
                                         <!-- Open in new window button -->
                                         <button

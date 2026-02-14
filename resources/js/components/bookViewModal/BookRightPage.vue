@@ -87,6 +87,10 @@ const emit = defineEmits<{
     (e: 'editCoverImage'): void;
     (e: 'editHeaderImage', chapterId: string): void;
     (e: 'editInlineImage', item: PageContentItem, chapterId: string): void;
+    (e: 'refreshCoverImage'): void;
+    (e: 'refreshHeaderImage', chapterId: string): void;
+    (e: 'refreshInlineImage', item: PageContentItem, chapterId: string): void;
+    (e: 'refreshImage', image: Image): void;
 }>();
 
 // Swipe gesture support for touch devices
@@ -206,6 +210,7 @@ const showHeader = computed(() => {
             @deleted="emit('imageDeleted', $event)"
             @image-updated="emit('imageUpdated', $event)"
             @go-to-chapter="emit('goToChapter', $event)"
+            @refresh-image="emit('refreshImage', $event)"
         />
 
         <!-- Character Detail View (when character is selected from grid) -->
@@ -231,6 +236,7 @@ const showHeader = computed(() => {
             @continue="emit('continueToChapter1')"
             @regenerate-cover="emit('regenerateCover')"
             @edit-cover-image="emit('editCoverImage')"
+            @refresh-cover-image="emit('refreshCoverImage')"
         />
 
         <!-- Chapter Content View -->
@@ -279,6 +285,8 @@ const showHeader = computed(() => {
                 @scrolled-to-bottom="emit('scrolledToBottom')"
                 @edit-header-image="(chapterId) => emit('editHeaderImage', chapterId)"
                 @edit-inline-image="(item, chapterId) => emit('editInlineImage', item, chapterId)"
+                @refresh-header-image="(chapterId) => emit('refreshHeaderImage', chapterId)"
+                @refresh-inline-image="(item, chapterId) => emit('refreshInlineImage', item, chapterId)"
             />
         </template>
 

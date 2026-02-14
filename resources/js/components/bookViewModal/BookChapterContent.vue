@@ -35,6 +35,8 @@ const emit = defineEmits<{
     (e: 'scrolledToBottom'): void;
     (e: 'editHeaderImage', chapterId: string): void;
     (e: 'editInlineImage', item: PageContentItem, chapterId: string): void;
+    (e: 'refreshHeaderImage', chapterId: string): void;
+    (e: 'refreshInlineImage', item: PageContentItem, chapterId: string): void;
 }>();
 
 // Check header image states
@@ -288,6 +290,14 @@ const rightPageNumber = computed(() => {
                         >
                             <Pencil class="h-4 w-4" />
                         </button>
+                        <!-- Refresh Header Image Button -->
+                        <button
+                            @click.stop="emit('refreshHeaderImage', chapter.id)"
+                            class="absolute bottom-3 right-14 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/90 backdrop-blur-sm transition-all duration-200 hover:bg-black/70 hover:scale-110 active:scale-95 cursor-pointer"
+                            title="Regenerate chapter illustration"
+                        >
+                            <RefreshCw class="h-4 w-4" />
+                        </button>
                         <!-- Open in new window button -->
                         <button
                             @click.stop="openImageInNewWindow(headerImageUrl)"
@@ -472,6 +482,14 @@ const rightPageNumber = computed(() => {
                                 >
                                     <Pencil class="h-4 w-4" />
                                 </button>
+                                <!-- Refresh Image Button -->
+                                <button
+                                    @click.stop="emit('refreshInlineImage', item, chapter.id)"
+                                    class="absolute bottom-3 right-14 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/90 backdrop-blur-sm transition-all duration-200 hover:bg-black/70 hover:scale-110 active:scale-95 cursor-pointer"
+                                    title="Regenerate illustration"
+                                >
+                                    <RefreshCw class="h-4 w-4" />
+                                </button>
                                 <!-- Open in new window button -->
                                 <button
                                     @click.stop="openImageInNewWindow(item.imageUrl)"
@@ -641,6 +659,14 @@ const rightPageNumber = computed(() => {
                                     title="Edit illustration"
                                 >
                                     <Pencil class="h-4 w-4" />
+                                </button>
+                                <!-- Refresh Image Button -->
+                                <button
+                                    @click.stop="emit('refreshInlineImage', item, chapter.id)"
+                                    class="absolute bottom-3 right-14 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/90 backdrop-blur-sm transition-all duration-200 hover:bg-black/70 hover:scale-110 active:scale-95 cursor-pointer"
+                                    title="Regenerate illustration"
+                                >
+                                    <RefreshCw class="h-4 w-4" />
                                 </button>
                                 <!-- Open in new window button -->
                                 <button

@@ -16,6 +16,7 @@ class ConversationMessage extends Model
         'conversation_id',
         'message',
         'response',
+        'ai_thinking',
         'audio_file_url',
         'character_id',
     ];

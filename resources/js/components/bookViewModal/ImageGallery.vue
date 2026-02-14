@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ImageIcon, Plus, Sparkles } from 'lucide-vue-next';
+import { ImageIcon, Plus, Sparkles, RefreshCw } from 'lucide-vue-next';
 import { Spinner } from '@/components/ui/spinner';
 import type { Image } from './types';
 
@@ -14,6 +14,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
     (e: 'selectImage', image: Image): void;
     (e: 'createImage'): void;
+    (e: 'refreshImage', image: Image): void;
 }>();
 
 // Filter to only show complete images with valid URLs
@@ -133,10 +134,9 @@ const getPlaceholderGradient = (imageId: string): string => {
                 </button>
 
                 <!-- Completed Images -->
-                <button
+                <div
                     v-for="image in galleryImages"
                     :key="image.id"
-                    @click="emit('selectImage', image)"
                     :class="[
                         'group relative aspect-square overflow-hidden rounded-xl transition-all duration-200 cursor-pointer',
                         'hover:ring-2 hover:ring-amber-500/50',
@@ -145,6 +145,7 @@ const getPlaceholderGradient = (imageId: string): string => {
                             ? 'ring-2 ring-amber-500 shadow-lg' 
                             : 'ring-1 ring-amber-200 dark:ring-amber-400'
                     ]"
+                    @click="emit('selectImage', image)"
                 >
                     <!-- Image thumbnail -->
                     <img
@@ -171,12 +172,22 @@ const getPlaceholderGradient = (imageId: string): string => {
                         {{ getImageTypeLabel(image.type) }}
                     </div>
                     
+                    <!-- Refresh button (appears on hover) -->
+                    <button
+                        v-if="image.full_url && image.prompt"
+                        @click.stop="emit('refreshImage', image)"
+                        class="absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white/90 opacity-0 backdrop-blur-sm transition-all duration-200 hover:bg-black/80 hover:scale-110 active:scale-95 group-hover:opacity-100 cursor-pointer"
+                        title="Regenerate image"
+                    >
+                        <RefreshCw class="h-3.5 w-3.5" />
+                    </button>
+                    
                     <!-- Selected indicator -->
                     <div 
                         v-if="selectedImageId === image.id"
                         class="absolute inset-0 border-4 border-amber-500 rounded-xl pointer-events-none"
                     />
-                </button>
+                </div>
             </div>
         </div>
 

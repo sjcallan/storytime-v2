@@ -12,9 +12,9 @@ class ApiService implements AiApiServiceInterface
 
     protected string $baseUrl;
 
-    protected int $maxTokens = 4000;
+    protected int $maxTokens = 16384;
 
-    protected string $model = 'unsloth/Nemotron-3-Nano-30B-A3B';
+    protected string $model = 'Nemotron-3-Nano';
 
     protected float $temperature = 0.8;
 
@@ -155,7 +155,6 @@ class ApiService implements AiApiServiceInterface
             'messages' => $messages,
             'temperature' => $this->temperature,
             'max_tokens' => $this->maxTokens,
-            'extra_body' => ['chat_template_kwargs' => ['enable_thinking' => false]],
         ];
 
         if ($this->responseFormat !== 'text') {
@@ -169,7 +168,6 @@ class ApiService implements AiApiServiceInterface
         Log::info('Nemotron3 Chat Request', [
             'url' => $url,
             'model' => $this->model,
-            'temperature' => $this->temperature,
             'response_format' => $this->responseFormat,
             'message_count' => count($messages),
         ]);

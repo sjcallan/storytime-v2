@@ -758,4 +758,159 @@ class BuilderService
 
         return $result;
     }
+
+    /**
+     * Normalize paragraph breaks in chapter body text.
+     * Some AI models (especially local ones like Nemotron) return body text as a single
+     * wall of text without paragraph breaks. This method detects that and inserts
+     * paragraph breaks at natural points: before dialogue, after dialogue attribution,
+     * and at scene transitions.
+     */
+    protected function normalizeBodyParagraphs(string $body): string
+    {
+        if (empty($body)) {
+            return $body;
+        }
+
+        $body = trim($body);
+
+        // Count existing paragraph breaks (double newlines)
+        $existingBreaks = substr_count($body, "\n\n");
+        $wordCount = str_word_count($body);
+
+        // If there are already reasonable paragraph breaks, leave it alone.
+        // Expect at least 1 break per ~200 words for prose.
+        $expectedMinBreaks = max(2, (int) floor($wordCount / 200));
+
+        if ($existingBreaks >= $expectedMinBreaks) {
+            Log::debug('[BuilderService::normalizeBodyParagraphs] Body already has sufficient paragraph breaks', [
+                'existing_breaks' => $existingBreaks,
+                'expected_min' => $expectedMinBreaks,
+                'word_count' => $wordCount,
+            ]);
+
+            return $body;
+        }
+
+        Log::info('[BuilderService::normalizeBodyParagraphs] Inserting paragraph breaks into wall-of-text body', [
+            'existing_breaks' => $existingBreaks,
+            'expected_min' => $expectedMinBreaks,
+            'word_count' => $wordCount,
+            'body_length' => strlen($body),
+        ]);
+
+        // Split into sentences for processing
+        // Match sentence endings: period/exclamation/question mark followed by space(s) and an uppercase letter or quote
+        $sentences = preg_split(
+            '/(?<=[.!?])\s+(?=[A-Z"\'\x{2018}\x{201C}])/u',
+            $body,
+            -1,
+            PREG_SPLIT_NO_EMPTY
+        );
+
+        if (count($sentences) <= 1) {
+            return $body;
+        }
+
+        $paragraphs = [];
+        $currentParagraph = [];
+        $sentenceCount = 0;
+
+        foreach ($sentences as $i => $sentence) {
+            $sentence = trim($sentence);
+
+            if (empty($sentence)) {
+                continue;
+            }
+
+            $isDialogueStart = $this->startsWithDialogue($sentence);
+            $previousEndsDialogue = ! empty($currentParagraph) && $this->endsWithDialogueAttribution(end($currentParagraph));
+            $isSceneTransition = $this->isSceneTransition($sentence);
+
+            // Break before dialogue that starts a new speaker's turn
+            $shouldBreak = false;
+
+            if ($sentenceCount >= 3 && $isDialogueStart && ! $this->startsWithDialogue(end($currentParagraph) ?: '')) {
+                $shouldBreak = true;
+            }
+
+            if ($sentenceCount >= 2 && $previousEndsDialogue && ! $isDialogueStart) {
+                $shouldBreak = true;
+            }
+
+            if ($sentenceCount >= 2 && $isSceneTransition) {
+                $shouldBreak = true;
+            }
+
+            // Force a break every 5-7 sentences if no natural break has occurred
+            if ($sentenceCount >= 6) {
+                $shouldBreak = true;
+            }
+
+            if ($shouldBreak && ! empty($currentParagraph)) {
+                $paragraphs[] = implode(' ', $currentParagraph);
+                $currentParagraph = [];
+                $sentenceCount = 0;
+            }
+
+            $currentParagraph[] = $sentence;
+            $sentenceCount++;
+        }
+
+        // Don't forget the last paragraph
+        if (! empty($currentParagraph)) {
+            $paragraphs[] = implode(' ', $currentParagraph);
+        }
+
+        $result = implode("\n\n", $paragraphs);
+
+        Log::info('[BuilderService::normalizeBodyParagraphs] Paragraph normalization complete', [
+            'original_breaks' => $existingBreaks,
+            'new_paragraph_count' => count($paragraphs),
+            'result_length' => strlen($result),
+        ]);
+
+        return $result;
+    }
+
+    /**
+     * Check if a sentence starts with dialogue (opening quote character).
+     */
+    protected function startsWithDialogue(string $sentence): bool
+    {
+        $sentence = ltrim($sentence);
+
+        return (bool) preg_match('/^[\'"\\x{2018}\\x{2019}\\x{201C}\\x{201D}]/u', $sentence);
+    }
+
+    /**
+     * Check if a sentence ends with a dialogue attribution pattern.
+     */
+    protected function endsWithDialogueAttribution(string $sentence): bool
+    {
+        return (bool) preg_match(
+            '/(?:said|whispered|murmured|replied|asked|answered|shouted|called|cried|exclaimed|laughed|breathed|purred|hissed|growled|sighed|gasped|muttered|stammered|demanded|pleaded|insisted|admitted|confessed|warned|promised|suggested|added|continued|interrupted|declared|announced|snapped|groaned|moaned)[.,!?]*[\'"\\x{2018}\\x{2019}\\x{201C}\\x{201D}]*\s*$/ui',
+            $sentence
+        );
+    }
+
+    /**
+     * Check if a sentence marks a scene transition (time passing, location change, etc.).
+     */
+    protected function isSceneTransition(string $sentence): bool
+    {
+        $transitionPatterns = [
+            '/^(Later|Afterward|Eventually|Finally|Meanwhile|Suddenly|That (night|morning|evening|afternoon)|The next|Hours later|Minutes later|When (she|he|they|it) (finally|arrived|returned|woke|opened))/i',
+            '/^(The (sun|moon|morning|evening|fire|room|house|silence|darkness|light|door))\b/i',
+            '/^(Outside|Inside|Upstairs|Downstairs|Back in|Across|Beyond|Behind|Above)\b/i',
+        ];
+
+        foreach ($transitionPatterns as $pattern) {
+            if (preg_match($pattern, trim($sentence))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

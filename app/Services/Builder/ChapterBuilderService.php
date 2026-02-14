@@ -207,6 +207,9 @@ class ChapterBuilderService extends BuilderService
                 $userAddedPrompt = ' Ensure that it includes: '.$userPromptText;
             }
 
+            $targetWordCount = $this->getBodyWordCount($book->id);
+            $minimumWordCount = (int) round($targetWordCount * 0.75);
+
             $systemPrompt = [
                 'you_are' => 'An author writing the next '.$chapterLabel.' in a '.$book->genre.' '.$bookTypeLabel.' for '.$book->age_level.' year old readers.',
                 'story_details' => [
@@ -215,10 +218,12 @@ class ChapterBuilderService extends BuilderService
                     'plot' => $book->plot,
                 ],
                 'rules' => [
-                    'ensure narrative flow',
-                    'The response must be '.$this->getBodyWordCount($book->id).' words or less',
+                    'Ensure narrative flow and rich, descriptive storytelling.',
+                    'The '.$chapterLabel.' body MUST be between '.$minimumWordCount.' and '.$targetWordCount.' words. Aim for '.$targetWordCount.' words.',
                     'No '.$chapterLabel.' number or title in the body.',
                     'The characters must not be in more than 1 physical location.',
+                    'The body text MUST use paragraph breaks. Separate each paragraph with \\n\\n (two newlines). Every '.$chapterLabel.' should have multiple paragraphs.',
+                    'Write vivid, immersive prose with dialogue, description, and action.',
                 ],
             ];
 
@@ -286,19 +291,21 @@ class ChapterBuilderService extends BuilderService
 
             $physicalPresenceRule = 'CRITICAL: ONLY include characters who are PHYSICALLY PRESENT at the scene location - do NOT include characters who are merely mentioned, remembered, or talked about but not bodily there. ';
 
+            $imageFormatHint = $this->isFlux2Model() ? '16:9 landscape format.' : '9:16 portrait format.';
+
             $outputFormat = [
-                'body' => 'The full '.$chapterLabel.' text, but no more than ',
+                'body' => 'The full '.$chapterLabel.' text ('.$minimumWordCount.'-'.$targetWordCount.' words). MUST contain multiple paragraphs separated by \\n\\n (two newlines). Write rich, descriptive prose.',
                 'title' => 'A compelling '.$chapterLabel.' title (plain text, no '.$chapterLabel.' number)',
                 'summary' => 'A detailed summary with key events, character names, descriptions, ages, genders, experiences, thoughts, goals, and nationalities. No commentary.',
                 'image_prompt' => 'A detailed one-sentence prompt for an image generation service describing a key scene from this '.$chapterLabel.'. '.$physicalPresenceRule.$characterInstructions.' Describe the visual scene, setting, mood, and action.',
                 'scene_images' => [
                     [
                         'paragraph_index' => 'The 0-based paragraph index where this scene occurs (early in the '.$chapterLabel.', around 20-30% through)',
-                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$physicalPresenceRule.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$physicalPresenceRule.$characterInstructions.' Include setting details, lighting, mood, and action. '.$imageFormatHint,
                     ],
                     [
                         'paragraph_index' => 'The 0-based paragraph index where this scene occurs (later in the '.$chapterLabel.', around 60-80% through)',
-                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$physicalPresenceRule.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$physicalPresenceRule.$characterInstructions.' Include setting details, lighting, mood, and action. '.$imageFormatHint,
                     ],
                 ],
             ];
@@ -354,8 +361,11 @@ class ChapterBuilderService extends BuilderService
                 'scene_images_count' => is_array($jsonData['scene_images'] ?? null) ? count($jsonData['scene_images']) : 0,
             ]);
 
+            $body = $this->stripQuotes($jsonData['body'] ?? '') ?? '';
+            $body = $this->normalizeBodyParagraphs($body);
+
             return [
-                'body' => $this->stripQuotes($jsonData['body'] ?? ''),
+                'body' => $body,
                 'title' => $this->stripQuotes($jsonData['title'] ?? ''),
                 'summary' => $this->stripQuotes($jsonData['summary'] ?? ''),
                 'image_prompt' => $this->stripQuotes($jsonData['image_prompt'] ?? ''),
@@ -468,7 +478,7 @@ class ChapterBuilderService extends BuilderService
                 $imageResponse = $this->replicateApiService->generateImage(
                     $fullPrompt,
                     $inputImages,
-                    '16:9',
+                    $this->getEffectiveAspectRatio('16:9'),
                     $trackingContext
                 );
 
@@ -593,11 +603,10 @@ class ChapterBuilderService extends BuilderService
                 'chapter_id' => $chapterId,
             ];
 
-            // Use 16:7 aspect ratio for header images (wider than inline 16:9)
             $imageResponse = $this->replicateApiService->generateImage(
                 $fullPrompt,
                 $inputImages,
-                '16:9',
+                $this->getEffectiveAspectRatio('16:9'),
                 $trackingContext
             );
 
@@ -655,6 +664,21 @@ class ChapterBuilderService extends BuilderService
         }
 
         return true;
+    }
+
+    /**
+     * Get the effective aspect ratio for the current model.
+     *
+     * Custom models produce better results in 9:16 portrait orientation,
+     * while Flux 2 should use 16:9 landscape.
+     */
+    protected function getEffectiveAspectRatio(string $aspectRatio): string
+    {
+        if (! $this->isFlux2Model() && $aspectRatio === '16:9') {
+            return '9:16';
+        }
+
+        return $aspectRatio;
     }
 
     /**
@@ -1270,6 +1294,9 @@ class ChapterBuilderService extends BuilderService
                 $userAddedPrompt = '';
             }
 
+            $targetWordCount = $this->getBodyWordCount($book->id);
+            $minimumWordCount = (int) round($targetWordCount * 0.75);
+
             $userPrompt = '';
             $systemPrompt = [
                 'you_are' => 'An author writing the next '.$chapterLabel.' in a '.$book->genre.' '.$bookTypeLabel.' for '.$book->age_level.' year old readers.',
@@ -1279,10 +1306,12 @@ class ChapterBuilderService extends BuilderService
                     'plot' => $book->plot,
                 ],
                 'rules' => [
-                    'ensure narrative flow',
-                    'The response must be '.$this->getBodyWordCount($book->id).' words or less',
+                    'Ensure narrative flow and rich, descriptive storytelling.',
+                    'The '.$chapterLabel.' body MUST be between '.$minimumWordCount.' and '.$targetWordCount.' words. Aim for '.$targetWordCount.' words.',
                     'No '.$chapterLabel.' number or title. No '.$chapterLabel.' summary at the end.',
                     'The characters must not be in more than 1 physical location.',
+                    'Use paragraph breaks to structure the text. Separate each paragraph with blank lines.',
+                    'Write vivid, immersive prose with dialogue, description, and action.',
                 ],
             ];
 
@@ -1848,6 +1877,9 @@ PROMPT;
 
             $isScriptFormat = in_array($book->type, ['theatre', 'screenplay']);
 
+            $targetWordCount = $this->getBodyWordCount($book->id);
+            $minimumWordCount = (int) round($targetWordCount * 0.75);
+
             $systemPrompt = [
                 'you_are' => 'An expert editor modifying a '.$chapterLabel.' in a '.$book->genre.' '.$bookTypeLabel.' for '.$book->age_level.' year old readers.',
                 'story_details' => [
@@ -1859,8 +1891,9 @@ PROMPT;
                     'Maintain the overall narrative and plot points unless specifically asked to change them.',
                     'Keep the same characters unless asked to add or remove them.',
                     'Preserve the writing style and tone of the original.',
-                    'The response must be '.$this->getBodyWordCount($book->id).' words or less.',
+                    'The '.$chapterLabel.' body MUST be between '.$minimumWordCount.' and '.$targetWordCount.' words. Aim for '.$targetWordCount.' words.',
                     'No '.$chapterLabel.' number or title in the body.',
+                    'The body text MUST use paragraph breaks. Separate each paragraph with \\n\\n (two newlines).',
                 ],
             ];
 
@@ -1892,6 +1925,8 @@ PROMPT;
             $characterInstructions = $this->getCharacterIdentificationInstructions($characters);
             $physicalPresenceRule = 'CRITICAL: ONLY include characters who are PHYSICALLY PRESENT at the scene location - do NOT include characters who are merely mentioned, remembered, or talked about but not bodily there. ';
 
+            $imageFormatHint = $this->isFlux2Model() ? '16:9 landscape format.' : '9:16 portrait format.';
+
             $this->chatService->resetMessages();
             $this->chatService->setResponseFormat('json_object');
             $this->chatService->setMaxTokens(8000);
@@ -1903,11 +1938,11 @@ PROMPT;
                 'scene_images' => [
                     [
                         'paragraph_index' => 'The 0-based paragraph index where this scene occurs (early in the '.$chapterLabel.', around 20-30% through)',
-                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$physicalPresenceRule.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$physicalPresenceRule.$characterInstructions.' Include setting details, lighting, mood, and action. '.$imageFormatHint,
                     ],
                     [
                         'paragraph_index' => 'The 0-based paragraph index where this scene occurs (later in the '.$chapterLabel.', around 60-80% through)',
-                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$physicalPresenceRule.$characterInstructions.' Include setting details, lighting, mood, and action. 16:9 landscape format.',
+                        'prompt' => 'A detailed visual prompt for an image generation AI describing this specific scene. '.$physicalPresenceRule.$characterInstructions.' Include setting details, lighting, mood, and action. '.$imageFormatHint,
                     ],
                 ],
             ];
@@ -1957,8 +1992,11 @@ PROMPT;
                 'scene_images_count' => count($jsonData['scene_images'] ?? []),
             ]);
 
+            $body = $this->stripQuotes($jsonData['body'] ?? '') ?? '';
+            $body = $this->normalizeBodyParagraphs($body);
+
             return [
-                'body' => $this->stripQuotes($jsonData['body'] ?? ''),
+                'body' => $body,
                 'summary' => $this->stripQuotes($jsonData['summary'] ?? ''),
                 'scene_images' => $jsonData['scene_images'] ?? [],
             ];

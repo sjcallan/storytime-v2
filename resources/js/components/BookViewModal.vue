@@ -1437,6 +1437,116 @@ const handleEditImageModalUpdated = (updatedImage: Image) => {
     emit('updated', book.value);
 };
 
+// Refresh/Regenerate image handler - regenerates an image using its stored prompt
+const handleRefreshImage = async (image: Image) => {
+    if (!image?.id || !book.value) {
+        return;
+    }
+    
+    // Optimistically update the image status to pending
+    const existingImageIndex = book.value.images?.findIndex(img => img.id === image.id);
+    if (existingImageIndex !== undefined && existingImageIndex >= 0 && book.value.images) {
+        book.value.images[existingImageIndex].status = 'pending';
+    }
+    
+    // Update the selected image if it's the same one
+    if (selectedImage.value?.id === image.id) {
+        selectedImage.value = { ...selectedImage.value, status: 'pending' };
+    }
+    
+    // Update cover image status if this is the book cover
+    if (image.type === 'book_cover' && book.value.cover_image_id === image.id) {
+        book.value.cover_image_status = 'pending';
+    }
+    
+    // Update chapter header image status if this is a chapter header
+    if (image.type === 'chapter_header' && image.chapter_id) {
+        chapters.updateChapterHeaderImage(image.chapter_id, image.id, null, 'pending');
+    }
+    
+    // Update inline image status if this is a chapter inline
+    if (image.type === 'chapter_inline' && image.chapter_id && image.paragraph_index !== null) {
+        chapters.updateChapterInlineImage(
+            image.chapter_id,
+            image.paragraph_index,
+            null,
+            'pending',
+            null
+        );
+    }
+    
+    const { error } = await requestApiFetch(`/api/images/${image.id}/regenerate`, 'POST');
+    
+    if (error) {
+        // Reset status on error
+        if (existingImageIndex !== undefined && existingImageIndex >= 0 && book.value.images) {
+            book.value.images[existingImageIndex].status = 'error';
+        }
+        if (selectedImage.value?.id === image.id) {
+            selectedImage.value = { ...selectedImage.value, status: 'error' };
+        }
+        if (image.type === 'book_cover') {
+            book.value.cover_image_status = 'error';
+        }
+        actionError.value = 'Failed to start image regeneration. Please try again.';
+    }
+    // On success, the websocket will update the image when complete
+};
+
+// Refresh cover image handler - uses the book's cover image
+const handleRefreshCoverImage = async () => {
+    if (!book.value?.cover_image_id || !book.value.images) {
+        return;
+    }
+    
+    const coverImage = book.value.images.find(img => img.id === book.value!.cover_image_id);
+    if (coverImage) {
+        await handleRefreshImage(coverImage);
+    }
+};
+
+// Refresh header image handler - finds and refreshes a chapter's header image
+const handleRefreshHeaderImage = async (chapterId: string) => {
+    if (!book.value?.images) {
+        return;
+    }
+    
+    const chapter = chapters.currentChapter.value;
+    if (!chapter || chapter.id !== chapterId) {
+        return;
+    }
+    
+    // Find the header image
+    let headerImage = book.value.images.find(img => img.id === chapter.header_image_id);
+    if (!headerImage) {
+        headerImage = book.value.images.find(
+            img => img.chapter_id === chapterId && img.type === 'chapter_header'
+        );
+    }
+    
+    if (headerImage) {
+        await handleRefreshImage(headerImage);
+    }
+};
+
+// Refresh inline image handler - finds and refreshes a chapter's inline image
+const handleRefreshInlineImage = async (item: { imageIndex?: number }, chapterId: string) => {
+    if (!book.value?.images || item.imageIndex === undefined) {
+        return;
+    }
+    
+    // Find the inline image by chapter_id and paragraph_index
+    const inlineImage = book.value.images.find(
+        img => img.chapter_id === chapterId && 
+               img.paragraph_index === item.imageIndex &&
+               img.type === 'chapter_inline'
+    );
+    
+    if (inlineImage) {
+        await handleRefreshImage(inlineImage);
+    }
+};
+
 // Character update handler
 const handleCharacterUpdated = (updatedCharacter: Character) => {
     if (!book.value) {
@@ -1961,6 +2071,8 @@ onBeforeUnmount(() => {
                             @swipe-forward="handleSwipeForward"
                             @swipe-back="handleSwipeBack"
                             @edit-inline-image="(item, chapterId) => handleEditInlineImage(item, chapterId)"
+                            @refresh-inline-image="(item, chapterId) => handleRefreshInlineImage(item, chapterId)"
+                            @refresh-image="handleRefreshImage"
                         />
 
                         <!-- Book Spine (hidden in single-page mode) -->
@@ -2038,6 +2150,10 @@ onBeforeUnmount(() => {
                             @edit-cover-image="handleEditCoverImage"
                             @edit-header-image="(chapterId) => handleEditHeaderImage(chapterId)"
                             @edit-inline-image="(item, chapterId) => handleEditInlineImage(item, chapterId)"
+                            @refresh-cover-image="handleRefreshCoverImage"
+                            @refresh-header-image="(chapterId) => handleRefreshHeaderImage(chapterId)"
+                            @refresh-inline-image="(item, chapterId) => handleRefreshInlineImage(item, chapterId)"
+                            @refresh-image="handleRefreshImage"
                         />
 
                         <!-- Right Edge Click Zone (Go Forward / Start Reading) -->

@@ -71,6 +71,7 @@ class SendCharacterChatMessageJob implements ShouldQueue
         } else {
             $this->conversationMessage->update([
                 'response' => $result['completion'],
+                'ai_thinking' => $result['thinking'] ?? null,
             ]);
         }
 

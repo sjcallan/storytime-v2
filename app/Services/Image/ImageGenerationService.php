@@ -103,8 +103,10 @@ class ImageGenerationService
             $this->imageService->updateById($image->id, ['prompt' => $prompt]);
         }
 
-        $stylePrefix = $this->getBookCoverStylePrefix($book);
-        $fullPrompt = $stylePrefix.$prompt.' shot on Sony A7IV, clean sharp, high dynamic range';
+        $fullPrompt = $prompt;
+
+        // $stylePrefix = $this->getBookCoverStylePrefix($book);
+        // $fullPrompt = $stylePrefix.$prompt.' shot on Sony A7IV, clean sharp, high dynamic range';
 
         // Save the full prompt that will be sent to Replicate
         $this->imageService->updateById($image->id, ['prompt' => $fullPrompt]);
@@ -122,7 +124,7 @@ class ImageGenerationService
         $result = $this->replicateService->generateImage(
             $fullPrompt,
             $characterImages,
-            $image->aspect_ratio,
+            $this->getEffectiveAspectRatio($image->aspect_ratio),
             $trackingContext
         );
 
@@ -168,16 +170,18 @@ class ImageGenerationService
             'character_id' => $image->character_id,
         ];
 
+        $effectiveAspectRatio = $this->getEffectiveAspectRatio($image->aspect_ratio);
+
         $result = $useKreaModel
             ? $this->replicateService->generateImageWithKrea(
                 prompt: $prompt,
-                aspectRatio: $image->aspect_ratio,
+                aspectRatio: $effectiveAspectRatio,
                 trackingContext: $trackingContext
             )
             : $this->replicateService->generateImage(
                 prompt: $prompt,
                 inputImages: null,
-                aspectRatio: $image->aspect_ratio,
+                aspectRatio: $effectiveAspectRatio,
                 trackingContext: $trackingContext
             );
 
@@ -246,7 +250,7 @@ class ImageGenerationService
         $result = $this->replicateService->generateImage(
             $fullPrompt,
             $inputImages,
-            $image->aspect_ratio,
+            $this->getEffectiveAspectRatio($image->aspect_ratio),
             $trackingContext
         );
 
@@ -350,7 +354,7 @@ class ImageGenerationService
         $result = $this->replicateService->generateImage(
             $fullPrompt,
             $inputImages,
-            $image->aspect_ratio,
+            $this->getEffectiveAspectRatio($image->aspect_ratio),
             $trackingContext
         );
 
@@ -415,7 +419,7 @@ class ImageGenerationService
         $result = $this->replicateService->generateImage(
             $fullPrompt,
             $inputImages,
-            $image->aspect_ratio,
+            $this->getEffectiveAspectRatio($image->aspect_ratio),
             $trackingContext
         );
 
@@ -724,6 +728,21 @@ Be specific and descriptive. Write only the description itself, no explanations 
     protected function isFlux2Model(): bool
     {
         return ! (bool) config('services.replicate.use_custom_model', false);
+    }
+
+    /**
+     * Get the effective aspect ratio for the current model.
+     *
+     * Custom models produce better results in 9:16 portrait orientation,
+     * while Flux 2 should use 16:9 landscape.
+     */
+    protected function getEffectiveAspectRatio(string $aspectRatio): string
+    {
+        if (! $this->isFlux2Model() && $aspectRatio === '16:9') {
+            return '9:16';
+        }
+
+        return $aspectRatio;
     }
 
     /**

@@ -17,6 +17,7 @@ const emit = defineEmits<{
     (e: 'continue'): void;
     (e: 'regenerateCover'): void;
     (e: 'editCoverImage'): void;
+    (e: 'refreshCoverImage'): void;
 }>();
 </script>
 
@@ -81,6 +82,15 @@ const emit = defineEmits<{
                 title="Edit cover image"
             >
                 <Pencil class="h-4 w-4" />
+            </button>
+            <!-- Refresh/Regenerate Cover Button -->
+            <button
+                @click.stop="emit('refreshCoverImage')"
+                :disabled="coverImageStatus === 'pending'"
+                class="absolute bottom-3 left-14 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/90 backdrop-blur-sm transition-all duration-200 hover:bg-black/70 hover:scale-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                title="Regenerate cover image"
+            >
+                <RefreshCw class="h-4 w-4" />
             </button>
         </div>
 

@@ -23,11 +23,13 @@ class ChatService implements AiChatServiceInterface
 
     protected int $totalTokens = 0;
 
-    protected string $model = 'unsloth/Nemotron-3-Nano-30B-A3B';
+    protected string $model = 'Nemotron-3-Nano';
 
     protected ?string $id = null;
 
     protected string $completion = '';
+
+    protected ?string $thinking = null;
 
     /** @var float Cost per 1000 tokens - local model has no cost */
     protected const MODEL_COST_PER_1K_TOKENS = 0.0;
@@ -38,7 +40,7 @@ class ChatService implements AiChatServiceInterface
     {
         $this->apiService = $apiService;
         $this->requestLogService = $requestLogService;
-        $this->model = config('ai.providers.nemotron3.model', 'unsloth/Nemotron-3-Nano-30B-A3B');
+        $this->model = config('ai.providers.nemotron3.model', 'Nemotron-3-Nano');
     }
 
     public function setResponseFormat(string $responseFormat = 'text'): void
@@ -67,7 +69,12 @@ class ChatService implements AiChatServiceInterface
 
         $this->response = $response;
         $this->model = $response['model'] ?? $this->model;
-        $this->completion = $response['choices'][0]['message']['content'] ?? '';
+
+        $rawContent = $response['choices'][0]['message']['content'] ?? '';
+        $parsed = $this->extractThinking($rawContent);
+        $this->thinking = $parsed['thinking'];
+        $this->completion = $parsed['content'];
+
         $this->promptTokens = $response['usage']['prompt_tokens'] ?? 0;
 
         if (array_key_exists('completion_tokens', $response['usage'] ?? [])) {
@@ -80,6 +87,7 @@ class ChatService implements AiChatServiceInterface
         return [
             'response' => $this->response,
             'completion' => $this->getCompletion(),
+            'thinking' => $this->getThinking(),
             'prompt_tokens' => $this->getPromptTokens(),
             'completion_tokens' => $this->getCompletionTokens(),
             'total_tokens' => $this->getTotalTokens(),
@@ -260,5 +268,33 @@ class ChatService implements AiChatServiceInterface
     public function getError(): ?string
     {
         return $this->apiService->getError();
+    }
+
+    public function getThinking(): ?string
+    {
+        return $this->thinking;
+    }
+
+    /**
+     * Extract thinking content from response that ends with </think> tag.
+     * Everything before </think> is thinking, everything after is the actual content.
+     *
+     * @return array{thinking: string|null, content: string}
+     */
+    protected function extractThinking(string $rawContent): array
+    {
+        $thinking = null;
+        $content = $rawContent;
+
+        if (str_contains($rawContent, '</think>')) {
+            $parts = explode('</think>', $rawContent, 2);
+            $thinking = trim($parts[0]);
+            $content = trim($parts[1] ?? '');
+        }
+
+        return [
+            'thinking' => $thinking,
+            'content' => $content,
+        ];
     }
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ArrowLeft, ExternalLink, ImageIcon, Sparkles, BookOpen, User, Loader2, Camera, Palette, Sun, Heart, Mountain, Layout, Trash2, FileText, Pencil } from 'lucide-vue-next';
+import { ArrowLeft, ExternalLink, ImageIcon, Sparkles, BookOpen, User, Loader2, Camera, Palette, Sun, Heart, Mountain, Layout, Trash2, FileText, Pencil, RefreshCw } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/composables/ApiFetch';
 import EditImageModal from './EditImageModal.vue';
@@ -40,6 +40,7 @@ const emit = defineEmits<{
     (e: 'deleted', imageId: string): void;
     (e: 'imageUpdated', image: Image): void;
     (e: 'goToChapter', chapterId: string): void;
+    (e: 'refreshImage', image: Image): void;
 }>();
 
 // Delete state
@@ -61,6 +62,11 @@ const handleImageUpdated = (newImage: Image) => {
 const canEditImage = computed(() => {
     // Allow editing if there's a prompt or if the image is complete
     return !!props.image.prompt || props.image.status === 'complete';
+});
+
+// Check if the image can be regenerated (must have a prompt)
+const canRefreshImage = computed(() => {
+    return !!props.image.prompt && props.image.status === 'complete';
 });
 
 // Delete image
@@ -263,6 +269,17 @@ const formattedDate = computed(() => {
                 >
                     <Pencil class="h-4 w-4" />
                     <span>Edit</span>
+                </button>
+                
+                <!-- Refresh/Regenerate button -->
+                <button
+                    v-if="canRefreshImage"
+                    @click="emit('refreshImage', image)"
+                    class="flex items-center gap-1.5 rounded-full bg-amber-500/90 px-3 py-1.5 text-sm font-medium text-white shadow-lg backdrop-blur-sm transition-all hover:bg-amber-600 hover:scale-105 active:scale-95 cursor-pointer"
+                    title="Regenerate image with same prompt"
+                >
+                    <RefreshCw class="h-4 w-4" />
+                    <span>Regenerate</span>
                 </button>
                 
                 <!-- Delete button -->

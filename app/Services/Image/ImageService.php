@@ -56,7 +56,7 @@ class ImageService
             'type' => ImageType::ChapterHeader,
             'prompt' => $prompt,
             'status' => ImageStatus::Pending,
-            'aspect_ratio' => ImageType::ChapterHeader->aspectRatio(),
+            'aspect_ratio' => $this->getEffectiveAspectRatio(ImageType::ChapterHeader->aspectRatio()),
         ]);
     }
 
@@ -74,7 +74,7 @@ class ImageService
             'prompt' => $prompt,
             'status' => ImageStatus::Pending,
             'paragraph_index' => $paragraphIndex,
-            'aspect_ratio' => ImageType::ChapterInline->aspectRatio(),
+            'aspect_ratio' => $this->getEffectiveAspectRatio(ImageType::ChapterInline->aspectRatio()),
         ]);
     }
 
@@ -93,6 +93,23 @@ class ImageService
             'status' => ImageStatus::Pending,
             'aspect_ratio' => ImageType::CharacterPortrait->aspectRatio(),
         ]);
+    }
+
+    /**
+     * Get the effective aspect ratio for the current model.
+     *
+     * Custom models produce better results in 9:16 portrait orientation,
+     * while Flux 2 should use 16:9 landscape.
+     */
+    protected function getEffectiveAspectRatio(string $aspectRatio): string
+    {
+        $useCustomModel = (bool) config('services.replicate.use_custom_model', false);
+
+        if ($useCustomModel && $aspectRatio === '16:9') {
+            return '9:16';
+        }
+
+        return $aspectRatio;
     }
 
     /**
